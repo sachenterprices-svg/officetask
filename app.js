@@ -320,7 +320,7 @@ app.get('*', (req, res) => {
 });
 
 // Test database connection on startup
-async function testConnection() {
+async function startupChecks() {
     try {
         const connection = await pool.getConnection();
         console.log('✅ MySQL database connected successfully!');
@@ -330,13 +330,22 @@ async function testConnection() {
         console.log('⚠️  Server will run but database features won\'t work.');
         console.log('    Make sure MySQL is running and .env settings are correct.');
     }
-}
 
-app.listen(PORT, '127.0.0.1', async () => {
-    console.log(`\n🚀 Server is running on port ${PORT} (Secure Local-Only Mode)`);
-    console.log(`🌐 Open http://localhost:${PORT} in your browser.\n`);
-    await testConnection();
     await upgradeUsersTable();
     await upgradeProposalsTable();
     await initializeAdmin();
-});
+}
+
+// Support for both local development and Vercel Serverless Functions
+if (require.main === module) {
+    app.listen(PORT, '127.0.0.1', async () => {
+        console.log(`\n🚀 Server is running on port ${PORT} (Secure Local-Only Mode)`);
+        console.log(`🌐 Open http://localhost:${PORT} in your browser.\n`);
+        await startupChecks();
+    });
+} else {
+    // Export the express app so Vercel can run it as a serverless function
+    // Run startup checks asynchronously (may delay first request slightly on cold start)
+    startupChecks().catch(console.error);
+    module.exports = app;
+}
