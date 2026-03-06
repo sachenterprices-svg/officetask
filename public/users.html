@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Users Management - BSNL Proposal Generator</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <!-- Auth Guard -->
+    <script src="auth.js"></script>
+    <style>
+        .page-content {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .legacy-header {
+            color: #d63300;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-bottom: 1px solid #c9d2de;
+            padding-bottom: 5px;
+            margin-bottom: 15px;
+        }
+
+        .legacy-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #aebac6;
+            font-size: 0.9rem;
+        }
+
+        .legacy-table th {
+            background: #4a668c;
+            color: white;
+            padding: 6px 10px;
+            text-align: left;
+            font-weight: normal;
+            border-right: 1px solid #fff;
+        }
+
+        .legacy-table td {
+            padding: 6px 10px;
+            border: 1px solid #c9d2de;
+            color: #333;
+        }
+
+        .legacy-table tr:nth-child(even) {
+            background-color: #f7f9fc;
+        }
+
+        .legacy-pagination {
+            border: 1px solid #aebac6;
+            border-top: none;
+            background: #e9eef4;
+            padding: 8px;
+            text-align: center;
+            color: #333;
+            font-size: 0.85rem;
+        }
+
+        .legacy-actions {
+            border: 1px solid #aebac6;
+            border-top: none;
+            background: #fdfdfd;
+            padding: 10px;
+        }
+
+        .legacy-btn {
+            background: #fff;
+            border: 1px solid #4a668c;
+            color: #333;
+            padding: 3px 10px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            border-radius: 2px;
+        }
+
+        .legacy-btn:hover {
+            background: #eef2f5;
+        }
+
+        .action-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 4px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            width: 500px;
+            max-width: 90%;
+        }
+
+        .modal h3 {
+            margin-top: 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+            color: #4a668c;
+        }
+
+        .form-row {
+            margin-bottom: 15px;
+        }
+
+        .form-row label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-size: 0.9rem;
+        }
+
+        .form-row input,
+        .form-row select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .perms-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="app-header">
+        <div class="logo-container">
+            <div class="coral-logo">
+                <span class="c-blue">Coral</span> <span class="c-orange">Infratel</span>
+            </div>
+            <span class="app-title">CRM Admin</span>
+        </div>
+        <div class="nav-links">
+            <a href="index.html" target="_blank">Proposals</a>
+            <a href="catalog.html" target="_blank">Catalog</a>
+            <a href="reports.html" target="_blank">Reports</a>
+            <a href="users.html" style="text-decoration: underline;">Users</a>
+            <button onclick="window.logout()" class="btn"
+                style="padding: 6px 12px; margin-left: 15px; background: #e31837; border:none; color:white; border-radius: 4px; cursor: pointer;">Logout</button>
+        </div>
+    </div>
+
+    <div class="page-content">
+        <div class="legacy-header">User's List</div>
+
+        <div style="margin-bottom: 15px; font-size: 0.9rem; color: #333;">
+            Display No. of Rows
+            <input type="number" id="pageSize" value="8" style="width: 50px; padding: 2px; border: 1px solid #999;"
+                disabled>
+            <span style="color:red;">/8</span>
+        </div>
+
+        <table class="legacy-table">
+            <thead>
+                <tr>
+                    <th style="width: 50px;"></th> <!-- Radio button col -->
+                    <th>UserID</th>
+                    <th>Name</th>
+                    <th>UserName</th>
+                    <th>Mobile No</th>
+                    <th>Email Address</th>
+                    <th style="text-align:center; width: 40px;">Edit</th>
+                    <th style="text-align:center; width: 50px;">Delete</th>
+                </tr>
+            </thead>
+            <tbody id="usersTableBody">
+                <tr>
+                    <td colspan="8" style="text-align: center; padding: 15px;">Loading users...</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="legacy-pagination">
+            &#171; &#8249; &nbsp;&nbsp;&nbsp;&nbsp; 1 of 1 &nbsp;&nbsp;&nbsp;&nbsp; &#8250; &#187;
+        </div>
+
+        <div class="legacy-actions">
+            <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px;">
+                <select style="padding: 3px; border: 1px solid #4a668c;">
+                    <option>--Select--</option>
+                </select>
+                <input type="text" style="padding: 3px; border: 1px solid #4a668c; width: 250px;">
+                <button class="legacy-btn">Search</button>
+                <button class="legacy-btn">Back</button>
+                <button class="legacy-btn" onclick="openAddModal()">Add New</button>
+            </div>
+
+            <div class="action-row">
+                <button class="legacy-btn" onclick="triggerAction('changePassword')">Change Password</button>
+                <button class="legacy-btn" onclick="triggerAction('resetPassword')">Reset Password</button>
+                <button class="legacy-btn" onclick="triggerAction('assignCustomer')" style="color:#aaa;" disabled
+                    title="Future Feature">Assign Customer</button>
+                <button class="legacy-btn" onclick="triggerAction('assignRights')">Assign Rights</button>
+                <button class="legacy-btn" onclick="triggerAction('assignPermission')">Assign Area (Circle/OA)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+
+    <!-- User Modal (Add/Edit) -->
+    <div id="userModal" class="modal">
+        <div class="modal-content">
+            <h3 id="userModalTitle">Add/Edit User</h3>
+            <form id="userForm">
+                <input type="hidden" id="modalUserId">
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
+                    <div class="form-row">
+                        <label>Name</label>
+                        <input type="text" id="modalName" required>
+                    </div>
+                    <div class="form-row">
+                        <label>Username</label>
+                        <input type="text" id="modalUsername" required>
+                    </div>
+                    <div class="form-row" id="passwordRow">
+                        <label>Password</label>
+                        <input type="password" id="modalPassword">
+                    </div>
+                    <div class="form-row">
+                        <label>Role</label>
+                        <select id="modalRole">
+                            <option value="user">Standard User</option>
+                            <option value="manager">Manager</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label>Mobile No</label>
+                        <input type="text" id="modalMobile">
+                    </div>
+                    <div class="form-row">
+                        <label>Email Address</label>
+                        <input type="email" id="modalEmail">
+                    </div>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:20px;">
+                    <button type="button" class="legacy-btn" onclick="closeModals()">Cancel</button>
+                    <button type="submit" class="legacy-btn" style="background:#4a668c; color:white;">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Password Modal -->
+    <div id="passwordModal" class="modal">
+        <div class="modal-content" style="width:350px;">
+            <h3>Change Password</h3>
+            <form id="pwdForm">
+                <div class="form-row">
+                    <label>New Password</label>
+                    <input type="password" id="pwdNewPassword" required>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:8px;">
+                    <button type="button" class="legacy-btn" onclick="closeModals()">Cancel</button>
+                    <button type="submit" class="legacy-btn" style="background:#4a668c; color:white;">Update</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Rights Matrix Modal -->
+    <div id="rightsModal" class="modal">
+        <div class="modal-content" style="width:600px;">
+            <h3>Assign Rights & Modules</h3>
+            <p style="font-size:0.85rem; color:#666; margin-bottom:15px;">Select which modules and features this user
+                can access. New modules will automatically appear here.</p>
+            <form id="rightsForm">
+                <div class="perms-grid" id="dynamicPermissionsContainer">
+                    <!-- Checkboxes injected by JS based on module list -->
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:20px;">
+                    <button type="button" class="legacy-btn" onclick="closeModals()">Cancel</button>
+                    <button type="submit" class="legacy-btn" style="background:#4a668c; color:white;">Save
+                        Rights</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Area Permission Modal -->
+    <div id="areaModal" class="modal">
+        <div class="modal-content" style="width:400px;">
+            <h3>Assign Area Coverage</h3>
+            <p style="font-size:0.85rem; color:#666; margin-bottom:15px;">Restrict proposal generation to specific
+                regions.</p>
+            <form id="areaForm">
+                <div class="form-row">
+                    <label>Allowed Circle (Leave blank for All)</label>
+                    <input type="text" id="areaCircle" placeholder="e.g. MH, DL">
+                </div>
+                <div class="form-row">
+                    <label>Allowed OA (Leave blank for All)</label>
+                    <input type="text" id="areaOA" placeholder="e.g. Pune, Delhi">
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:20px;">
+                    <button type="button" class="legacy-btn" onclick="closeModals()">Cancel</button>
+                    <button type="submit" class="legacy-btn" style="background:#4a668c; color:white;">Save Area</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="users.js"></script>
+</body>
+
+</html>

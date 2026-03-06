@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BSNL Communication System Proposal Generator</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <!-- Auth Guard -->
+    <script src="auth.js"></script>
+    <!-- html2pdf.js for exporting to PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+
+<body>
+
+    <!-- Top Bar with Coral Logo -->
+    <div class="app-header no-print"
+        style="display: flex; justify-content: space-between; align-items: center; background-color: #0f172a; padding: 15px 30px; margin-bottom: 20px;">
+        <div class="logo-container" style="display: flex; align-items: center; gap: 15px;">
+            <div class="coral-logo"
+                style="background: white; padding: 5px 15px; border-radius: 4px; font-weight:800; font-size:1.2em;">
+                <span class="c-blue" style="color:#0033a0">Coral</span> <span class="c-orange"
+                    style="color:#f97316">Infratel</span>
+            </div>
+            <span class="app-title" style="color: white; font-weight: 500;">CRM Dashboard</span>
+        </div>
+        <div class="nav-links" style="display: flex; align-items: center; gap: 20px;">
+            <a href="index.html" target="_blank"
+                style="color: white; text-decoration: underline; font-weight: 500;">Proposals</a>
+            <a href="catalog.html" target="_blank"
+                style="color: white; text-decoration: none; font-weight: 500;">Catalog</a>
+            <a href="reports.html" target="_blank"
+                style="color: white; text-decoration: none; font-weight: 500;">Reports</a>
+            <a href="users.html" class="admin-only"
+                style="color: white; text-decoration: none; font-weight: 500; display:none;">Users</a>
+            <button onclick="window.logout()" class="btn"
+                style="padding: 6px 12px; background: #e31837; border:none; color:white; border-radius: 4px; cursor: pointer;">Logout</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Input Form Section -->
+        <div class="form-section no-print">
+            <h2>Proposal Configurations</h2>
+            <p class="form-subtitle">Fill in the details below to generate a professional PDF proposal.</p>
+
+            <div class="form-grid">
+                <!-- Sender Details Heading -->
+                <div class="input-group full-width" style="margin-bottom: 5px;">
+                    <h3 class="section-heading"
+                        style="margin: 0; color: #0033a0; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">Sender
+                        Details (BSNL Data)</h3>
+                </div>
+
+                <div class="input-group">
+                    <label for="bsnlCircle">BSNL Circle</label>
+                    <select id="bsnlCircle">
+                        <option value="">Select Circle...</option>
+                        <!-- Options populated by JS -->
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label for="bsnlOA">BSNL OA (Operational Area)</label>
+                    <select id="bsnlOA" disabled>
+                        <option value="">Select OA...</option>
+                        <!-- Options populated by JS -->
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label for="senderName">Sender Name</label>
+                    <input type="text" id="senderName" placeholder="Full Name">
+                </div>
+
+                <div class="input-group">
+                    <label for="senderDesignation">Sender Designation</label>
+                    <input type="text" id="senderDesignation" placeholder="e.g. Account Manager">
+                </div>
+
+                <div class="input-group">
+                    <label for="senderMobile">Mobile Number</label>
+                    <input type="tel" id="senderMobile" placeholder="+91 XXXXXXXXXX">
+                </div>
+
+                <div class="input-group">
+                    <label for="senderEmail">Email Address</label>
+                    <input type="email" id="senderEmail" placeholder="e.g. name@bsnl.co.in">
+                </div>
+
+                <!-- Empty div for grid alignment so Customer Details starts on a new line if needed, or just let it flow -->
+                <div class="input-group" style="display:none;"></div>
+
+                <!-- Customer Details -->
+                <div class="input-group full-width" style="margin-top: 20px;">
+                    <h3 class="section-heading"
+                        style="margin: 0; color: #0033a0; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">
+                        Customer Details</h3>
+                </div>
+
+                <div class="input-group">
+                    <label for="customerName">Customer/Company Name</label>
+                    <input type="text" id="customerName" placeholder="e.g. ABC Corp">
+                </div>
+
+                <div class="input-group">
+                    <label for="customerEmail">Email Address</label>
+                    <input type="email" id="customerEmail" placeholder="email@company.com">
+                </div>
+
+                <div class="input-group full-width">
+                    <label for="customerAddress">Company Address</label>
+                    <input type="text" id="customerAddress" placeholder="Full Address">
+                </div>
+
+                <div class="input-group">
+                    <label for="contactPerson">Contact Person Name</label>
+                    <input type="text" id="contactPerson" placeholder="Name">
+                </div>
+
+                <div class="input-group">
+                    <label for="contactMobile">Contact Person Mobile</label>
+                    <input type="tel" id="contactMobile" placeholder="+91 XXXXXXXXXX">
+                </div>
+
+                <!-- Technical Details -->
+                <div class="input-group full-width" style="margin-top: 20px;">
+                    <h3 class="section-heading"
+                        style="margin: 0; color: #0033a0; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">
+                        Technical Requirements</h3>
+                </div>
+
+                <div class="input-group">
+                    <label for="customerCategory">Customer Category</label>
+                    <select id="customerCategory">
+                        <option value="Enterprise">Enterprise / Corporate</option>
+                        <option value="Hospital">Hospital / Healthcare</option>
+                        <option value="CallCenter">Call Center / BPO</option>
+                        <option value="Hotel">Hotel / Hospitality</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label for="planType">Plan Type</label>
+                    <select id="planType">
+                        <option value="Normal">Normal Plan</option>
+                        <option value="Combo">Combo Plan (Free EPABX)</option>
+                    </select>
+                </div>
+
+                <div class="input-group" id="comboPlanWrapper" style="display: none;">
+                    <label for="businessSegment">Business Segment</label>
+                    <select id="businessSegment">
+                        <option value="Small">Small (CC 10-40)</option>
+                        <option value="Medium">Medium (CC 60-150)</option>
+                        <option value="Large">Large (CC 180-360)</option>
+                    </select>
+                </div>
+
+                <div class="input-group" id="sipCcWrapper" style="display: none;">
+                    <label for="sipCc">SIP CC Configuration (Channels)</label>
+                    <select id="sipCc"></select>
+                </div>
+
+                <div class="input-group" id="pabxPortWrapper" style="display: none;">
+                    <label for="pabxPort">PABX Configuration (Ports)</label>
+                    <select id="pabxPort"></select>
+                </div>
+
+                <div class="input-group">
+                    <label for="sipPlan">SIP Trunk Plan</label>
+                    <select id="sipPlan">
+                        <option value="MPLS">BSNL SIP Trunk - MPLS</option>
+                        <option value="Internet">BSNL SIP Trunk - Internet</option>
+                    </select>
+                </div>
+
+                <div class="input-group" id="staticIpWarning"
+                    style="display: none; color: #ff6b6b; font-size: 0.85em; grid-column: span 2; margin-top: -15px;">
+                    * Static IP is required for Internet SIP Trunk.
+                </div>
+
+                <div class="input-group" id="ipExtWrapper">
+                    <label for="ipExt">IP Extensions (Count)</label>
+                    <input type="number" id="ipExt" min="0" value="0" placeholder="0">
+                </div>
+
+                <div class="input-group" id="analogExtWrapper">
+                    <label for="analogExt">Analog Extensions (Count)</label>
+                    <input type="number" id="analogExt" min="0" value="0" placeholder="0">
+                </div>
+
+                <div class="input-group" id="vasExtWrapper">
+                    <label for="vasExt">Value Added Service Ports</label>
+                    <input type="number" id="vasExt" min="0" value="0" placeholder="Dialer, IVR, etc.">
+                </div>
+
+                <div class="input-group" id="channelsWrapper">
+                    <label for="channels">Outgoing Channels (Min 10)</label>
+                    <input type="number" id="channels" min="10" step="5" value="10">
+                </div>
+
+                <div class="input-group">
+                    <label for="freeDid">Free DIDs (Included)</label>
+                    <input type="number" id="freeDid" min="0" value="0" readonly>
+                </div>
+
+                <div class="input-group">
+                    <label for="extraDid">Extra DIDs</label>
+                    <input type="number" id="extraDid" min="0" value="0" placeholder="0">
+                </div>
+
+                <div class="input-group">
+                    <label for="nextFollowup">Next Follow-up Date</label>
+                    <input type="date" id="nextFollowup">
+                </div>
+
+                <!-- Direct Sale Material Section -->
+                <div class="input-group full-width"
+                    style="margin-top: 20px; border-top: 2px solid #e2e8f0; padding-top: 20px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <h3 class="section-heading" style="margin: 0;">Direct Sale Quotation</h3>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <label for="directSaleToggle"
+                                style="margin:0; font-weight:600; font-size: 1.1em; color: #0033a0;">Add Material
+                                Sale?</label>
+                            <input type="checkbox" id="directSaleToggle"
+                                style="width: 20px; height: 20px; cursor: pointer;">
+                        </div>
+                    </div>
+
+                    <div id="quotationBuilder"
+                        style="display: none; background: #f8fafc; padding: 20px; border-radius: 8px; margin-top: 15px; border: 1px solid #cbd5e1;">
+                        <div class="form-grid"
+                            style="grid-template-columns: 2fr 3fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px; align-items: flex-end;">
+                            <div class="input-group" style="margin:0;">
+                                <label>Category</label>
+                                <select id="quoteCategory">
+                                    <option value="">Loading...</option>
+                                </select>
+                            </div>
+                            <div class="input-group" style="margin:0;">
+                                <label>Model/Item</label>
+                                <select id="quoteItem">
+                                    <option value="">Select Category First</option>
+                                </select>
+                            </div>
+                            <div class="input-group" style="margin:0;">
+                                <label>Qty</label>
+                                <input type="number" id="quoteQty" value="1" min="1">
+                            </div>
+                            <div class="input-group" style="margin:0;">
+                                <label>Rate (₹)</label>
+                                <input type="number" id="quoteRate" value="0" min="0">
+                            </div>
+                            <button type="button" id="addQuoteBtn" class="btn"
+                                style="height: 42px; background: #10b981;">Add</button>
+                        </div>
+
+                        <table style="width: 100%; border-collapse: collapse; background: white;">
+                            <thead>
+                                <tr style="background: #e2e8f0;">
+                                    <th style="padding: 10px; text-align: left;">Item Description</th>
+                                    <th style="padding: 10px; text-align: center; width: 80px;">Qty</th>
+                                    <th style="padding: 10px; text-align: right; width: 120px;">Rate</th>
+                                    <th style="padding: 10px; text-align: right; width: 120px;">Amount</th>
+                                    <th style="padding: 10px; width: 50px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="quoteCurrentItems">
+                                <tr>
+                                    <td colspan="5" style="text-align: center; padding: 15px; color: #64748b;">No
+                                        items added to quotation yet.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 15px; margin-top: 10px;">
+                <button id="previewBtn" class="btn" style="background: #334155; flex: 1;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        style="margin-right: 8px;">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    Preview Proposal
+                </button>
+                <button id="exportBtn" class="btn" style="flex: 1;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        style="margin-right: 8px;">
+                        <path d="M21 15v4a2 0 0 1-2 2H5a2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Download PDF
+                </button>
+                <button id="exportWordBtn" class="btn" style="flex: 1; background: #2b5797;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        style="margin-right: 8px;">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                    Download Word
+                </button>
+            </div>
+
+            <button id="submitProposalBtn" class="btn"
+                style="width: 100%; margin-top: 15px; background: #0033a0; font-size: 1.1em; padding: 12px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    style="margin-right: 10px;">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 0 0 1-2 2z"></path>
+                    <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                    <polyline points="7 3 7 8 15 8"></polyline>
+                </svg>
+                Finalize & Submit to CRM
+            </button>
+            <div id="exportStatus"
+                style="display: none; text-align: center; margin-top: 10px; color: #10b981; font-weight: 500; font-size: 0.9em;">
+                PDF Generated Successfully!
+            </div>
+        </div>
+        <!-- Proposal Preview Section -->
+        <div class="preview-wrapper">
+            <div class="preview-section" id="proposalPreview">
+
+                <div class="proposal-header">
+                    <div class="header-content">
+                        <!-- BSNL Logo (SVG to avoid CORS issues in PDF) -->
+                        <div class="bsnl-logo">
+                            <svg width="60" height="60" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="50" cy="50" r="45" fill="none" stroke="#0033a0" stroke-width="8" />
+                                <path d="M 30 70 L 70 30 M 70 70 L 30 30" stroke="#e31837" stroke-width="8"
+                                    stroke-linecap="round" />
+                                <path d="M 20 50 L 80 50" stroke="#e31837" stroke-width="8" stroke-linecap="round" />
+                            </svg>
+                            <div class="bsnl-text">
+                                <span class="brand-name">BSNL</span>
+                                <span class="tagline" id="headerCircleOA"
+                                    style="font-size: 0.9em; margin-top: 5px; color: #0033a0; font-weight: 700;"></span>
+                                <span class="tagline">Connecting India</span>
+                            </div>
+                        </div>
+                        <div class="proposal-meta">
+                            <h1>Commercial Proposal</h1>
+                            <p>Date: <span id="currentDate"></span></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="proposal-body">
+
+                    <div class="info-boxes"
+                        style="display: flex; justify-content: space-between; gap: 20px; margin-bottom: 25px;">
+                        <div class="customer-info-box" id="customerInfoBox"
+                            style="flex: 1; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; display: none;">
+                            <h4
+                                style="margin-top:0; margin-bottom: 10px; color: #0033a0; font-size: 1.1em; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px;">
+                                To (Customer Details)</h4>
+                            <div class="info-row"><strong>Company:</strong> <span id="prevCustomerName"></span>
+                            </div>
+                            <div class="info-row"><strong>Address:</strong> <span id="prevCustomerAddress"></span>
+                            </div>
+                            <div class="info-row"><strong>Attn:</strong> <span id="prevContactPerson"></span> <span
+                                    id="prevContactMobile"
+                                    style="color:#64748b; font-size: 0.9em; margin-left: 5px;"></span></div>
+                            <div class="info-row"><strong>Email:</strong> <span id="prevCustomerEmail"></span></div>
+                        </div>
+
+                        <div class="sender-info-box" id="senderInfoBox"
+                            style="flex: 1; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; display: none;">
+                            <h4
+                                style="margin-top:0; margin-bottom: 10px; color: #0033a0; font-size: 1.1em; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px;">
+                                From (BSNL Details)</h4>
+                            <div class="info-row">
+                                <strong>From:</strong> <span id="prevSenderName"></span><span
+                                    id="prevDesignation"></span>
+                            </div>
+                            <div class="info-row">
+                                <strong>BSNL Circle:</strong> <span id="prevCircleOA"></span>
+                            </div>
+                            <div class="info-row">
+                                <strong>Contact:</strong> <span id="prevMobile"></span>
+                            </div>
+                            <div class="info-row">
+                                <strong>Email:</strong> <span id="prevSenderEmailHeader"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="intro-text">
+                        <p>We are pleased to submit the following proposal for the Communication System. Below are
+                            the
+                            customized features and commercial details based on your specific requirements.</p>
+                    </div>
+
+                    <!-- Dynamic Features based on category -->
+                    <div id="categoryFeatures" class="category-features">
+                        <!-- Features will be injected here -->
+                    </div>
+
+                    <!-- Dynamic Quotation Table (Annexure B) -->
+                    <div id="quotationPreviewSection" style="display: none; margin-top: 30px;">
+                        <h3 class="table-heading"
+                            style="color:#0033a0; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px;">Annexure B:
+                            Equipment / Direct Sale Quotation</h3>
+                        <table class="proposal-table" style="margin-bottom: 20px;">
+                            <thead>
+                                <tr>
+                                    <th>Equipment / Material Description</th>
+                                    <th style="text-align: center;">Qty</th>
+                                    <th style="text-align: right;">Unit Rate (INR)</th>
+                                    <th style="text-align: right;">Total Amount (INR)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="quotePreviewBody">
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <th colspan="3" style="text-align: right;">Total Equipment Value (INR):</th>
+                                    <th id="quoteGrandTotal"
+                                        style="color: #0f172a; font-size: 1.15em; text-align: right;">₹
+                                        0</th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <h3 class="table-heading" style="margin-top:20px; color: #0033a0;">Annexure A: Recurring Service
+                        Plan (SIP Trunk)</h3>
+                    <table class="proposal-table">
+                        <thead>
+                            <tr>
+                                <th>Description / Item</th>
+                                <th style="text-align: center;">Quantity</th>
+                                <th style="text-align: right;">Rate (INR)</th>
+                                <th style="text-align: right;">Total Value (INR)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody">
+                            <!-- Rows will be populated dynamically -->
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <th colspan="3" style="text-align: right;">Total Estimated Cost (INR):</th>
+                                <th id="grandTotal" style="color: #0f172a; font-size: 1.25em; text-align: right;">₹
+                                    0
+                                </th>
+                            </tr>
+                        </tfoot>
+                    </table>
+
+                    <div class="proposal-notes">
+                        <h3>SIP Trunk Configuration Summarized:</h3>
+                        <div class="sip-grid">
+                            <div class="sip-item">
+                                <span class="sip-label">Plan Type</span>
+                                <span class="sip-value" id="prevSipPlan">BSNL SIP Trunk MPLS</span>
+                            </div>
+                            <div class="sip-item">
+                                <span class="sip-label">Outgoing Channels</span>
+                                <span class="sip-value" id="prevChannels">10</span>
+                            </div>
+                            <div class="sip-item">
+                                <span class="sip-label">Free DIDs Included</span>
+                                <span class="sip-value" id="prevFreeDids">100</span>
+                            </div>
+                        </div>
+                        <p id="staticIpNotePreview"
+                            style="display: none; color: #e11d48; margin-top: 15px; font-weight: 600; font-size: 0.9em;">
+                            * Important Note: Static IP mapping is strictly required for Internet based SIP Trunk
+                            routing.
+                        </p>
+                    </div>
+
+                    <div class="proposal-footer">
+                        <p style="margin-bottom: 15px; font-weight: 600; color: #0033a0;">* यह मशीन/इक्विपमेंट बीएसएनएल
+                            के अधिकृत फ्रैंचाइज़ी (Managed Service Partner) कोरल इंफ्राटेल के द्वारा इन्स्टॉल और कमीशन
+                            किया जाएगा।</p>
+                        <p>This is a computer-generated proposal. For any queries, please contact the undersigned.
+                        </p>
+                        <div style="margin-top: 30px; font-weight: 600;" id="footerSignature"></div>
+                    </div>
+
+                    <!-- Additional Professional Pages (Only shown in full PDF or scroll) -->
+                    <div class="additional-sections"
+                        style="margin-top: 50px; border-top: 5px solid #0033a0; padding-top: 30px;">
+
+                        <!-- Page: Benefits -->
+                        <div class="page-break" style="page-break-before: always;">
+                            <h2 style="color: #0033a0; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">Benefits
+                                of BSNL SIP Trunking & Managed Services</h2>
+                            <div class="benefits-grid"
+                                style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px;">
+                                <div class="benefit-card"
+                                    style="background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #0033a0;">
+                                    <h4 style="margin: 0 0 10px 0; color: #0f172a;">Cost Efficiency</h4>
+                                    <p style="font-size: 0.9em; color: #475569; margin: 0;">Significant reduction in
+                                        monthly rentals and call charges compared to traditional PRI/Analog lines.</p>
+                                </div>
+                                <div class="benefit-card"
+                                    style="background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #0033a0;">
+                                    <h4 style="margin: 0 0 10px 0; color: #0f172a;">Scalability</h4>
+                                    <p style="font-size: 0.9em; color: #475569; margin: 0;">Easily add channels and DIDs
+                                        as your business grows without hardware changes.</p>
+                                </div>
+                                <div class="benefit-card"
+                                    style="background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #0033a0;">
+                                    <h4 style="margin: 0 0 10px 0; color: #0f172a;">Advanced Features</h4>
+                                    <p style="font-size: 0.9em; color: #475569; margin: 0;">Bundled IVR, Voice Logging,
+                                        and Multi-party conferencing facilities enabled by default.</p>
+                                </div>
+                                <div class="benefit-card"
+                                    style="background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #0033a0;">
+                                    <h4 style="margin: 0 0 10px 0; color: #0f172a;">Managed Hardware</h4>
+                                    <p style="font-size: 0.9em; color: #475569; margin: 0;">Under the Combo Plan,
+                                        high-end IP-PBX hardware is provided and maintained by BSNL/Coral.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Page: Scope of Work -->
+                        <div class="page-break" style="page-break-before: always; margin-top: 40px;">
+                            <h2 style="color: #0033a0; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">Scope of
+                                Work</h2>
+                            <div style="font-size: 0.95em; line-height: 1.6; color: #334155;">
+                                <p><strong>BSNL Scope:</strong> Provisioning of SIP Trunk over MPLS/Internet, allocation
+                                    of DIDs, and configuration of the core voice gateway.</p>
+                                <p><strong>Managed Service Partner (Coral):</strong> Installation of IP-PBX/Gateway at
+                                    customer premises, internal extension mapping, and standard maintenance.</p>
+                                <p><strong>Customer Scope:</strong> Providing physical space for equipment, UPS power
+                                    supply, LAN/Internal wiring up to the end-user points.</p>
+                            </div>
+                        </div>
+
+                        <!-- Page: Terms & Conditions -->
+                        <div class="page-break" style="page-break-before: always; margin-top: 40px;">
+                            <h2 style="color: #0033a0; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">Terms
+                                and Conditions</h2>
+                            <ul style="font-size: 0.9em; color: #475569; padding-left: 20px;">
+                                <li style="margin-bottom: 8px;">Delivery: 2-4 weeks after receipt of firm order and site
+                                    readiness.</li>
+                                <li style="margin-bottom: 8px;">Payment: Monthly rentals will be included in the BSNL
+                                    telephone bill.</li>
+                                <li style="margin-bottom: 8px;">Taxes: GST and other statutory levies will be charged as
+                                    per actuals.</li>
+                                <li style="margin-bottom: 8px;">Contract Period: Minimum commitment of 1 year for the
+                                    Combo/Managed plan.</li>
+                                <li style="margin-bottom: 8px;">The proposal is valid for 30 days from the date of
+                                    issue.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview Modal -->
+    <div id="previewModal" class="modal no-print"
+        style="display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.8); overflow-y: auto;">
+        <div class="modal-content"
+            style="background-color: #f1f5f9; margin: 2% auto; padding: 0; border: none; width: 210mm; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); border-radius: 8px; position: relative;">
+            <div class="modal-header"
+                style="padding: 15px 30px; background: #0f172a; color: white; display: flex; justify-content: space-between; align-items: center; border-top-left-radius: 8px; border-top-right-radius: 8px; position: sticky; top: 0; z-index: 10;">
+                <h3 style="margin: 0;">Proposal Preview</h3>
+                <div style="display: flex; gap: 10px;">
+                    <button id="modalDownloadBtn" class="btn"
+                        style="padding: 8px 16px; font-size: 0.9em; background: #10b981;">Download PDF</button>
+                    <button id="closePreviewBtn" class="btn"
+                        style="padding: 8px 16px; font-size: 0.9em; background: #ef4444;">Close</button>
+                </div>
+            </div>
+            <div id="modalBody" style="padding: 0;">
+                <!-- Clone of proposalPreview will be injected here -->
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>
