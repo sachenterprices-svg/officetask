@@ -330,88 +330,105 @@ document.addEventListener('DOMContentLoaded', () => {
         form.dataset.editId = data.id;
     }
 
+    // Helper to safely get value from an element that might be missing
+    const getVal = (id, defaultVal = '') => {
+        const el = document.getElementById(id);
+        if (!el) return defaultVal;
+        return el.value;
+    };
+
     // Handle Form Submission
     const form = document.getElementById('customerForm');
     if (form) {
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            // Collect Lines
-            const lineData = [];
-            document.querySelectorAll('.telephone-line-section').forEach(sec => {
-                lineData.push({
-                    telephone_code: sec.querySelector('.telStdCode').value,
-                    telephone_number: sec.querySelector('.telNumber').value,
-                    line_type: sec.querySelector('.lineType').value,
-                    sip_no: sec.querySelector('.sipNo').value,
-                    start_date: sec.querySelector('.startDate').value,
-                    billing_account: sec.querySelector('.billingAcc').value,
-                    crm_customer_id: sec.querySelector('.crmCustId').value,
-                    submit_at_fms: sec.querySelector('.submitFms').value,
-                    fms_submit_date: sec.querySelector('.fmsDate').value,
-                    is_closed: sec.querySelector('.isClosed').value,
-                    closed_date: sec.querySelector('.closedDate').value,
-                    telephone_code_2: ''
-                });
-            });
-
-            const formData = {
-                circle: selCircle.value,
-                ssa: document.getElementById('custSsa').value,
-                oa_name: selOA.value,
-                customer_name: document.getElementById('custName').value,
-                customer_code: document.getElementById('customerCode').value, // Though disabled, we'll keep the key
-                order_date: document.getElementById('custOrderDate').value,
-                acc_person_name: document.getElementById('accName').value,
-                acc_person_mobile: document.getElementById('accMobile').value,
-                acc_person_email: document.getElementById('accEmail').value,
-                tech_person_name: document.getElementById('techName').value,
-                tech_person_mobile: document.getElementById('techMobile').value,
-                tech_person_email: document.getElementById('techEmail').value,
-                customer_status: document.getElementById('custStatus').value,
-                customer_closed_date: document.getElementById('custClosedDate').value,
-
-                product_plan: document.getElementById('prodPlan').value,
-                monthly_rent: document.getElementById('monthlyRent').value,
-                channels: document.getElementById('channels').value,
-                analog_line: document.getElementById('analogLines').value,
-                digital_line: document.getElementById('digitalLines').value,
-                vas_line: document.getElementById('vasLines').value,
-                ip_line: document.getElementById('ipLines').value,
-                analog_rent: document.getElementById('analogRent').value,
-                digital_rent: document.getElementById('digitalRent').value,
-                vas_rent: document.getElementById('vasRent').value,
-                ip_rent: document.getElementById('ipRent').value,
-                rg_port: document.getElementById('rgPort').value,
-                rg_rent: document.getElementById('rgRent').value,
-                plan_charge: document.getElementById('planCharge').value,
-                revenue_level: document.getElementById('revLevel').value,
-                epabx_model: document.getElementById('epabxModel').value,
-                product_start_date: document.getElementById('prodStartDate').value,
-                lines: lineData,
-                is_extension: form.dataset.isExtension === 'true',
-                order_id: form.dataset.orderId || null
-            };
-
-            const isEdit = form.dataset.editId;
-            const url = isEdit ? `/api/customers/${isEdit}` : '/api/customers';
-            const method = isEdit ? 'PUT' : 'POST';
-
             try {
+                // Collect Lines
+                const lineData = [];
+                document.querySelectorAll('.telephone-line-section').forEach(sec => {
+                    const getLineVal = (selector) => {
+                        const el = sec.querySelector(selector);
+                        return el ? el.value : '';
+                    };
+                    lineData.push({
+                        telephone_code: getLineVal('.telStdCode'),
+                        telephone_number: getLineVal('.telNumber'),
+                        line_type: getLineVal('.lineType'),
+                        sip_no: getLineVal('.sipNo'),
+                        start_date: getLineVal('.startDate'),
+                        billing_account: getLineVal('.billingAcc'),
+                        crm_customer_id: getLineVal('.crmCustId'),
+                        submit_at_fms: getLineVal('.submitFms') || 'NO',
+                        fms_submit_date: getLineVal('.fmsDate'),
+                        is_closed: getLineVal('.isClosed') || 'NO',
+                        closed_date: getLineVal('.closedDate'),
+                        telephone_code_2: ''
+                    });
+                });
+
+                const formData = {
+                    circle: selCircle ? selCircle.value : '',
+                    ssa: '', // SSA field removed from UI but kept in API for compatibility
+                    oa_name: selOA ? selOA.value : '',
+                    customer_name: getVal('custName'),
+                    customer_code: getVal('customerCode'),
+                    order_date: getVal('custOrderDate'),
+                    acc_person_name: getVal('accName'),
+                    acc_person_mobile: getVal('accMobile'),
+                    acc_person_email: getVal('accEmail'),
+                    tech_person_name: getVal('techName'),
+                    tech_person_mobile: getVal('techMobile'),
+                    tech_person_email: getVal('techEmail'),
+                    customer_status: getVal('custStatus', 'OPEN'),
+                    customer_closed_date: getVal('custClosedDate'),
+
+                    product_plan: getVal('prodPlan'),
+                    monthly_rent: getVal('monthlyRent', 0),
+                    channels: getVal('channels', 0),
+                    analog_line: getVal('analogLines', 0),
+                    digital_line: getVal('digitalLines', 0),
+                    vas_line: getVal('vasLines', 0),
+                    ip_line: getVal('ipLines', 0),
+                    analog_rent: getVal('analogRent', 0),
+                    digital_rent: getVal('digitalRent', 0),
+                    vas_rent: getVal('vasRent', 0),
+                    ip_rent: getVal('ipRent', 0),
+                    rg_port: getVal('rgPort', 0),
+                    rg_rent: getVal('rgRent', 0),
+                    plan_charge: getVal('planCharge', 0),
+                    revenue_level: getVal('revLevel'),
+                    epabx_model: getVal('epabxModel'),
+                    product_start_date: getVal('prodStartDate'),
+                    lines: lineData,
+                    is_extension: form.dataset.isExtension === 'true',
+                    order_id: form.dataset.orderId || null
+                };
+
+                const isEdit = form.dataset.editId;
+                const url = isEdit ? `/api/customers/${isEdit}` : '/api/customers';
+                const method = isEdit ? 'PUT' : 'POST';
+
+                console.log('Registering/Updating customer...', formData);
+
                 const res = await window.apiFetch(url, {
                     method: method,
                     body: JSON.stringify(formData)
                 });
+
                 if (res.ok) {
+                    const result = await res.json();
                     alert(isEdit ? 'Customer updated successfully!' : 'Customer registered successfully!');
+                    console.log('Success:', result);
                     window.location.reload();
                 } else {
                     const err = await res.json();
                     alert('Error: ' + (err.error || 'Operation failed'));
+                    console.error('API Error:', err);
                 }
             } catch (err) {
-                console.error(err);
-                alert('Connection error');
+                console.error('Submission Crash:', err);
+                alert('Connection error or script crash. Check console.');
             }
         });
     }
