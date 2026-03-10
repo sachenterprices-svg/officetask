@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Support - Coral Infratel</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #002d72;
+            --secondary: #f97316;
+            --bg-gradient: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            --error: #e31837;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-gradient);
+            color: #1e293b;
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Ambient Background Elements */
+        .ambient-blob {
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.08) 0%, rgba(59, 130, 246, 0) 70%);
+            border-radius: 50%;
+            z-index: -1;
+            filter: blur(40px);
+        }
+
+        .blob-1 {
+            top: -100px;
+            left: -100px;
+        }
+
+        .blob-2 {
+            bottom: -100px;
+            right: -100px;
+            background: radial-gradient(circle, rgba(249, 115, 22, 0.05) 0%, rgba(249, 115, 22, 0) 70%);
+        }
+
+        .public-container {
+            max-width: 550px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 50px;
+            border-radius: 30px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 35px;
+            font-weight: 900;
+            font-size: 1.8rem;
+            letter-spacing: -0.5px;
+        }
+
+        .c-blue {
+            color: #002d72;
+        }
+
+        .c-orange {
+            color: #f97316;
+        }
+
+        h2 {
+            text-align: center;
+            color: #0f172a;
+            margin-bottom: 8px;
+            font-weight: 800;
+            font-size: 1.6rem;
+        }
+
+        p.subtitle {
+            text-align: center;
+            color: #64748b;
+            font-size: 1rem;
+            margin-bottom: 35px;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            font-weight: 700;
+            margin-bottom: 10px;
+            font-size: 0.85rem;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            padding: 14px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 1rem;
+            box-sizing: border-box;
+            background: white;
+            transition: 0.3s;
+            outline: none;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            border-color: #002d72;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+        }
+
+        .row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-lookup {
+            background: #0f172a;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 700;
+            white-space: nowrap;
+            transition: 0.3s;
+        }
+
+        .btn-lookup:hover {
+            transform: translateY(-2px);
+            opacity: 0.9;
+        }
+
+        /* Alerts like support.html */
+        .alert {
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            display: none;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .alert-success {
+            background: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #d1fae5;
+        }
+
+        .alert-error {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fee2e2;
+            text-align: left;
+            line-height: 1.5;
+        }
+
+        .fetch-status {
+            font-size: 0.8rem;
+            color: #64748b;
+            margin-top: 5px;
+            height: 1.2rem;
+            display: none;
+        }
+
+        .btn-submit {
+            background: linear-gradient(135deg, #002d72, #2563eb);
+            color: white;
+            border: none;
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: 0.3s;
+            margin-top: 20px;
+            box-shadow: 0 10px 20px rgba(37, 99, 235, 0.2);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-submit:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 25px rgba(37, 99, 235, 0.3);
+        }
+
+        .btn-submit:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .header-simple {
+            padding: 15px 0;
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            margin-bottom: 40px;
+            width: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1000;
+        }
+
+        .header-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-logo {
+            text-decoration: none;
+            color: #0f172a;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.2rem;
+        }
+
+        .header-logo img {
+            height: 40px;
+        }
+
+        .header-logo span {
+            color: #002d72;
+        }
+
+        .logo-nav a {
+            text-decoration: none;
+            color: #64748b;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: 0.2s;
+        }
+
+        .logo-nav a:hover {
+            color: #002d72;
+        }
+    </style>
+</head>
+
+<body>
+    <header class="header-simple">
+        <div class="header-container">
+            <a href="index.html" class="header-logo">
+                <img src="https://coralinfratel.com/wp-content/uploads/2021/05/coral-logo.png" alt="Logo">
+                Coral <span>Infratel</span>
+            </a>
+            <div class="logo-nav">
+                <a href="index.html">← Back to Home</a>
+            </div>
+        </div>
+    </header>
+
+    <div class="ambient-blob blob-1"></div>
+    <div class="ambient-blob blob-2"></div>
+
+    <div class="public-container">
+        <div class="logo">
+            <span class="c-blue">Coral</span> <span class="c-orange">Infratel</span>
+        </div>
+        <h2>Submit a Complaint</h2>
+        <p class="subtitle">Enter your registered Pilot number/Landline to start.</p>
+
+        <div id="statusAlert" class="alert alert-success">
+            Complaint submitted! Your Ticket ID is: <span id="ticketIdDisplay"></span>
+        </div>
+
+        <div id="notFoundAlert" class="alert alert-error">
+            <strong>Data Not Available</strong><br>
+            Please Enter your Pilot PRI/SIP number as mentioned in the BSNL Bill.
+        </div>
+
+        <form id="complaintForm">
+            <!-- STEP 1: Phone Lookup -->
+            <div class="form-group" id="step1">
+                <label>Existing Customer Lookup (Landline)</label>
+                <div class="row">
+                    <div style="flex: 0 0 100px;">
+                        <input type="text" id="stdCode" placeholder="STD" maxlength="6">
+                    </div>
+                    <div style="flex: 1;">
+                        <input type="text" id="telNumber" placeholder="Telephone Number" maxlength="10">
+                    </div>
+                    <button type="button" class="btn-lookup" onclick="fetchCustomer()">Verify</button>
+                </div>
+                <div id="fetchStatus" class="fetch-status">Verifying...</div>
+            </div>
+
+            <!-- STEP 2: Extra Fields (Hidden initially) -->
+            <div id="extraFields" class="hidden-fields">
+                <div class="form-group">
+                    <label>Verified Customer Name</label>
+                    <input type="text" id="custName" required readonly
+                        style="background: #f8fafc; cursor: not-allowed;">
+                </div>
+
+                <div class="form-group">
+                    <label>Your Mobile Number</label>
+                    <input type="tel" id="custMobile" required placeholder="For status updates">
+                </div>
+
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" id="custEmail" required placeholder="For confirmation">
+                </div>
+
+                <div class="form-group">
+                    <label>Issue/Complaint Details</label>
+                    <textarea id="issueDesc" rows="4" required placeholder="Describe your problem..."></textarea>
+                </div>
+
+                <button type="submit" class="btn-submit" id="submitBtn">Register Complaint</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        const API_BASE = 'https://officetask-roan.vercel.app/api';
+
+        const stdInput = document.getElementById('stdCode');
+        const telInput = document.getElementById('telNumber');
+        const nameInput = document.getElementById('custName');
+        const mobileInput = document.getElementById('custMobile');
+        const emailInput = document.getElementById('custEmail');
+        const statusText = document.getElementById('fetchStatus');
+        const extraFields = document.getElementById('extraFields');
+        const notFoundAlert = document.getElementById('notFoundAlert');
+        const statusAlert = document.getElementById('statusAlert');
+
+        const fetchCustomer = async () => {
+            const std = stdInput.value.trim();
+            const tel = telInput.value.trim();
+
+            if (!std || !tel) {
+                alert("Please enter both STD code and Telephone Number.");
+                return;
+            }
+
+            // Reset UI
+            statusText.textContent = "Verifying with BSNL Database...";
+            statusText.style.display = 'block';
+            statusText.style.color = '#64748b';
+            notFoundAlert.style.display = 'none';
+            statusAlert.style.display = 'none';
+            extraFields.style.display = 'none';
+
+            let customerFound = false;
+
+            // Same as support.html: multi-endpoint try
+            const endpoints = [
+                `${API_BASE}/customers/search?std_code=${std}&telephone_number=${tel}`,
+                `http://localhost:8080/api/customers/search?std_code=${std}&telephone_number=${tel}`
+            ];
+
+            for (const url of endpoints) {
+                try {
+                    const res = await fetch(url);
+                    if (res.ok) {
+                        const data = await res.json();
+                        nameInput.value = data.customer_name;
+
+                        statusText.style.color = "#059669";
+                        statusText.textContent = "Customer record verified!";
+                        extraFields.style.display = 'block';
+                        customerFound = true;
+                        break;
+                    }
+                } catch (e) {
+                    console.warn(`Endpoint failed: ${url}`);
+                }
+            }
+
+            if (!customerFound) {
+                statusText.style.display = 'none';
+                notFoundAlert.style.display = 'block';
+            }
+        };
+
+        // Form Submission
+        document.getElementById('complaintForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.textContent = 'Submitting...';
+
+            const payload = {
+                customer_name: nameInput.value,
+                mobile: mobileInput.value,
+                email: emailInput.value,
+                issue_type: "Public-Web",
+                description: document.getElementById('issueDesc').value,
+                std_code: stdInput.value,
+                telephone_number: telInput.value
+            };
+
+            try {
+                const res = await fetch(`${API_BASE}/complaints`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.ok) {
+                    const result = await res.json();
+                    document.getElementById('ticketIdDisplay').textContent = result.ticket_id || ('TK' + Math.floor(Math.random() * 900000 + 100000));
+                    statusAlert.style.display = 'block';
+                    e.target.reset();
+                    extraFields.style.display = 'none';
+                    statusText.textContent = "";
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } else {
+                    alert("Submission error. Please call support.");
+                }
+            } catch (err) {
+                alert("Network error. Try again later.");
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Register Complaint';
+            }
+        };
+
+        // Tracking (Optional but synced from support.html logic)
+        (async function trackVisit() {
+            try {
+                await fetch(`${API_BASE}/analytics/track`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        page_url: '/public_complaint.html',
+                        action_type: 'visit',
+                        details: 'Public Complaint Page View'
+                    })
+                });
+            } catch (e) { }
+        })();
+    </script>
+</body>
+
+</html>

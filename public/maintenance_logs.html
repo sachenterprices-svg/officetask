@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maintenance Logs - Coral Infratel</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Maintenance Logs Specific */
+        .log-container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.04);
+        }
+    </style>
+
+    .glass-card {
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.04);
+    border: 1px solid white;
+    margin: 0 auto;
+    max-width: 1000px;
+    padding: 40px;
+    }
+
+    h1 {
+    margin-top: 0;
+    color: #0f172a;
+    font-weight: 800;
+    font-size: 1.8rem;
+    border-bottom: 2px solid #f1f5f9;
+    padding-bottom: 15px;
+    margin-bottom: 30px;
+    }
+
+    table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+    border: 1px solid #e2e8f0;
+    }
+
+    th,
+    td {
+    padding: 15px 20px;
+    text-align: left;
+    border-bottom: 1px solid #f1f5f9;
+    }
+
+    th {
+    background: #f8fafc;
+    font-size: 0.85rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #64748b;
+    }
+
+    .badge {
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    }
+
+    .badge-ERROR {
+    background: #fee2e2;
+    color: #b91c1c;
+    }
+
+    .badge-MAINTENANCE {
+    background: #e0e7ff;
+    color: #4338ca;
+    }
+
+    .badge-HEALTH_CHECK {
+    background: #d1fae5;
+    color: #059669;
+    }
+
+    code {
+    background: #f1f5f9;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    color: #c2410c;
+    }
+    </style>
+</head>
+
+<body>
+    <header class="top-header">
+        <div class="header-brand">
+            <span style="color: #002d72;">Coral</span> <span style="color: #f97316;">Infratel</span>
+        </div>
+        <div class="user-meta">
+            <span id="userInfoDisplay" style="font-weight:600;"></span>
+            <button onclick="window.logout()" class="logout-btn">Logout</button>
+        </div>
+    </header>
+
+    <div class="app-body">
+        <aside class="tile-sidebar">
+            <div class="sidebar-header">USER & SYSTEM</div>
+            <a href="dashboard.html" class="module-tile"><i>🏠</i>
+                <div class="tile-content">
+                    <h4>Dashboard</h4>
+                </div>
+            </a>
+            <a href="users.html" class="module-tile admin-only"><i>👥</i>
+                <div class="tile-content">
+                    <h4>Users</h4>
+                </div>
+            </a>
+            <a href="website_management.html" class="module-tile admin-only"><i>🌐</i>
+                <div class="tile-content">
+                    <h4>Website Management</h4>
+                </div>
+            </a>
+            <a href="maintenance_logs.html" class="module-tile active admin-only"><i>⚙️</i>
+                <div class="tile-content">
+                    <h4>System Maintenance</h4>
+                </div>
+            </a>
+        </aside>
+
+        <main class="content-area">
+            <div class="glass-card">
+                <h1>System Maintenance</h1>
+                <p style="color: #64748b; margin-bottom: 30px;">Shows the execution history of the background automated
+                    self-healing scripts running internally between 01:00 AM and 05:00 AM.</p>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Type</th>
+                            <th>Message</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logsTable">
+                        <tr>
+                            <td colspan="4">Loading securely...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <script src="auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            checkAuth();
+            const user = JSON.parse(localStorage.getItem('crm_user'));
+            if (!user || user.role !== 'admin') {
+                document.body.innerHTML = '<h2 style="color:red; text-align:center;">ACCESS DENIED: ADMIN ONLY</h2>';
+                return;
+            }
+
+            try {
+                const res = await window.apiFetch('/api/admin/maintenance');
+                if (res.ok) {
+                    const logs = await res.json();
+                    renderLogs(logs);
+                } else {
+                    document.getElementById('logsTable').innerHTML = '<tr><td colspan="4" style="color:red;">Failed to fetch API.</td></tr>';
+                }
+            } catch (err) {
+                document.getElementById('logsTable').innerHTML = '<tr><td colspan="4" style="color:red;">Error fetching API.</td></tr>';
+            }
+
+            function renderLogs(logs) {
+                if (logs.length === 0) {
+                    document.getElementById('logsTable').innerHTML = '<tr><td colspan="4" style="text-align:center; color:#64748b;">No maintenance logs available yet. They will appear after the next nightly run.</td></tr>';
+                    return;
+                }
+
+                let html = '';
+                logs.forEach(log => {
+                    const dateObj = new Date(log.created_at);
+                    const formattedDate = dateObj.toLocaleString();
+                    const badgeClass = `badge-${log.log_type}`;
+
+                    let detailsText = '';
+                    if (log.details) {
+                        try {
+                            const parsed = typeof log.details === 'string' ? JSON.parse(log.details) : log.details;
+                            detailsText = `<code>${JSON.stringify(parsed)}</code>`;
+                        } catch (e) {
+                            detailsText = `<code>${log.details}</code>`;
+                        }
+                    }
+
+                    html += `
+                        <tr>
+                            <td style="font-weight:600; font-size:0.9rem;">${formattedDate}</td>
+                            <td><span class="badge ${badgeClass}">${log.log_type || 'SYSTEM'}</span></td>
+                            <td style="font-size:0.95rem; font-weight:500;">${log.message}</td>
+                            <td>${detailsText}</td>
+                        </tr>
+                    `;
+                });
+                document.getElementById('logsTable').innerHTML = html;
+            }
+        });
+    </script>
+</body>
+
+</html>

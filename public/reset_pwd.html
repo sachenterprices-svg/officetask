@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Change Password - Office Manager</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="auth.js"></script>
+    <style>
+        :root {
+            --primary: #002d72;
+            --secondary: #f97316;
+            --bg-gradient: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        }
+
+        body {
+            background: var(--bg-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            color: white;
+        }
+
+        /* Ambient Background Elements */
+        .ambient-blob {
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0) 70%);
+            border-radius: 50%;
+            z-index: -1;
+            filter: blur(50px);
+        }
+
+        .blob-1 {
+            top: -100px;
+            left: -100px;
+        }
+
+        .blob-2 {
+            bottom: -100px;
+            right: -100px;
+            background: radial-gradient(circle, rgba(249, 115, 22, 0.1) 0%, rgba(249, 115, 22, 0) 70%);
+        }
+
+        .password-container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 50px;
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            max-width: 440px;
+        }
+
+        .password-container h2 {
+            margin: 0 0 10px 0;
+            font-size: 2rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+
+        .form-subtitle {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 1rem;
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.8);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 14px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            outline: none;
+            transition: 0.3s;
+            box-sizing: border-box;
+            font-size: 1rem;
+            color: white;
+            font-family: inherit;
+        }
+
+        .form-group select option {
+            background: #1e293b;
+            color: white;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            border-color: var(--primary);
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+        }
+
+        .btn-submit {
+            background: linear-gradient(135deg, #002d72, #2563eb);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 16px;
+            width: 100%;
+            font-weight: 700;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: 0.3s;
+            box-shadow: 0 10px 20px rgba(37, 99, 235, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 25px rgba(37, 99, 235, 0.4);
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            display: none;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .alert-error {
+            background: rgba(225, 29, 72, 0.1);
+            color: #fb7185;
+            border: 1px solid rgba(225, 29, 72, 0.2);
+        }
+
+        .alert-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="ambient-blob blob-1"></div>
+    <div class="ambient-blob blob-2"></div>
+    <div class="password-container">
+        <h2>Password Manager</h2>
+        <p class="form-subtitle">Update account access credentials.</p>
+
+        <div id="statusAlert" class="alert"></div>
+
+        <form id="passwordForm">
+            <div class="form-group" id="userSelectGroup" style="display:none;">
+                <label>Select User</label>
+                <select id="targetUserId">
+                    <!-- Loaded dynamically for Admins -->
+                </select>
+            </div>
+            <div class="form-group" id="userNameGroup">
+                <label>Username</label>
+                <input type="text" id="displayUsername" disabled>
+            </div>
+
+            <div class="form-group">
+                <label>New Password</label>
+                <input type="password" id="newPassword" placeholder="Minimum 6 characters" required minlength="6">
+            </div>
+
+            <div class="form-group">
+                <label>Confirm Password</label>
+                <input type="password" id="confirmPassword" placeholder="Repeat new password" required minlength="6">
+            </div>
+
+            <button type="submit" class="btn-submit">Update Password</button>
+            <button type="button" class="btn-submit" style="background:#64748b; margin-top:10px;"
+                onclick="window.close()">Cancel</button>
+        </form>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const user = JSON.parse(localStorage.getItem('crm_user'));
+            if (!user) { window.location.href = 'login.html'; return; }
+
+            const isAdmin = user.role === 'admin';
+            const displayInput = document.getElementById('displayUsername');
+            const userSelectGroup = document.getElementById('userSelectGroup');
+            const userNameGroup = document.getElementById('userNameGroup');
+
+            if (isAdmin) {
+                userSelectGroup.style.display = 'block';
+                userNameGroup.style.display = 'none';
+
+                // Fetch all users
+                try {
+                    const res = await apiFetch('/api/users');
+                    if (res.ok) {
+                        const users = await res.json();
+                        const select = document.getElementById('targetUserId');
+                        users.forEach(u => {
+                            const opt = document.createElement('option');
+                            opt.value = u.id;
+                            opt.textContent = `${u.name || u.username} (${u.role})`;
+                            if (u.id === user.id) opt.selected = true;
+                            select.appendChild(opt);
+                        });
+                    }
+                } catch (err) { console.error(err); }
+            } else {
+                displayInput.value = user.username;
+            }
+
+            document.getElementById('passwordForm').onsubmit = async (e) => {
+                e.preventDefault();
+                const newPwd = document.getElementById('newPassword').value;
+                const confirmPwd = document.getElementById('confirmPassword').value;
+                const alertBox = document.getElementById('statusAlert');
+
+                if (newPwd !== confirmPwd) {
+                    alertBox.className = 'alert alert-error';
+                    alertBox.textContent = 'Passwords do not match!';
+                    alertBox.style.display = 'block';
+                    return;
+                }
+
+                const targetId = isAdmin ? document.getElementById('targetUserId').value : user.id;
+
+                try {
+                    const res = await apiFetch(`/api/users/${targetId}/password`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ new_password: newPwd })
+                    });
+
+                    if (res.ok) {
+                        alertBox.className = 'alert alert-success';
+                        alertBox.textContent = 'Password updated successfully!';
+                        alertBox.style.display = 'block';
+                        setTimeout(() => window.close(), 1500);
+                    } else {
+                        const err = await res.json();
+                        alertBox.className = 'alert alert-error';
+                        alertBox.textContent = err.error || 'Failed to update password.';
+                        alertBox.style.display = 'block';
+                    }
+                } catch (err) {
+                    alertBox.className = 'alert alert-error';
+                    alertBox.textContent = 'Connection error.';
+                    alertBox.style.display = 'block';
+                }
+            };
+        });
+    </script>
+</body>
+
+</html>

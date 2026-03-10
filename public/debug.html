@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connection Debugger V2</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            line-height: 1.6;
+            background: #f8fafc;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            max-width: 800px;
+            margin: auto;
+        }
+
+        .success {
+            color: #10b981;
+            font-weight: bold;
+        }
+
+        .error {
+            color: #ef4444;
+            font-weight: bold;
+        }
+
+        .warning {
+            color: #f59e0b;
+            font-weight: bold;
+        }
+
+        pre {
+            background: #1e293b;
+            color: #f8fafc;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 13px;
+        }
+
+        h1 {
+            color: #0f172a;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+        }
+
+        .step {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <h1>Connection Debugger V2</h1>
+
+        <div id="step1" class="step">🔍 Checking <code>auth.js</code>...</div>
+        <div id="step2" class="step">🌐 Testing Vercel Health Check...</div>
+        <div id="step3" class="step">🔐 Testing Login Endpoints...</div>
+
+        <hr>
+        <h3>Full Log:</h3>
+        <div id="log"></div>
+    </div>
+
+    <script src="auth.js"></script>
+    <script>
+        const log = document.getElementById('log');
+        function writeLog(msg, type = '') {
+            const p = document.createElement('p');
+            if (type) p.className = type;
+            p.innerHTML = msg;
+            log.appendChild(p);
+            console.log(msg);
+        }
+
+        async function runTests() {
+            // Test 1: Constant Check
+            const s1 = document.getElementById('step1');
+            try {
+                if (typeof API_BASE_URL === 'undefined') {
+                    s1.innerHTML = '❌ <b>auth.js Error:</b> <code>API_BASE_URL</code> is not defined.';
+                    writeLog('ERROR: API_BASE_URL is missing. Please check auth.js contents.', 'error');
+                } else {
+                    s1.innerHTML = `✅ <b>auth.js OK:</b> URL is <code>${API_BASE_URL}</code>`;
+                    writeLog(`Found API_BASE_URL: ${API_BASE_URL}`, 'success');
+                }
+            } catch (e) { s1.innerHTML = '❌ Error loading auth.js'; }
+
+            // Test 2: Health Check
+            const s2 = document.getElementById('step2');
+            const healthUrl = 'https://officetask-roan.vercel.app/api/health';
+            try {
+                writeLog(`Fetching health check from ${healthUrl}...`);
+                const res = await fetch(healthUrl);
+                const data = await res.json();
+                if (res.ok) {
+                    s2.innerHTML = `✅ <b>Vercel Reachable:</b> Status: ${data.status}, DB: ${data.database}`;
+                    writeLog(`Vercel Health Data: ${JSON.stringify(data)}`, 'success');
+                } else {
+                    throw new Error(`Status ${res.status}`);
+                }
+            } catch (err) {
+                s2.innerHTML = `❌ <b>Vercel Error:</b> Cannot connect to API.`;
+                writeLog(`Health Check Failed: ${err.message}`, 'error');
+                writeLog('Tip: Check if Vercel deployment is active and vercel.json has CORS headers.', 'warning');
+            }
+
+            // Test 3: API Fetch Test
+            const s3 = document.getElementById('step3');
+            try {
+                if (window.apiFetch) {
+                    writeLog('Testing window.apiFetch function...');
+                    const res = await window.apiFetch('/api/health');
+                    const data = await res.json();
+                    s3.innerHTML = '✅ <b>apiFetch OK:</b> Integration is working.';
+                    writeLog(`apiFetch returned: ${JSON.stringify(data)}`, 'success');
+                } else {
+                    s3.innerHTML = '❌ <b>Error:</b> <code>window.apiFetch</code> not found.';
+                }
+            } catch (err) {
+                s3.innerHTML = '❌ <b>Integration Failed:</b> CORS or Network error.';
+                writeLog(`apiFetch failed: ${err.message}`, 'error');
+            }
+        }
+
+        window.onload = runTests;
+    </script>
+</body>
+
+</html>

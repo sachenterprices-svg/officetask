@@ -5,11 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sortSelect = document.getElementById('sortSelect');
     const filterDirect = document.getElementById('filterDirect');
 
-    // Reveal admin tabs
-    if (window.currentUser && window.currentUser.role === 'admin') {
-        const adminLinks = document.querySelectorAll('.admin-nav');
-        adminLinks.forEach(el => el.style.display = 'inline-block');
-    }
+    // Admin check logic can be added here if needed for header links
 
     async function loadReports() {
         try {
@@ -95,8 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td><strong>${p.customer_name || 'Walk-in'}</strong></td>
                     <td>${date}</td>
                     <td><span style="background:#f1f5f9; padding:3px 8px; border-radius:4px;">${p.customer_category}</span></td>
-                    <td>${circle}</td>
-                    <td>${oa}</td>
+                    <td>${circle} / ${oa}</td>
                     <td style="text-align:center;">${isDirectSale}</td>
                     <td>
                         <div class="followup-control">

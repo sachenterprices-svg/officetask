@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Office Task Manager - ERP Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="auth.js"></script>
+    <style>
+        /* Dashboard Specific Overrides */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 25px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            transition: transform 0.3s;
+        }
+
+        .module-tile.restricted {
+            opacity: 0.5;
+            cursor: not-allowed;
+            filter: grayscale(1);
+        }
+
+        /* --- MAIN CONTENT AREA --- */
+        .main-content {
+            flex-grow: 1;
+            padding: 40px;
+            background-color: #f8fafc;
+            overflow-y: auto;
+        }
+
+        .welcome-card {
+            max-width: 600px;
+        }
+
+        .welcome-card h1 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 10px;
+        }
+
+        .welcome-card p {
+            font-size: 1.1rem;
+            color: #64748b;
+        }
+
+        .dynamic-stats {
+            margin-top: 40px;
+            display: flex;
+            gap: 20px;
+        }
+
+        .mini-badge {
+            background: white;
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #4a6ee0;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e2e8f0;
+        }
+
+        /* --- IDE-STYLE TRI-COLOR BADGES --- */
+        .badge-ide {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 800;
+            color: white;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 28px;
+        }
+
+        .badge-green {
+            background: #10b981;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2);
+        }
+
+        .badge-yellow {
+            background: #f59e0b;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
+        }
+
+        .badge-red {
+            background: #ef4444;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
+        }
+
+        .grand-summary-card {
+            background: white;
+            border: 2px solid #e2e8f0;
+            padding: 25px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            grid-column: 1 / -1;
+            margin-top: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        }
+    </style>
+</head>
+
+<body>
+
+    <header class="top-header">
+        <div class="header-left" style="display: flex; align-items: center; gap: 20px;">
+            <div class="header-brand" style="color: var(--text-main); font-weight: 800; font-size: 1.6rem;">
+                <span style="color: #002d72;">Coral</span> <span style="color: #f97316;">Infratel</span>
+            </div>
+            <div style="width: 2px; height: 30px; background: rgba(15, 23, 42, 0.1); border-radius: 2px;"></div>
+            <div
+                style="color: var(--text-muted); font-weight: 700; font-size: 1rem; text-transform: uppercase; letter-spacing: 2px;">
+                Workspace</div>
+        </div>
+        <div class="user-meta">
+            <div class="header-row">
+                <button onclick="window.open('tasks.html', '_blank', 'width=600,height=800')" class="logout-btn"
+                    style="background: #10b981; border-color: #10b981; display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 1.2rem;">+</span> New Task
+                </button>
+                <button onclick="window.open('reset_pwd.html', '_blank', 'width=450,height=600')" class="logout-btn"
+                    style="background: #f59e0b; border-color: #f59e0b; display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 1.1rem;">🔑</span> Change Pwd
+                </button>
+            </div>
+            <div class="header-row">
+                <span class="user-name-tag" id="userInfoDisplay" style="color: var(--primary); font-weight: 700;">admin
+                    (Admin)</span>
+                <button onclick="window.logout()" class="btn-logout"
+                    style="background: #64748b; padding: 4px 12px; font-size: 0.85rem;">Logout</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="app-body">
+        <!-- Visual Tile Sidebar -->
+        <aside class="tile-sidebar">
+
+            <a href="users.html" class="module-tile admin-only" id="navUsers" target="_blank">
+                <i>👥</i>
+                <div class="tile-content">
+                    <h4>User Hierarchy</h4>
+                </div>
+            </a>
+            <a href="recurring_tasks.html" class="module-tile admin-only" id="navRecurring" target="_blank">
+                <i>⏱️</i>
+                <div class="tile-content">
+                    <h4>Recurring Tasks</h4>
+                </div>
+            </a>
+
+
+            <a href="index.html" class="module-tile" id="navProposals" target="_blank">
+                <i>📝</i>
+                <div class="tile-content">
+                    <h4>BSNL Proposals</h4>
+                </div>
+            </a>
+            <a href="erp_hub.html" class="module-tile" id="navMasters" target="_blank">
+                <i>🏢</i>
+                <div class="tile-content">
+                    <h4>BSNL ERP</h4>
+                </div>
+            </a>
+            <a href="complaints.html" class="module-tile" id="navComplaints" target="_blank">
+                <i>🛠️</i>
+                <div class="tile-content">
+                    <h4>Complaints</h4>
+                </div>
+            </a>
+        </aside>
+
+        <main class="content-area">
+            <div class="container" style="padding: 40px;">
+                <div id="pendingTasksSection" style="text-align: left;">
+                    <h2
+                        style="font-weight: 800; color: #1e293b; margin-bottom: 20px; display: flex; align-items: center; gap: 15px;">
+                        <span>📋 Pending Tasks</span>
+                        <span id="taskCountBadge" class="mini-badge" style="display:none;">0</span>
+                    </h2>
+
+                    <div id="tasksList"
+                        style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
+                        <!-- Tasks will load here -->
+                        <div id="noTasksPlaceholder"
+                            style="padding: 100px 40px; text-align: center; color: #94a3b8; grid-column: 1 / -1;">
+                            <div style="font-size: 4rem; margin-bottom: 20px;">✅</div>
+                            <h2 style="font-weight: 800; color: #10b981; margin-bottom: 10px;">All Tasks Complete</h2>
+                            <p style="font-size: 1.1rem; max-width: 500px; margin: 0 auto;">Great job! There are no
+                                pending records requiring your attention right now.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const user = JSON.parse(localStorage.getItem('crm_user'));
+            if (!user) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            // Welcome text is handled in userInfoDisplay row
+
+            // Admin Visibility
+            if (user.role !== 'admin') {
+                document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+            }
+
+            // Permission Enforcement
+            enforcePermission('navUsers', 'admin');
+            enforcePermission('navWebsite', 'admin');
+            enforcePermission('navProposals', 'proposals');
+            enforcePermission('navComplaints', 'complaints');
+            enforcePermission('navMasters', 'customers');
+
+            function enforcePermission(id, perm) {
+                const el = document.getElementById(id);
+                if (el && !window.hasModuleAccess(perm)) {
+                    el.classList.add('restricted');
+                    el.onclick = (e) => {
+                        e.preventDefault();
+                        alert('You do not have rights for this module.');
+                    };
+                }
+            }
+
+            // Fetch Pending Modules & CRM Tasks
+            try {
+                const [dashRes, tasksRes] = await Promise.all([
+                    window.apiFetch('/api/dashboard/pending-tasks'),
+                    window.apiFetch('/api/tasks')
+                ]);
+
+                let dashData = { products: 0, lines: 0 };
+                let tasksData = [];
+
+                if (dashRes.ok) dashData = await dashRes.json();
+                if (tasksRes.ok) tasksData = await tasksRes.json();
+
+                renderAllPendingItems(dashData, tasksData);
+            } catch (err) { console.error('Pending items fetch error:', err); }
+
+            function renderAllPendingItems(dashData, tasksData) {
+                const list = document.getElementById('tasksList');
+                const placeholder = document.getElementById('noTasksPlaceholder');
+                const badge = document.getElementById('taskCountBadge');
+
+                let html = '';
+                let total = 0;
+
+                // 1. Missing Customer Product Info
+                if (dashData.products > 0) {
+                    total += dashData.products;
+                    html += `
+                        <a href="customer_reports.html?type=customers&pending=products" target="_blank" style="text-decoration:none;">
+                            <div style="background: white; border: 2px solid #fee2e2; padding: 25px; border-radius: 16px; display: flex; align-items: center; gap: 20px; transition: 0.3s; cursor: pointer;" onmouseover="this.style.borderColor='#f87171'" onmouseout="this.style.borderColor='#fee2e2'">
+                                <div style="width: 60px; height: 60px; background: #fef2f2; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem;">📦</div>
+                                <div>
+                                    <h3 style="margin: 0; color: #991b1b; font-size: 1.2rem; font-weight: 800;">Pending Products</h3>
+                                    <p style="margin: 5px 0 0; color: #b91c1c; font-weight: 600; font-size: 1.1rem;">Missing Info: ${dashData.products}</p>
+                                </div>
+                            </div>
+                        </a>
+                    `;
+                }
+
+                // 2. Missing Telephone Info
+                if (dashData.lines > 0) {
+                    total += dashData.lines;
+                    html += `
+                        <a href="customer_reports.html?type=customers&pending=lines" target="_blank" style="text-decoration:none;">
+                            <div style="background: white; border: 2px solid #fff7ed; padding: 25px; border-radius: 16px; display: flex; align-items: center; gap: 20px; transition: 0.3s; cursor: pointer;" onmouseover="this.style.borderColor='#fb923c'" onmouseout="this.style.borderColor='#fff7ed'">
+                                <div style="width: 60px; height: 60px; background: #fff7ed; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem;">📞</div>
+                                <div>
+                                    <h3 style="margin: 0; color: #9a3412; font-size: 1.2rem; font-weight: 800;">Pending Telephone Lines</h3>
+                                    <p style="margin: 5px 0 0; color: #c2410c; font-weight: 600; font-size: 1.1rem;">Missing Info: ${dashData.lines}</p>
+                                </div>
+                            </div>
+                        </a>
+                    `;
+                }
+
+                // 3. Pending Complaints
+                if (dashData.complaints > 0) {
+                    total += dashData.complaints;
+                    html += `
+                        <a href="complaints.html" target="_blank" style="text-decoration:none;">
+                            <div style="background: white; border: 2px solid #ef4444; padding: 25px; border-radius: 16px; display: flex; align-items: center; gap: 20px; transition: 0.3s; cursor: pointer;" onmouseover="this.style.borderColor='#dc2626'" onmouseout="this.style.borderColor='#ef4444'">
+                                <div style="width: 60px; height: 60px; background: #fef2f2; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem;">🛠️</div>
+                                <div>
+                                    <h3 style="margin: 0; color: #991b1b; font-size: 1.2rem; font-weight: 800;">Pending Complaints</h3>
+                                    <p style="margin: 5px 0 0; color: #b91c1c; font-weight: 600; font-size: 1.1rem;">Active Tickets: ${dashData.complaints}</p>
+                                </div>
+                            </div>
+                        </a>
+                    `;
+                }
+
+                // 4. CRM Tasks (Pending or In Progress, grouped by user)
+                const activeTasks = tasksData.filter(t => t.status !== 'COMPLETED');
+                let globalTotals = { red: 0, yellow: 0, green: 0 };
+
+                if (activeTasks.length > 0) {
+                    total += activeTasks.length;
+
+                    const userTasks = {};
+                    const now = new Date();
+                    now.setHours(0, 0, 0, 0);
+                    const inTwoDays = new Date(now);
+                    inTwoDays.setDate(inTwoDays.getDate() + 2);
+
+                    activeTasks.forEach(task => {
+                        const assignee = task.assigned_to || 'Unassigned';
+                        const displayName = task.assignee_name ? `${task.assignee_name} (${assignee})` : assignee;
+
+                        if (!userTasks[assignee]) {
+                            userTasks[assignee] = {
+                                name: displayName,
+                                total: 0,
+                                red: 0,
+                                yellow: 0,
+                                green: 0
+                            };
+                        }
+
+                        userTasks[assignee].total++;
+
+                        if (task.due_date) {
+                            const dueDate = new Date(task.due_date);
+                            dueDate.setHours(0, 0, 0, 0);
+
+                            if (dueDate < now) {
+                                userTasks[assignee].red++;
+                                globalTotals.red++;
+                            } else if (dueDate <= inTwoDays) {
+                                userTasks[assignee].yellow++;
+                                globalTotals.yellow++;
+                            } else {
+                                userTasks[assignee].green++;
+                                globalTotals.green++;
+                            }
+                        } else {
+                            userTasks[assignee].green++;
+                            globalTotals.green++;
+                        }
+                    });
+
+                    Object.values(userTasks).forEach(user => {
+                        html += `
+                            <div style="background: white; border: 2px solid #e0e7ff; padding: 25px; border-radius: 16px; display: flex; align-items: center; gap: 20px; transition: 0.3s; cursor: pointer;" onmouseover="this.style.borderColor='#818cf8'" onmouseout="this.style.borderColor='#e0e7ff'" onclick="window.open('tasks.html', '_blank', 'width=800,height=800')">
+                                <div style="width: 60px; height: 60px; background: #eef2ff; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem;">👤</div>
+                                <div style="flex-grow: 1;">
+                                    <h3 style="margin: 0; color: #3730a3; font-size: 1.2rem; font-weight: 800;">📝 Tasks: ${user.name}</h3>
+                                    <div style="margin: 12px 0 0; display: flex; align-items: center; gap: 10px;">
+                                        <span class="badge-ide badge-red" title="Overdue">${user.red}</span>
+                                        <span class="badge-ide badge-yellow" title="Due Soon">${user.yellow}</span>
+                                        <span class="badge-ide badge-green" title="On Track">${user.green}</span>
+                                        <span style="margin-left:auto; color:#6366f1; font-weight:700; font-size:0.9rem;">Total: ${user.total}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    // Add Grand Total Summary Row
+                    html += `
+                        <div class="grand-summary-card">
+                            <div style="display:flex; align-items:center; gap:15px;">
+                                <div style="font-size:1.8rem;">📊</div>
+                                <div>
+                                    <h3 style="margin:0; font-weight:800; color:#1e293b;">Overall Task Summary</h3>
+                                    <p style="margin:0; font-size:0.85rem; color:#64748b; font-weight:600;">Cumulative status across all team members</p>
+                                </div>
+                            </div>
+                            <div style="display:flex; gap:30px; align-items:center;">
+                                <div style="text-align:center;">
+                                    <div class="badge-ide badge-red" style="padding:10px 20px; border-radius:10px; font-size:1.1rem;">${globalTotals.red}</div>
+                                    <div style="margin-top:5px; font-size:0.7rem; font-weight:800; color:#991b1b; text-transform:uppercase;">Overdue</div>
+                                </div>
+                                <div style="text-align:center;">
+                                    <div class="badge-ide badge-yellow" style="padding:10px 20px; border-radius:10px; font-size:1.1rem;">${globalTotals.yellow}</div>
+                                    <div style="margin-top:5px; font-size:0.7rem; font-weight:800; color:#854d0e; text-transform:uppercase;">Due Soon</div>
+                                </div>
+                                <div style="text-align:center;">
+                                    <div class="badge-ide badge-green" style="padding:10px 20px; border-radius:10px; font-size:1.1rem;">${globalTotals.green}</div>
+                                    <div style="margin-top:5px; font-size:0.7rem; font-weight:800; color:#166534; text-transform:uppercase;">On Track</div>
+                                </div>
+                                <div style="width:2px; height:40px; background:#e2e8f0; margin:0 10px;"></div>
+                                <div style="text-align:right;">
+                                    <div style="font-size:1.8rem; font-weight:900; color:#1e293b;">${globalTotals.red + globalTotals.yellow + globalTotals.green}</div>
+                                    <div style="font-size:0.7rem; font-weight:800; color:#64748b; text-transform:uppercase;">Grand Total</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                if (total > 0) {
+                    list.innerHTML = html;
+                    badge.textContent = total;
+                    badge.style.display = 'block';
+                } else {
+                    placeholder.style.display = 'block';
+                    badge.style.display = 'none';
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>

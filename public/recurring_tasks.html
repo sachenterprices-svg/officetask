@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Reporting - Coral Infratel</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <header class="top-header">
+        <div class="header-brand">
+            <span style="color: #002d72;">Coral</span> <span style="color: #f97316;">Infratel</span>
+        </div>
+        <div class="user-meta">
+            <span id="userInfoDisplay" style="font-weight:600;"></span>
+            <button onclick="window.logout()" class="logout-btn">Logout</button>
+        </div>
+    </header>
+
+    <div class="app-body">
+        <aside class="tile-sidebar">
+            <div class="sidebar-header">MENU</div>
+            <a href="dashboard.html" class="module-tile"><i>🏠</i>
+                <div class="tile-content">
+                    <h4>Dashboard</h4>
+                </div>
+            </a>
+
+            <div class="sidebar-header" style="margin-top:20px;">SYSTEM</div>
+            <a href="users.html" class="module-tile admin-only"><i>👥</i>
+                <div class="tile-content">
+                    <h4>Users</h4>
+                </div>
+            </a>
+            <a href="recurring_tasks.html" class="module-tile active"><i>⏱️</i>
+                <div class="tile-content">
+                    <h4>Task Reporting</h4>
+                </div>
+            </a>
+        </aside>
+
+        <main class="content-area">
+            <!-- Content for future use -->
+        </main>
+    </div>
+
+    <script src="auth.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const user = JSON.parse(localStorage.getItem('crm_user'));
+            if (!user) {
+                window.location.href = 'login.html';
+                return;
+            }
+            document.getElementById('userInfoDisplay').textContent = `${user.name || user.username} (${user.role === 'admin' ? 'Admin' : 'User'})`;
+
+            if (user.role !== 'admin') {
+                document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+            }
+        });
+    </script>
+</body>
+
+</html>

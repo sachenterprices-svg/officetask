@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Website Analytics - Coral Infratel</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .analytics-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        .analytics-table th,
+        .analytics-table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #edf2f7;
+            font-size: 0.9rem;
+        }
+
+        .analytics-table th {
+            background: #f8fafc;
+            font-weight: 700;
+            color: #475569;
+        }
+
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .badge-ip {
+            background: #e0f2fe;
+            color: #0369a1;
+        }
+
+        .badge-time {
+            background: #f1f5f9;
+            color: #475569;
+        }
+    </style>
+</head>
+
+<body class="bg-light">
+    <!-- Header -->
+    <header class="main-header">
+        <div class="header-container">
+            <div class="logo-section">
+                <span class="logo-text">Website Analytics Module</span>
+            </div>
+            <div class="nav-actions">
+                <button onclick="location.href='dashboard.html'" class="btn-secondary">Back to Dashboard</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="content-area">
+        <div class="container-fluid">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h2 class="card-title">Recent Visitor Activity</h2>
+                    <button id="refreshBtn" class="btn-primary">Refresh Data</button>
+                </div>
+                <div class="table-responsive">
+                    <table class="analytics-table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>IP Address</th>
+                                <th>Page</th>
+                                <th>Action</th>
+                                <th>Details</th>
+                                <th>User Agent</th>
+                            </tr>
+                        </thead>
+                        <tbody id="analyticsBody">
+                            <tr>
+                                <td colspan="6" style="text-align: center; padding: 50px;">Loading analytics data...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="auth.js"></script>
+    <script src="analytics.js"></script>
+</body>
+
+</html>

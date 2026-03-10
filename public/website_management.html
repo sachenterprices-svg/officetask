@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Website Management - Coral Infratel</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="auth.js"></script>
+    <style>
+        :root {
+            --primary: #002d72;
+            --accent: #e31837;
+            --bg-muted: #f8fafc;
+            --header-bg: rgba(255, 255, 255, 0.85);
+            --tile-sidebar-width: 280px;
+            --bg-gradient: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
+            --tile-bg: rgba(255, 255, 255, 0.95);
+            --tile-hover: #ffffff;
+            --active-border: #002d72;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-gradient);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            color: var(--text-main);
+        }
+
+        /* --- PREMIUM HEADER --- */
+        .top-header {
+            background-color: var(--header-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            color: var(--text-main);
+            padding: 0 40px;
+            height: 75px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+            z-index: 1000;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .header-brand {
+            font-size: 1.4rem;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .user-meta {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .logout-btn {
+            background: #e31837;
+            color: white;
+            border: none;
+            padding: 8px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 700;
+            transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .logout-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(227, 24, 55, 0.2);
+        }
+
+        /* --- MAIN LAYOUT --- */
+        .app-body {
+            display: flex;
+            flex-grow: 1;
+            overflow: hidden;
+        }
+
+        /* --- VISUAL TILE SIDEBAR --- */
+        .tile-sidebar {
+            width: var(--tile-sidebar-width);
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(255, 255, 255, 0.8);
+            display: flex;
+            flex-direction: column;
+            padding: 30px 20px;
+            gap: 15px;
+            overflow-y: auto;
+            box-shadow: 10px 0 30px rgba(0, 0, 0, 0.02);
+            flex-shrink: 0;
+        }
+
+
+        .sidebar-header {
+            margin: 8px 0 4px;
+            font-size: 0.8rem;
+            font-weight: 800;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-align: center;
+        }
+
+        /* --- MAIN CONTENT AREA --- */
+        .content-area {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 40px;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.04);
+            border: 1px solid white;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .tab-nav {
+            display: flex;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px 40px 0;
+            gap: 10px;
+            border-bottom: 1px solid #e2e8f0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            padding: 12px 25px;
+            font-weight: 700;
+            color: #64748b;
+            cursor: pointer;
+            border-radius: 12px 12px 0 0;
+            transition: 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 3px solid transparent;
+        }
+
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom: 3px solid var(--primary);
+            background: transparent;
+        }
+
+        .tab-btn:hover:not(.active) {
+            background: #f8fafc;
+            color: var(--primary);
+        }
+
+        .tab-content {
+            display: none;
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* CMS Form Styling */
+        .cms-card {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            max-width: 800px;
+            margin: 0 auto;
+            border: 1px solid #e2e8f0;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            font-weight: 800;
+            margin-bottom: 8px;
+            font-size: 0.8rem;
+            color: #475569;
+            text-transform: uppercase;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            font-family: inherit;
+            box-sizing: border-box;
+            background: #f8fafc;
+        }
+
+        input:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #002d72;
+            background: #ffffff;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .btn-publish {
+            background: #002d72;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-weight: 800;
+            cursor: pointer;
+            width: 100%;
+            font-size: 1rem;
+            transition: 0.3s;
+        }
+
+        .btn-publish:hover {
+            background: #2563eb;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        /* Analytics Table */
+        .analytics-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+            border: 1px solid #e2e8f0;
+        }
+
+        .analytics-table th,
+        .analytics-table td {
+            padding: 15px 20px;
+            text-align: left;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .analytics-table th {
+            background: #f8fafc;
+            font-weight: 800;
+            color: #64748b;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 1px;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: 700;
+            display: none;
+        }
+
+        .alert-success {
+            background: #f0fdf4;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+    </style>
+</head>
+
+<body>
+    <header class="top-header">
+        <div class="header-brand">
+            <span style="color: #002d72;">Coral</span> <span style="color: #f97316;">Infratel</span>
+        </div>
+        <div class="user-meta">
+            <div class="header-row">
+                <span id="userInfoDisplay" style="color: var(--primary); font-weight:700;"></span>
+                <button onclick="window.logout()" class="logout-btn"
+                    style="background: #64748b; padding: 4px 12px; font-size: 0.85rem;">Logout</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="app-body">
+        <aside class="tile-sidebar">
+            <div class="sidebar-header">USER & SYSTEM</div>
+            <a href="dashboard.html" class="module-tile"><i>🏠</i>
+                <div class="tile-content">
+                    <h4>Dashboard</h4>
+                </div>
+            </a>
+            <a href="users.html" class="module-tile admin-only"><i>👥</i>
+                <div class="tile-content">
+                    <h4>Users</h4>
+                </div>
+            </a>
+            <a href="website_management.html" class="module-tile active admin-only"><i>🌐</i>
+                <div class="tile-content">
+                    <h4>Website Management</h4>
+                </div>
+            </a>
+            <a href="maintenance_logs.html" class="module-tile admin-only"><i>⚙️</i>
+                <div class="tile-content">
+                    <h4>System Maintenance</h4>
+                </div>
+            </a>
+        </aside>
+
+        <main class="content-area">
+            <div class="glass-card">
+                <nav class="tab-nav">
+                    <button class="tab-btn active" onclick="switchTab('contentTab', this)">
+                        <i>🖥️</i> Website Content
+                    </button>
+                    <button class="tab-btn" onclick="switchTab('analyticsTab', this)">
+                        <i>📊</i> Website Analytics
+                    </button>
+                </nav>
+
+                <!-- Content Manager Tab -->
+                <div id="contentTab" class="tab-content active">
+                    <div class="cms-card">
+                        <h2 style="margin-top:0; color:var(--primary);">Control Website Content</h2>
+                        <div id="statusAlert" class="alert alert-success">Website updated successfully!</div>
+                        <form id="cmsForm">
+                            <div class="form-group">
+                                <label>Hero Title (Main Heading)</label>
+                                <input type="text" id="hero_title" placeholder="Coral Infratel Solutions">
+                            </div>
+                            <div class="form-group">
+                                <label>Hero Description</label>
+                                <textarea id="hero_desc" rows="3"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>Office Address</label>
+                                <textarea id="office_address" rows="2"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>WhatsApp Bot Number</label>
+                                <input type="text" id="whatsapp_no">
+                            </div>
+                            <div class="form-group">
+                                <label>Contact Email</label>
+                                <input type="email" id="contact_email">
+                            </div>
+                            <button type="submit" class="btn-publish">Update Website</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Analytics Tab -->
+                <div id="analyticsTab" class="tab-content">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 style="color:var(--primary); margin:0;">Visitor Analytics</h2>
+                        <button onclick="loadAnalytics()"
+                            style="background:var(--primary); color:white; border:none; padding:10px 20px; border-radius:8px; font-weight:700; cursor:pointer;">Refresh
+                            Logs</button>
+                    </div>
+                    <table class="analytics-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>IP Address</th>
+                                <th>Page Path</th>
+                                <th>Action</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="analyticsBody">
+                            <tr>
+                                <td colspan="5" style="text-align:center; padding:50px;">Fetching logs...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        checkAuth();
+
+        function switchTab(tabId, btn) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            btn.classList.add('active');
+            if (tabId === 'analyticsTab') loadAnalytics();
+        }
+
+        // --- CMS LOGIC ---
+        async function loadContent() {
+            try {
+                const res = await window.apiFetch('/api/website/content');
+                if (res.ok) {
+                    const data = await res.json();
+                    for (const [key, value] of Object.entries(data)) {
+                        const el = document.getElementById(key);
+                        if (el) el.value = value;
+                    }
+                }
+            } catch (e) { console.error('CMS Load Error'); }
+        }
+        loadContent();
+
+        document.getElementById('cmsForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button');
+            btn.textContent = 'Updating Website...';
+            btn.disabled = true;
+
+            const payload = {
+                hero_title: document.getElementById('hero_title').value,
+                hero_desc: document.getElementById('hero_desc').value,
+                office_address: document.getElementById('office_address').value,
+                whatsapp_no: document.getElementById('whatsapp_no').value,
+                contact_email: document.getElementById('contact_email').value
+            };
+
+            try {
+                const res = await window.apiFetch('/api/website/content', {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    document.getElementById('statusAlert').style.display = 'block';
+                    setTimeout(() => document.getElementById('statusAlert').style.display = 'none', 3000);
+                }
+            } catch (e) { alert('Update failed'); }
+            finally {
+                btn.disabled = false;
+                btn.textContent = 'Update Website';
+            }
+        };
+
+        // --- ANALYTICS LOGIC ---
+        async function loadAnalytics() {
+            const body = document.getElementById('analyticsBody');
+            try {
+                const res = await window.apiFetch('/api/analytics/report');
+                if (res.ok) {
+                    const data = await res.json();
+                    body.innerHTML = data.map(log => `
+                        <tr>
+                            <td>${new Date(log.created_at).toLocaleString()}</td>
+                            <td><span style="font-family:monospace; background:#eef2ff; padding:2px 6px; border-radius:4px;">${log.ip_address}</span></td>
+                            <td>${log.page_url}</td>
+                            <td><span style="font-weight:700; color:#4a6ee0;">${log.action_type}</span></td>
+                            <td>${log.details || '-'}</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (e) { body.innerHTML = '<tr><td colspan="5">Error loading logs</td></tr>'; }
+        }
+    </script>
+</body>
+
+</html>

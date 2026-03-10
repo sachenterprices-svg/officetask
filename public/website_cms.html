@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Website CMS - Coral Infratel</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .cms-container {
+            max-width: 800px;
+            margin: 50px auto;
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            font-weight: 800;
+            margin-bottom: 10px;
+            color: #0f172a;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            padding: 15px;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 1rem;
+        }
+
+        .save-btn {
+            background: #e31837;
+            color: white;
+            border: none;
+            padding: 18px;
+            width: 100%;
+            border-radius: 50px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: 0.3s;
+            margin-top: 20px;
+        }
+
+        .save-btn:hover {
+            background: #c1122d;
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(227, 24, 55, 0.2);
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: none;
+            text-align: center;
+            font-weight: 700;
+        }
+
+        .alert-success {
+            background: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #d1fae5;
+        }
+    </style>
+</head>
+
+<body class="bg-light">
+
+    <header class="main-header">
+        <div class="header-container">
+            <div class="logo-section"><span class="logo-text">Website Content Manager (CMS)</span></div>
+            <div class="nav-actions"><button onclick="location.href='dashboard.html'"
+                    class="btn-secondary">Dashboard</button></div>
+        </div>
+    </header>
+
+    <div class="cms-container">
+        <div id="statusAlert" class="alert alert-success">Website updated successfully! Changes are now live.</div>
+
+        <form id="cmsForm">
+            <div class="form-group">
+                <label>Hero Title (HTML Supported)</label>
+                <input type="text" id="hero_title" placeholder="Main Heading">
+            </div>
+            <div class="form-group">
+                <label>Hero Description</label>
+                <textarea id="hero_desc" rows="3" placeholder="Subtext under title"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Office Address</label>
+                <textarea id="office_address" rows="2" placeholder="Full address"></textarea>
+            </div>
+            <div class="form-group">
+                <label>WhatsApp Bot Number (Numeric only)</label>
+                <input type="text" id="whatsapp_no" placeholder="e.g. 01262242000">
+            </div>
+            <div class="form-group">
+                <label>Contact Email</label>
+                <input type="email" id="contact_email" placeholder="info@coralinfratel.com">
+            </div>
+
+            <button type="submit" class="save-btn">Publish to Website</button>
+        </form>
+    </div>
+
+    <script src="auth.js"></script>
+    <script>
+        checkAuth();
+        const form = document.getElementById('cmsForm');
+
+        // Load Current Content
+        async function loadContent() {
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/website/content`);
+                const data = await res.json();
+                for (const [key, value] of Object.entries(data)) {
+                    if (document.getElementById(key)) document.getElementById(key).value = value;
+                }
+            } catch (e) { console.error('Load failed'); }
+        }
+        loadContent();
+
+        // Save Content
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button');
+            btn.textContent = 'Updating...';
+            btn.disabled = true;
+
+            const payload = {
+                hero_title: document.getElementById('hero_title').value,
+                hero_desc: document.getElementById('hero_desc').value,
+                office_address: document.getElementById('office_address').value,
+                whatsapp_no: document.getElementById('whatsapp_no').value,
+                contact_email: document.getElementById('contact_email').value
+            };
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/website/content`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.ok) {
+                    document.getElementById('statusAlert').style.display = 'block';
+                    btn.textContent = 'Publish to Website';
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            } catch (e) { alert('Update failed'); }
+            finally { btn.disabled = false; }
+        };
+    </script>
+</body>
+
+</html>

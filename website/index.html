@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coral Infratel | Enterprise Communication & IPPBX Solutions</title>
+    <meta name="description"
+        content="Official Partner for BSNL IPPBX Schemes. Providing high-end IPPBX, Call Center systems, and Unified Communications.">
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        /* 
+           PREMIUM INTEGRATED STYLES 
+           Ensures design logic loads even if external CSS fails
+        */
+        :root {
+            --primary: #e31837;
+            /* Coral Red */
+            --primary-dark: #c1122d;
+            --secondary: #0f172a;
+            /* Deep Navy */
+            --accent: #38bdf8;
+            --bg: #ffffff;
+            --bg-alt: #f8fafc;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
+            --radius: 16px;
+            --whatsapp: #25d366;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            color: var(--text);
+            background: var(--bg);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 25px;
+        }
+
+        /* Header */
+        header {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            z-index: 1000;
+            padding: 20px 0;
+            transition: 0.3s;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .nav-flex {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--secondary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo span {
+            color: var(--primary);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 30px;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: var(--secondary);
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+
+        .nav-links a.active {
+            color: var(--primary);
+            border-bottom: 2px solid var(--primary);
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-block;
+            padding: 12px 28px;
+            border-radius: 50px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: 0.3s;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 4px 15px rgba(227, 24, 55, 0.2);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+
+        /* Hero */
+        .hero {
+            padding: 180px 0 100px;
+            background: radial-gradient(circle at top right, rgba(227, 24, 55, 0.05), transparent);
+        }
+
+        .hero-flex {
+            display: flex;
+            align-items: center;
+            gap: 50px;
+        }
+
+        .hero-text {
+            flex: 1;
+        }
+
+        .hero-text h1 {
+            font-size: 3.8rem;
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 25px;
+            color: var(--secondary);
+        }
+
+        .hero-text h1 span {
+            color: var(--primary);
+        }
+
+        .hero-text p {
+            font-size: 1.25rem;
+            color: var(--text-muted);
+            margin-bottom: 40px;
+            max-width: 500px;
+        }
+
+        .hero-img {
+            flex: 1;
+            position: relative;
+        }
+
+        .hero-img img {
+            width: 100%;
+            border-radius: 24px;
+            box-shadow: var(--shadow);
+        }
+
+        /* Sections */
+        .section {
+            padding: 100px 0;
+        }
+
+        .tag {
+            color: var(--primary);
+            text-transform: uppercase;
+            font-weight: 800;
+            font-size: 0.8rem;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        .title {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 60px;
+            color: var(--secondary);
+        }
+
+        /* Features */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+
+        .card {
+            padding: 45px;
+            background: var(--bg-alt);
+            border-radius: 24px;
+            transition: 0.3s;
+            border: 1px solid transparent;
+        }
+
+        .card:hover {
+            background: white;
+            border-color: var(--primary);
+            transform: translateY(-10px);
+            box-shadow: var(--shadow);
+        }
+
+        .card .icon {
+            font-size: 2.5rem;
+            margin-bottom: 25px;
+            display: block;
+        }
+
+        .card h3 {
+            font-size: 1.4rem;
+            margin-bottom: 15px;
+        }
+
+        /* BSNL Banner */
+        .bsnl-banner {
+            background: var(--secondary);
+            color: white;
+            border-radius: 30px;
+            padding: 80px;
+            display: flex;
+            align-items: center;
+            gap: 50px;
+            margin-top: 50px;
+        }
+
+        .bsnl-banner h2 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+        }
+
+        .bsnl-banner p {
+            color: #94a3b8;
+            font-size: 1.1rem;
+            margin-bottom: 30px;
+        }
+
+        /* WhatsApp Floating Tooltip */
+        .wa-chat-container {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            z-index: 10000;
+            font-family: inherit;
+        }
+
+        .wa-bubble {
+            background: var(--whatsapp);
+            width: 65px;
+            height: 65px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 2rem;
+            box-shadow: 0 10px 30px rgba(37, 211, 102, 0.4);
+            cursor: pointer;
+            transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+        }
+
+        .wa-bubble:hover {
+            transform: scale(1.1) rotate(5deg);
+        }
+
+        .wa-bubble .badge {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: #ef4444;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid white;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.2);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .wa-window {
+            position: absolute;
+            bottom: 85px;
+            right: 0;
+            width: 350px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.15);
+            display: none;
+            overflow: hidden;
+            flex-direction: column;
+            transform-origin: bottom right;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9) translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        .wa-header {
+            background: var(--whatsapp);
+            padding: 25px;
+            color: white;
+        }
+
+        .wa-header h4 {
+            margin-bottom: 5px;
+        }
+
+        .wa-header p {
+            font-size: 0.85rem;
+            opacity: 0.9;
+        }
+
+        .wa-body {
+            padding: 20px;
+            background: #f0f2f5;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .wa-msg {
+            background: white;
+            padding: 12px 15px;
+            border-radius: 12px;
+            border-top-left-radius: 0;
+            font-size: 0.9rem;
+            max-width: 85%;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        }
+
+        .wa-footer {
+            padding: 20px;
+            background: white;
+            display: flex;
+            gap: 5px;
+        }
+
+        /* Inquiry Form */
+        .inquiry-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            background: white;
+            padding: 50px;
+            border-radius: 30px;
+            box-shadow: var(--shadow);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 15px 20px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            background: #f8fafc;
+            margin-bottom: 15px;
+            font-family: inherit;
+        }
+
+        .form-input:focus {
+            border-color: var(--primary);
+            outline: none;
+            background: white;
+        }
+
+        /* Testimonials */
+        .testimonial-card {
+            background: white;
+            padding: 40px;
+            border-radius: 24px;
+            box-shadow: var(--shadow);
+            position: relative;
+        }
+
+        .testimonial-card::after {
+            content: "“";
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            font-size: 5rem;
+            color: var(--primary);
+            opacity: 0.1;
+            font-family: serif;
+        }
+
+        .client-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-top: 25px;
+        }
+
+        .client-info img {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        /* Products Specific */
+        .product-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            background: rgba(227, 24, 55, 0.1);
+            color: var(--primary);
+            border-radius: 50px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .hero-flex {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .hero-text h1 {
+                font-size: 2.8rem;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            .bsnl-banner {
+                flex-direction: column;
+                padding: 40px;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header id="header">
+        <div class="container">
+            <nav class="nav-flex">
+                <a href="#" class="logo">
+                    <img src="https://coralinfratel.com/wp-content/uploads/2021/05/coral-logo.png" alt="Coral Infratel"
+                        style="height: 50px;" id="realLogo">
+                    <div id="textLogo" style="display: none;">Coral <span>Infratel</span></div>
+                </a>
+                <div class="nav-links">
+                    <a href="#solutions">Solutions</a>
+                    <a href="#bsnl">BSNL Scheme</a>
+                    <a href="#products">Products</a>
+                    <a href="support.html">Support</a>
+                </div>
+                <a href="#contact" class="btn btn-primary">Contact Us</a>
+            </nav>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="container">
+            <div class="hero-flex">
+                <div class="hero-text">
+                    <span class="tag">Trusted by Enterprises</span>
+                    <h1>Integrated <span>Communication</span> Reimagined.</h1>
+                    <p>Next-generation IPPBX systems and Call Center solutions designed for scale, security, and
+                        performance.</p>
+                    <div style="display: flex; gap: 20px;">
+                        <a href="#solutions" class="btn btn-primary">Our Solutions</a>
+                        <a href="support.html"
+                            style="font-weight: 700; color: var(--secondary); text-decoration: none; align-self: center;">Support
+                            Center &rarr;</a>
+                    </div>
+                </div>
+                <div class="hero-img">
+                    <!-- High quality business visual -->
+                    <img src="https://images.unsplash.com/photo-1573164713714-d95e436ab8d6?auto=format&fit=crop&q=80&w=1200"
+                        alt="IPPBX Solution Dashboard">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="section" id="solutions">
+        <div class="container">
+            <span class="tag">What we offer</span>
+            <h2 class="title" style="margin-bottom: 40px;">End-to-End Enterprise Kits</h2>
+            <div class="grid">
+                <div class="card">
+                    <span class="icon">🏢</span>
+                    <h3>IPPBX Infrastructure</h3>
+                    <p>On-premise and cloud-integrated IPPBX hardware featuring multi-level IVR, voice recording, and
+                        seamless CRM linkage.</p>
+                </div>
+                <div class="card">
+                    <span class="icon">💻</span>
+                    <h3>Call Center Suite</h3>
+                    <p>A complete kit for outbound/inbound centers with auto-dialers, real-time dashboards, and
+                        supervisor monitoring.</p>
+                </div>
+                <div class="card">
+                    <span class="icon">🌩️</span>
+                    <h3>Cloud Voice</h3>
+                    <p>Future-proof your communication with our Digital SIP solutions and remote employee connectivity
+                        tools.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- New Products Section -->
+    <section class="section" id="products" style="background: var(--bg-alt);">
+        <div class="container">
+            <span class="tag">Explore our hardware</span>
+            <h2 class="title">Our Key Products</h2>
+            <div class="grid">
+                <div class="card" style="background: white;">
+                    <span class="product-badge">Top Seller</span>
+                    <span class="icon">🔌</span>
+                    <h3>PRI to SIP Media Converter</h3>
+                    <p>High-reliability gateway to bridge legacy PRI lines with modern SIP infrastructure. Supports up
+                        to 30 simultaneous channels.</p>
+                    <a href="#inquiry" class="btn"
+                        style="padding: 8px 0; color: var(--primary); font-size: 0.9rem;">Request Specs &rarr;</a>
+                </div>
+                <div class="card" style="background: white;">
+                    <span class="product-badge">New Arrival</span>
+                    <span class="icon">📞</span>
+                    <h3>Advanced IPPBX Systems</h3>
+                    <p>Scalable hardware units from 20 to 2000 users. Native support for analog, digital, and IP
+                        extensions with built-in recording.</p>
+                    <a href="#inquiry" class="btn"
+                        style="padding: 8px 0; color: var(--primary); font-size: 0.9rem;">View Models &rarr;</a>
+                </div>
+                <div class="card" style="background: white;">
+                    <span class="product-badge">Enterprise</span>
+                    <span class="icon">🎧</span>
+                    <h3>Call Center Solutions</h3>
+                    <p>Full-stack predictive dialer systems with CRM integration, whisper/barge features, and
+                        comprehensive analytics.</p>
+                    <a href="#inquiry" class="btn" style="padding: 8px 0; color: var(--primary); font-size: 0.9rem;">Get
+                        Quote &rarr;</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="section" id="testimonials">
+        <div class="container">
+            <span class="tag">Testimonials</span>
+            <h2 class="title">What Our Clients Say</h2>
+            <div class="grid">
+                <div class="testimonial-card">
+                    <p>"The BSNL Free IPPBX scheme through Coral Infratel saved our operations over 2 Lakhs in initial
+                        setup costs. Excellent support!"</p>
+                    <div class="client-info">
+                        <div>
+                            <strong>Major Enterprise Customer</strong>
+                            <p style="font-size: 0.8rem; color: var(--text-muted);">IT Services Sector</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="testimonial-card">
+                    <p>"Transitioning to their SIP Solution was seamless. Their team handled everything from BSNL
+                        coordination to final testing."</p>
+                    <div class="client-info">
+                        <div>
+                            <strong>Telecom Manager</strong>
+                            <p style="font-size: 0.8rem; color: var(--text-muted);">Hospitality Group</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Inquiry Form -->
+    <section class="section" id="inquiry" style="background: var(--bg-alt); padding: 80px 0;">
+        <div class="container">
+            <div class="inquiry-grid">
+                <div>
+                    <span class="tag">Inquiry Now</span>
+                    <h2 style="font-size: 2.2rem; margin-bottom: 20px;">Ready to optimize your communication?</h2>
+                    <p style="color: var(--text-muted); margin-bottom: 30px;">Fill out the form and our experts will
+                        reach out within 2 business hours with a custom proposal.</p>
+                    <div style="background: var(--secondary); color: white; padding: 30px; border-radius: 20px;">
+                        <h4 style="margin-bottom: 15px;">Why choose us?</h4>
+                        <ul style="list-style: none; font-size: 0.9rem; opacity: 0.8;">
+                            <li style="margin-bottom: 8px;">✅ Certified BSNL Channel Partner</li>
+                            <li style="margin-bottom: 8px;">✅ 15+ Years Industry Experience</li>
+                            <li>✅ Pan-India Support Coverage</li>
+                        </ul>
+                    </div>
+                </div>
+                <form id="inquiryForm"
+                    onsubmit="event.preventDefault(); alert('Inquiry Sent! We will contact you soon.');">
+                    <input type="text" class="form-input" placeholder="Full Name" required>
+                    <input type="email" class="form-input" placeholder="Work Email" required>
+                    <input type="tel" class="form-input" placeholder="Mobile Number" required>
+                    <select class="form-input" required>
+                        <option value="">Interested in...</option>
+                        <option>BSNL Free IPPBX Scheme</option>
+                        <option>PRI to SIP Media Converter</option>
+                        <option>Call Center Solution</option>
+                        <option>Cloud Voice / SIP</option>
+                    </select>
+                    <textarea class="form-input" rows="4" placeholder="How can we help?"></textarea>
+                    <button type="submit" class="btn btn-primary" style="width: 100%; border: none;">Send
+                        Inquiry</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <section class="section" id="contact">
+        <div class="container">
+            <span class="tag">Get in touch</span>
+            <h2 class="title">Contact Details</h2>
+            <div class="grid">
+                <div class="card" style="text-align: center;">
+                    <span class="icon">📍</span>
+                    <h3>Our Office</h3>
+                    <p id="footer_addr">144, Subhash nagar, Rohtak, Haryana, 124001, India</p>
+                </div>
+                <div class="card" style="text-align: center;">
+                    <span class="icon">📞</span>
+                    <h3>Call / WhatsApp</h3>
+                    <p id="footer_wa">+91 70159 97383</p>
+                    <p style="font-size: 0.8rem; color: var(--text-muted);">Mon - Sat: 9:00 AM - 6:30 PM</p>
+                </div>
+                <div class="card" style="text-align: center;">
+                    <span class="icon">✉️</span>
+                    <h3>Email Us</h3>
+                    <p id="footer_email">info@coralinfratel.com</p>
+                    <p style="font-size: 0.8rem; color: var(--text-muted);">Inquiries: sales@coralinfratel.com</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="section" id="bsnl" style="padding-top: 0;">
+        <div class="container">
+            <div class="bsnl-banner">
+                <div style="flex: 1.5;">
+                    <span class="tag" style="color: #38bdf8;">Official Partner</span>
+                    <h2>BSNL Free IPPBX Scheme</h2>
+                    <p>Why invest in hardware when you can get it for FREE? Upgrade your office setup with zero capital
+                        expenditure through our exclusive BSNL partnership.</p>
+                    <div style="display: flex; gap: 40px; margin-bottom: 40px;">
+                        <div>
+                            <div style="font-size: 1.5rem; font-weight: 800;">0 ₹</div>
+                            <div style="font-size: 0.8rem; color: #94a3b8;">Initial Investment</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 1.5rem; font-weight: 800;">24/7</div>
+                            <div style="font-size: 0.8rem; color: #94a3b8;">Expert Support</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 1.5rem; font-weight: 800;">100%</div>
+                            <div style="font-size: 0.8rem; color: #94a3b8;">Reliability</div>
+                        </div>
+                    </div>
+                    <a href="https://wa.me/91XXXXXXXXXX" class="btn" style="background: #38bdf8; color: #020617;">Get
+                        Scheme Details</a>
+                </div>
+                <div style="flex: 1; text-align: center;">
+                    <img src="https://upload.wikimedia.org/wikipedia/en/thumb/5/52/Bharat_Sanchar_Nigam_Limited_Logo.svg/1200px-Bharat_Sanchar_Nigam_Limited_Logo.svg.png"
+                        alt="BSNL Logo" style="height: 120px; filter: brightness(0) invert(1);">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer style="padding: 100px 0 50px; background: #020617; color: white;">
+        <div class="container">
+            <div
+                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 50px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 50px; margin-bottom: 50px;">
+                <div>
+                    <div style="font-size: 1.5rem; font-weight: 800; margin-bottom: 20px;">Coral <span>Infratel</span>
+                    </div>
+                    <p style="color: #64748b; font-size: 0.9rem;">Leading provider of unified communication solutions in
+                        India. Transforming how businesses connect.</p>
+                </div>
+                <div>
+                    <h4 style="margin-bottom: 20px;">Quick Links</h4>
+                    <ul style="list-style: none; color: #64748b; font-size: 0.9rem;">
+                        <li style="margin-bottom: 10px;"><a href="#solutions">Solutions</a></li>
+                        <li style="margin-bottom: 10px;"><a href="#products">Products</a></li>
+                        <li style="margin-bottom: 10px;"><a href="support.html">Registration Help</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 style="margin-bottom: 20px;">Contact</h4>
+                    <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 10px;">📍 144, Subhash nagar, Rohtak,
+                        Haryana, 124001, India</p>
+                    <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 10px;">📧 Email: info@coralinfratel.com
+                    </p>
+                    <p style="color: #64748b; font-size: 0.9rem;">📞 WhatsApp: +91 70159 97383</p>
+                </div>
+            </div>
+            <p style="text-align: center; color: #475569; font-size: 0.8rem;">&copy; 2026 Coral Infratel. All rights
+                reserved.</p>
+        </div>
+    </footer>
+
+    <!-- WhatsApp Interactive Widget -->
+    <div class="wa-chat-container">
+        <div class="wa-window" id="waWindow">
+            <div class="wa-header">
+                <h4>Chat with Coral Infratel</h4>
+                <p>Typically replies in minutes</p>
+            </div>
+            <div class="wa-body">
+                <div class="wa-msg">
+                    Hi there! 👋 How can we help you with your office communication today?
+                </div>
+                <div class="wa-msg">
+                    Are you looking for the <strong>BSNL Free IPPBX Scheme</strong>?
+                </div>
+            </div>
+            <div class="wa-footer">
+                <a href="https://wa.me/917015997383?text=I%20am%20interested%20in%20BSNL%20Scheme" target="_blank"
+                    class="btn"
+                    style="flex: 1; background: #25d366; color: white; padding: 10px; font-size: 0.85rem; text-align: center;">Start
+                    Chat</a>
+                <button onclick="toggleWa()" class="btn"
+                    style="background: #e2e8f0; color: #475569; padding: 10px; font-size: 0.85rem;">Close</button>
+            </div>
+        </div>
+        <div class="wa-bubble" onclick="toggleWa()">
+            💬
+            <div class="badge"></div>
+        </div>
+    </div>
+
+    <script>
+        // Simple Scroll Effect
+        window.addEventListener('scroll', () => {
+            const header = document.getElementById('header');
+            if (window.scrollY > 50) {
+                header.style.padding = '12px 0';
+                header.style.boxShadow = '0 10px 30px rgba(0,0,0,0.1)';
+            } else {
+                header.style.padding = '20px 0';
+                header.style.boxShadow = 'none';
+            }
+        });
+
+        // Try to load real logo
+        const logoImg = document.getElementById('realLogo');
+        const textLogo = document.getElementById('textLogo');
+        logoImg.onload = () => {
+            logoImg.style.display = 'block';
+            textLogo.style.display = 'none';
+        };
+
+        // CMS Dynamic Content Integration
+        (async function loadCMS() {
+            const API_ROOT = 'https://officetask-roan.vercel.app/api';
+            try {
+                const res = await fetch(`${API_ROOT}/website/content`);
+                const data = await res.json();
+
+                // Hero Section
+                if (data.hero_title) document.querySelector('.hero-text h1').innerHTML = data.hero_title;
+                if (data.hero_desc) document.querySelector('.hero-text p').textContent = data.hero_desc;
+
+                // Contact Details
+                if (data.office_address) {
+                    const addrP = document.querySelector('footer p[style*="Subhash nagar"]');
+                    if (addrP) addrP.innerHTML = `📍 ${data.office_address}`;
+                }
+                if (data.contact_email) {
+                    const emailP = document.getElementById('footer_email');
+                    if (emailP) emailP.innerHTML = data.contact_email;
+                }
+
+                // WhatsApp / Bot Integration
+                if (data.whatsapp_no) {
+                    const cleanNo = data.whatsapp_no.replace(/[^0-9]/g, '');
+                    // Update main chat link
+                    const waChatLink = document.querySelector('.wa-footer a');
+                    if (waChatLink) waChatLink.href = `https://wa.me/91${cleanNo}?text=I%20am%20interested%3F`;
+
+                    const waDisplay = document.getElementById('footer_wa');
+                    if (waDisplay) waDisplay.textContent = `+91 ${data.whatsapp_no}`;
+                }
+            } catch (e) {
+                console.error('CMS Sync failed. Displaying default content.');
+            }
+        })();
+
+        function toggleWa() {
+            const win = document.getElementById('waWindow');
+            win.style.display = win.style.display === 'flex' ? 'none' : 'flex';
+            document.querySelector('.wa-bubble .badge').style.display = 'none';
+        }
+
+        // Active link on scroll
+        window.addEventListener('scroll', () => {
+            const sections = document.querySelectorAll('section');
+            const navLinks = document.querySelectorAll('.nav-links a');
+
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                if (pageYOffset >= sectionTop - 120) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href').includes(current)) {
+                    link.classList.add('active');
+                }
+            });
+        });
+
+        // Website Tracking
+        (async function trackVisit() {
+            try {
+                await fetch('https://officetask-roan.vercel.app/api/analytics/track', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        page_url: window.location.pathname,
+                        action_type: 'visit',
+                        details: 'Home Page View'
+                    })
+                });
+            } catch (e) { }
+        })();
+    </script>
+</body>
+
+</html>

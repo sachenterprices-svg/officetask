@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Support - Coral Infratel</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #e31837;
+            --primary-dark: #c1122d;
+            --secondary: #0f172a;
+            --bg: #f8fafc;
+            --shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            margin: 0;
+            padding: 0;
+            color: #1e293b;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 80px auto;
+            background: white;
+            padding: 50px;
+            border-radius: 30px;
+            box-shadow: var(--shadow);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .tag {
+            color: var(--primary);
+            font-weight: 800;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        h2 {
+            font-size: 2rem;
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+
+        .row {
+            display: flex;
+            gap: 15px;
+        }
+
+        .row div {
+            flex: 1;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 0.95rem;
+        }
+
+        input:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+
+        .btn-submit {
+            width: 100%;
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 15px;
+            font-weight: 700;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: 0.3s;
+            margin-top: 10px;
+        }
+
+        .btn-submit:hover {
+            background: #c1122d;
+            transform: translateY(-2px);
+        }
+
+        .btn-submit:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        .hidden-fields {
+            display: none;
+        }
+
+        .alert {
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            display: none;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .alert-success {
+            background: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #d1fae5;
+        }
+
+        .alert-error {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fee2e2;
+            text-align: left;
+            line-height: 1.5;
+        }
+
+        .fetch-status {
+            font-size: 0.8rem;
+            color: #64748b;
+            margin-top: 5px;
+            height: 1.2rem;
+        }
+
+        .header-simple {
+            padding: 15px 0;
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            margin-bottom: 40px;
+            width: 100%;
+        }
+
+        .header-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-logo {
+            text-decoration: none;
+            color: var(--secondary);
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.2rem;
+        }
+
+        .header-logo img {
+            height: 40px;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .header-logo span {
+            color: var(--primary);
+        }
+
+        .logo-nav a {
+            text-decoration: none;
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: 0.2s;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header class="header-simple">
+        <div class="header-container">
+            <a href="index.html" class="header-logo">
+                <img src="https://coralinfratel.com/wp-content/uploads/2021/05/coral-logo.png" alt="Logo">
+                Coral Infratel
+            </a>
+            <div class="logo-nav">
+                <a href="index.html">← Back to Home</a>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <span class="tag">Contact Support</span>
+        <h2>Register Complaint</h2>
+
+        <div id="statusAlert" class="alert alert-success">
+            Complaint submitted! Your Ticket ID is: <span id="ticketIdDisplay"></span>
+        </div>
+
+        <div id="notFoundAlert" class="alert alert-error">
+            <strong>Data Not Available</strong><br>
+            Please Enter your Pilot PRI/SIP number as mentioned in the BSNL Bill.
+        </div>
+
+        <form id="complaintForm">
+            <!-- Customer Search Area -->
+            <div class="form-group">
+                <label>Existing Customer Lookup (Landline)</label>
+                <div class="row">
+                    <div style="flex: 1;">
+                        <input type="text" id="stdCode" placeholder="STD Code" maxlength="6">
+                    </div>
+                    <div style="flex: 2;">
+                        <input type="text" id="telNumber" placeholder="Telephone Number" maxlength="10">
+                    </div>
+                    <div style="flex: 1;">
+                        <button type="button" onclick="fetchCustomer()"
+                            style="width: 100%; border-radius: 10px; padding: 12px; background: var(--secondary); color: white; border: none; font-weight: 600; cursor: pointer;">Verify</button>
+                    </div>
+                </div>
+                <div id="fetchStatus" class="fetch-status" style="display: none;"></div>
+            </div>
+
+            <div id="extraFields" class="hidden-fields">
+                <div class="form-group">
+                    <label>Customer Name</label>
+                    <input type="text" id="custName" required placeholder="Full Name or Company">
+                </div>
+
+                <div class="form-group">
+                    <label>Mobile Number</label>
+                    <input type="tel" id="custMobile" required placeholder="Enter YOUR mobile for updates">
+                </div>
+
+                <div class="form-group">
+                    <label>Email ID</label>
+                    <input type="email" id="custEmail" required placeholder="Enter YOUR email for confirmation">
+                </div>
+
+                <div class="form-group">
+                    <label>Issue/Complaint Details</label>
+                    <textarea id="issueDesc" rows="4" required placeholder="Describe your problem..."></textarea>
+                </div>
+
+                <button type="submit" class="btn-submit" id="submitBtn">Submit Complaint</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        const API_BASE = 'https://officetask-roan.vercel.app/api';
+        const CRM_API = 'https://officetask-roan.vercel.app/api';
+
+        const stdInput = document.getElementById('stdCode');
+        const telInput = document.getElementById('telNumber');
+        const nameInput = document.getElementById('custName');
+        const mobileInput = document.getElementById('custMobile');
+        const emailInput = document.getElementById('custEmail');
+        const statusText = document.getElementById('fetchStatus');
+
+        // Auto-fetch Customer Details
+        const fetchCustomer = async () => {
+            const std = stdInput.value.trim();
+            const tel = telInput.value.trim();
+
+            if (!std || !tel) {
+                alert("Please enter both STD code and Telephone Number.");
+                return;
+            }
+
+            // UI Reset
+            statusText.textContent = "Verifying with BSNL Database...";
+            statusText.style.display = 'block';
+            statusText.style.color = '#64748b';
+            document.getElementById('notFoundAlert').style.display = 'none';
+            document.getElementById('extraFields').style.display = 'none';
+
+            let customerFound = false;
+
+            // Try Live CRM first, then Vercel, then Local
+            const endpoints = [
+                `${CRM_API}/customers/search?std_code=${std}&telephone_number=${tel}`,
+                `${API_BASE}/customers/search?std_code=${std}&telephone_number=${tel}`,
+                `http://localhost:8080/api/customers/search?std_code=${std}&telephone_number=${tel}`
+            ];
+
+            for (const url of endpoints) {
+                try {
+                    const res = await fetch(url);
+                    if (res.ok) {
+                        const data = await res.json();
+                        nameInput.value = data.customer_name;
+                        mobileInput.value = "";
+                        emailInput.value = "";
+
+                        statusText.style.color = "#059669";
+                        statusText.textContent = "Customer record verified!";
+                        document.getElementById('extraFields').style.display = 'block';
+                        customerFound = true;
+                        break;
+                    }
+                } catch (e) {
+                    console.warn(`Endpoint failed: ${url}`);
+                }
+            }
+
+            if (!customerFound) {
+                statusText.style.display = 'none';
+                document.getElementById('notFoundAlert').style.display = 'block';
+            }
+        };
+
+        // Allow 'Enter' key to trigger search
+        telInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                fetchCustomer();
+            }
+        });
+
+        // Form Submission
+        document.getElementById('complaintForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.textContent = 'Submitting...';
+
+            const payload = {
+                customer_name: nameInput.value,
+                mobile: mobileInput.value,
+                email: emailInput.value,
+                issue_type: "Auto-Support",
+                description: document.getElementById('issueDesc').value,
+                std_code: stdInput.value,
+                telephone_number: telInput.value
+            };
+
+            try {
+                const res = await fetch(`${API_BASE}/complaints`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.ok) {
+                    const result = await res.json();
+                    document.getElementById('ticketIdDisplay').textContent = result.ticket_id;
+                    document.getElementById('statusAlert').style.display = 'block';
+                    e.target.reset();
+                    statusText.textContent = "";
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } else {
+                    alert("Submission error. Please call support.");
+                }
+            } catch (err) {
+                alert("Network error. Try again later.");
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Submit Complaint';
+            }
+        };
+
+        // Website Tracking
+        (async function trackVisit() {
+            try {
+                await fetch('https://officetask-roan.vercel.app/api/analytics/track', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        page_url: '/support.html',
+                        action_type: 'visit',
+                        details: 'Support Page View'
+                    })
+                });
+            } catch (e) { }
+        })();
+    </script>
+</body>
+
+</html>

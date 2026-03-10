@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claim Reconciliation - Coral Infratel</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="auth.js"></script>
+    <style>
+        /* Reconciliation Specific */
+        .recon-container {
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+        }
+
+        .module-tile:hover {
+            transform: translateY(-5px) scale(1.02);
+            border-color: var(--active-border);
+        }
+
+        .module-tile.active {
+            border-color: var(--active-border);
+            background: linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%);
+        }
+
+        .sidebar-header {
+            margin: 8px 0 4px;
+            font-size: 0.8rem;
+            font-weight: 800;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-align: center;
+        }
+
+        /* --- CONTENT AREA --- */
+        .content-area {
+            flex-grow: 1;
+            padding: 40px;
+            overflow-y: auto;
+        }
+
+        .workspace-container {
+            max-width: 1000px;
+            margin: 40px auto;
+            text-align: center;
+        }
+
+        .recon-card {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 60px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.04);
+            border: 1px solid white;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header class="top-header">
+        <div class="header-brand">
+            <span style="color: #002d72;">Coral</span> <span style="color: #f97316;">Infratel</span>
+        </div>
+        <div class="user-meta">
+            <span id="userInfoDisplay" style="font-weight:600;"></span>
+            <button onclick="window.logout()" class="logout-btn">Logout</button>
+        </div>
+    </header>
+
+    <div class="app-body">
+        <aside class="tile-sidebar">
+            <div class="sidebar-header">MENU</div>
+            <a href="dashboard.html" class="module-tile"><i>🏠</i>
+                <div class="tile-content">
+                    <h4>Dashboard</h4>
+                </div>
+            </a>
+        </aside>
+
+        <main class="content-area">
+            <!-- Content for future use -->
+        </main>
+    </div>
+</body>
+
+</html>

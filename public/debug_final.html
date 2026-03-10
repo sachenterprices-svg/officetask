@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connection Debugger FINAL</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            line-height: 1.6;
+            background: #f8fafc;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 800px;
+            margin: auto;
+            border: 1px solid #e2e8f0;
+        }
+
+        .success {
+            color: #10b981;
+            font-weight: bold;
+        }
+
+        .error {
+            color: #ef4444;
+            font-weight: bold;
+        }
+
+        .step {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            background: #fff;
+            border: 1px solid #cbd5e1;
+        }
+
+        h1 {
+            color: #0033a0;
+            border-bottom: 2px solid #0033a0;
+            padding-bottom: 15px;
+            margin-top: 0;
+        }
+
+        pre {
+            background: #1e293b;
+            color: #f8fafc;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <h1>Connection Debugger FINAL</h1>
+        <p>This page DOES NOT load any external JS files. If you are redirected from HERE, it's a server-level issue.
+        </p>
+
+        <div id="step1" class="step">⏳ Testing Vercel API Health...</div>
+        <div id="step2" class="step">⏳ Testing Database Connection...</div>
+
+        <h3>Detailed Logs:</h3>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        const log = document.getElementById('log');
+        function writeLog(msg, type = '') {
+            const p = document.createElement('p');
+            if (type) p.className = type;
+            p.innerHTML = msg;
+            log.appendChild(p);
+        }
+
+        async function verifyConnection() {
+            writeLog("Starting tests at: " + new Date().toLocaleTimeString());
+            const s1 = document.getElementById('step1');
+            const s2 = document.getElementById('step2');
+
+            const healthUrl = 'https://officetask-roan.vercel.app/api/health';
+
+            try {
+                writeLog(`Attempting fetch to: ${healthUrl}`);
+                const res = await fetch(healthUrl);
+                const data = await res.json();
+
+                if (res.ok) {
+                    s1.innerHTML = `✅ <b>API Reachable:</b> Status ${res.status}`;
+                    writeLog(`Full Response: ${JSON.stringify(data)}`, 'success');
+
+                    if (data.database === 'Connected') {
+                        s2.innerHTML = '✅ <b>Database Connected:</b> Vercel can talk to BigRock MySQL.';
+                    } else {
+                        s2.innerHTML = '❌ <b>Database Error:</b> ' + (data.error || 'Check DB credentials on Vercel.');
+                    }
+                } else {
+                    throw new Error(`Status ${res.status}`);
+                }
+            } catch (err) {
+                s1.innerHTML = '❌ <b>API Failed:</b> CORS or Network error.';
+                s2.innerHTML = '❌ <b>Blocked:</b> API test must pass first.';
+                writeLog(`Error Details: ${err.message}`, 'error');
+                writeLog('Tip: If you see "Status 405", check vercel.json. If you see "Failed to fetch", check CORS headers.', 'error');
+            }
+        }
+
+        window.onload = verifyConnection;
+    </script>
+</body>
+
+</html>

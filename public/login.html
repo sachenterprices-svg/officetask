@@ -9,97 +9,162 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
     <style>
+        :root {
+            --primary: #002d72;
+            --secondary: #f97316;
+            --bg-gradient: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        }
+
         body {
-            background-color: #f1f5f9;
+            background: var(--bg-gradient);
             display: flex;
             align-items: center;
             justify-content: center;
             height: 100vh;
             margin: 0;
             font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+
+        /* Ambient Background Elements */
+        .ambient-blob {
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0) 70%);
+            border-radius: 50%;
+            z-index: -1;
+            filter: blur(50px);
+        }
+
+        .blob-1 {
+            top: -100px;
+            left: -100px;
+        }
+
+        .blob-2 {
+            bottom: -100px;
+            right: -100px;
+            background: radial-gradient(circle, rgba(249, 115, 22, 0.1) 0%, rgba(249, 115, 22, 0) 70%);
         }
 
         .login-container {
-            background: white;
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 50px;
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
             width: 100%;
-            max-width: 400px;
+            max-width: 440px;
+            color: white;
         }
 
         .login-header {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 40px;
         }
 
         .login-header h2 {
             margin: 0;
-            color: #0f172a;
-            font-size: 24px;
+            font-size: 2rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
         }
 
         .login-header p {
-            color: #64748b;
-            font-size: 14px;
-            margin-top: 5px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 1rem;
+            margin-top: 8px;
         }
 
         .input-group {
-            margin-bottom: 20px;
+            margin-bottom: 25px;
         }
 
         .input-group label {
             display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-            color: #334155;
-            font-size: 14px;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .input-group input {
             width: 100%;
-            padding: 12px;
-            border: 1px solid #cbd5e1;
-            border-radius: 8px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
             outline: none;
-            transition: border-color 0.2s;
+            transition: 0.3s;
             box-sizing: border-box;
-            font-size: 15px;
+            font-size: 1rem;
+            color: white;
         }
 
         .input-group input:focus {
-            border-color: #0033a0;
+            border-color: var(--primary);
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
         }
 
         .login-btn {
-            background-color: #0033a0;
+            background: linear-gradient(135deg, #002d72, #2563eb);
             color: white;
             border: none;
-            border-radius: 8px;
-            padding: 14px;
+            border-radius: 12px;
+            padding: 16px;
             width: 100%;
-            font-weight: 600;
-            font-size: 16px;
+            font-weight: 700;
+            font-size: 1.1rem;
             cursor: pointer;
-            transition: background-color 0.2s;
+            transition: 0.3s;
+            box-shadow: 0 10px 20px rgba(37, 99, 235, 0.3);
         }
 
         .login-btn:hover {
-            background-color: #002277;
+            transform: translateY(-2px);
+            box-shadow: 0 15px 25px rgba(37, 99, 235, 0.4);
+        }
+
+        .login-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
         }
 
         .error-message {
-            color: #e11d48;
-            font-size: 14px;
+            color: #fb7185;
+            font-size: 0.95rem;
             text-align: center;
-            margin-top: 15px;
+            margin-top: 20px;
             display: none;
+            padding: 12px;
+            background: rgba(225, 29, 72, 0.1);
+            border-radius: 8px;
+            border: 1px solid rgba(225, 29, 72, 0.2);
+        }
+
+        .coral-logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            font-size: 1.8rem;
+            font-weight: 900;
+            letter-spacing: 1px;
         }
     </style>
 </head>
 
 <body>
+    <div class="ambient-blob blob-1"></div>
+    <div class="ambient-blob blob-2"></div>
 
     <div class="login-container">
         <div class="login-header">
@@ -126,7 +191,35 @@
         </form>
     </div>
 
+    <!-- Cache-busting version added to force latest settings -->
+    <script src="auth.js?v=4"></script>
     <script>
+        // --- AUTO-RESTART / RECONNECT LOGIC ---
+        // If the user visits the page and the server is down, this will keep checking
+        // every 3 seconds and automatically reload the page once the server is back up.
+        function checkServerHealth() {
+            fetch('https://officetask-roan.vercel.app/api/health')
+                .then(response => {
+                    if (response.ok) {
+                        // Server is up. If we previously showed an error, reload to restore normal state.
+                        const errorDiv = document.getElementById('errorMessage');
+                        if (errorDiv.innerText.includes("Connection lost")) {
+                            window.location.reload();
+                        }
+                    }
+                })
+                .catch(err => {
+                    const btn = document.querySelector('.login-btn');
+                    const errorDiv = document.getElementById('errorMessage');
+                    btn.disabled = true;
+                    btn.textContent = 'Connecting...';
+                    errorDiv.textContent = 'Connection lost. Waiting for server to restart...';
+                    errorDiv.style.display = 'block';
+                });
+        }
+        setInterval(checkServerHealth, 3000);
+        // --------------------------------------
+
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = document.querySelector('.login-btn');
@@ -140,7 +233,7 @@
             const password = document.getElementById('password').value;
 
             try {
-                const res = await fetch('/api/login', {
+                const res = await window.apiFetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password })
@@ -153,14 +246,15 @@
                     localStorage.setItem('crm_token', data.token);
                     localStorage.setItem('crm_user', JSON.stringify(data.user));
 
-                    // Redirect to proposal generator/dashboard
-                    window.location.href = '/index.html';
+                    // Redirect to office task dashboard
+                    window.location.href = 'dashboard.html';
                 } else {
-                    errorDiv.textContent = data.error || 'Login failed';
+                    errorDiv.textContent = (data.error || 'Login failed') + (data.details ? ': ' + data.details : '');
                     errorDiv.style.display = 'block';
                 }
             } catch (err) {
-                errorDiv.textContent = 'Server connection error';
+                console.error('Login Fetch Error:', err);
+                errorDiv.textContent = 'Server connection error: ' + err.message;
                 errorDiv.style.display = 'block';
             } finally {
                 btn.textContent = 'Log In';

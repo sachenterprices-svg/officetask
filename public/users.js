@@ -1,11 +1,10 @@
-// --- DYNAMIC MODULES LIST ---
-// Add new modules here in the future. The UI will automatically generate checkboxes for them.
-const AVAILABLE_MODULES = [
-    { id: "create_proposal", label: "Create Proposals" },
-    { id: "view_own_reports", label: "View Own Reports" },
-    { id: "view_all_reports", label: "View All Reports (Admin)" },
-    { id: "manage_catalog", label: "Manage Catalog" },
-    { id: "manage_users", label: "Manage Users" }
+const MODULES_CONFIG = [
+    { id: "proposals", label: "Proposals", actions: ["view", "add", "edit"] },
+    { id: "customers", label: "Customers", actions: ["view", "add", "edit"] },
+    { id: "complaints", label: "Complaints", actions: ["view", "add", "edit"] },
+    { id: "reconciliation", label: "Reconciliation", actions: ["view", "add", "edit"] },
+    { id: "users", label: "User Hierarchy", actions: ["view", "add", "edit"] },
+    { id: "system", label: "System Maintenance", actions: ["view"] }
 ];
 
 let users = [];
@@ -13,27 +12,11 @@ let selectedUserId = null;
 
 // Initialize Page
 document.addEventListener('DOMContentLoaded', () => {
-    // Admin Guard Check
-    if (!window.currentUser || window.currentUser.role !== 'admin') {
-        window.location.href = '/index.html';
-        return;
-    }
-
     loadUsers();
     renderDynamicPermissions();
 
-    // Listen for radio button selection in the table
-    document.getElementById('usersTableBody').addEventListener('change', (e) => {
-        if (e.target.name === 'selectedUser') {
-            selectedUserId = parseInt(e.target.value);
-        }
-    });
-
     // Form Submissions
     document.getElementById('userForm').addEventListener('submit', saveUser);
-    document.getElementById('pwdForm').addEventListener('submit', updatePassword);
-    document.getElementById('rightsForm').addEventListener('submit', saveRights);
-    document.getElementById('areaForm').addEventListener('submit', saveArea);
 });
 
 async function loadUsers() {
@@ -42,38 +25,67 @@ async function loadUsers() {
         if (res.ok) {
             users = await res.json();
             renderTable();
+            populateManagersDropdown();
         } else {
-            alert("Failed to load users");
+            console.error("Failed to load users");
         }
     } catch (err) {
         console.error(err);
     }
 }
 
+function populateManagersDropdown() {
+    const select = document.getElementById('modalReportsTo');
+    if (!select) return;
+
+    // Save current value if editing
+    const currentVal = select.value;
+
+    select.innerHTML = '<option value="">None (Top Level)</option>';
+    users.forEach(u => {
+        const opt = document.createElement('option');
+        opt.value = u.id;
+        opt.textContent = `${u.name || u.username} (${u.role})`;
+        select.appendChild(opt);
+    });
+
+    select.value = currentVal;
+}
+
 function renderTable() {
     const tbody = document.getElementById('usersTableBody');
     if (users.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">No users found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px;">No users found.</td></tr>';
         return;
     }
 
     let html = '';
     users.forEach(u => {
+        // Summarize rights
+        let rights = [];
+        try {
+            const perms = typeof u.permissions === 'string' ? JSON.parse(u.permissions) : u.permissions;
+            rights = (perms || []).map(p => {
+                const mod = MODULES_CONFIG.find(m => m.id === p);
+                return mod ? mod.id : p;
+            });
+        } catch (e) { }
+
+        const rightsText = rights.length > 0 ? rights.join(', ') : 'None';
+
         html += `
             <tr>
-                <td style="text-align:center;">
-                    <input type="radio" name="selectedUser" value="${u.id}" ${selectedUserId === u.id ? 'checked' : ''}>
-                </td>
-                <td>${u.id}</td>
-                <td>${u.name || '-'}</td>
+                <td style="text-align:center; font-weight:700; color:#64748b;">${u.id}</td>
+                <td style="font-weight:700; color:#0f172a;">${u.name || '-'}</td>
                 <td>${u.username}</td>
-                <td>${u.mobile || '-'}</td>
-                <td>${u.email || '-'}</td>
+                <td><span style="background:#f1f5f9; padding:4px 10px; border-radius:4px; font-size:0.75rem; font-weight:700; text-transform:uppercase;">${u.role}</span></td>
+                <td>${u.manager_name || '<i style="color:#cbd5e1">No Manager</i>'}</td>
+                <td style="font-size:0.8rem; max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${rightsText}">${rightsText}</td>
                 <td style="text-align:center;">
-                    <button class="legacy-btn" onclick="openEditModal(${u.id})" style="padding:2px 5px;">&#9998;</button>
-                </td>
-                <td style="text-align:center;">
-                    <button class="legacy-btn" onclick="deleteUser(${u.id})" style="padding:2px 5px; color:red;">&#128465;</button>
+                    <div style="display:flex; gap:10px; justify-content:center;">
+                        <button onclick="openEditModal(${u.id})" style="background:none; border:1px solid #e2e8f0; padding:6px; border-radius:6px; cursor:pointer;" title="Edit Profile">&#9998;</button>
+                        <button onclick="deleteUser(${u.id})" style="background:none; border:1px solid #fee2e2; padding:6px; border-radius:6px; cursor:pointer; color:#ef4444;" title="Delete User">&#128465;</button>
+                    </div>
                 </td>
             </tr>
         `;
@@ -84,37 +96,29 @@ function renderTable() {
 // --- DYNAMIC PERMISSIONS RENDERER ---
 function renderDynamicPermissions() {
     const container = document.getElementById('dynamicPermissionsContainer');
-    let html = '';
-    AVAILABLE_MODULES.forEach(mod => {
+    // Set grid to 3 columns for View, Add, Edit
+    container.style.display = 'block';
+
+    let html = `
+        <div style="display:grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap:10px; font-weight:800; font-size:0.75rem; color:#64748b; margin-bottom:10px; text-transform:uppercase;">
+            <div>Module</div>
+            <div style="text-align:center;">View</div>
+            <div style="text-align:center;">Add</div>
+            <div style="text-align:center;">Edit</div>
+        </div>
+    `;
+
+    MODULES_CONFIG.forEach(mod => {
         html += `
-            <label style="display:flex; align-items:center; gap:5px; font-size:0.9rem;">
-                <input type="checkbox" name="modulePerm" value="${mod.id}"> ${mod.label}
-            </label>
+            <div style="display:grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap:10px; align-items:center; padding:8px 0; border-bottom:1px solid #f1f5f9;">
+                <div style="font-weight:700; color:#334155;">${mod.label}</div>
+                <div style="text-align:center;"><input type="checkbox" name="perm_${mod.id}_view" value="${mod.id}:view"></div>
+                <div style="text-align:center;">${mod.actions.includes('add') ? `<input type="checkbox" name="perm_${mod.id}_add" value="${mod.id}:add">` : '-'}</div>
+                <div style="text-align:center;">${mod.actions.includes('edit') ? `<input type="checkbox" name="perm_${mod.id}_edit" value="${mod.id}:edit">` : '-'}</div>
+            </div>
         `;
     });
     container.innerHTML = html;
-}
-
-// --- ACTION BUTTON HANDLER ---
-function triggerAction(actionName) {
-    if (!selectedUserId) {
-        alert("Please select a user from the list first by clicking the radio button on the left.");
-        return;
-    }
-
-    const user = users.find(u => u.id === selectedUserId);
-    if (!user) return;
-
-    if (actionName === 'changePassword' || actionName === 'resetPassword') {
-        document.getElementById('pwdNewPassword').val('');
-        document.getElementById('passwordModal').style.display = 'flex';
-    } else if (actionName === 'assignRights') {
-        openRightsModal(user);
-    } else if (actionName === 'assignPermission') {
-        openAreaModal(user);
-    } else if (actionName === 'assignCustomer') {
-        // Future module stub
-    }
 }
 
 // --- MODAL LOGIC ---
@@ -124,6 +128,7 @@ function openAddModal() {
     document.getElementById('userModalTitle').innerText = 'Add New User';
     document.getElementById('passwordRow').style.display = 'block';
     document.getElementById('modalPassword').setAttribute('required', 'true');
+    document.getElementById('modalUsername').disabled = false;
     document.getElementById('userModal').style.display = 'flex';
 }
 
@@ -131,18 +136,27 @@ function openEditModal(id) {
     const user = users.find(u => u.id === id);
     if (!user) return;
 
-    selectedUserId = id; // auto-select this user
-    renderTable(); // re-render to check the radio box
+    selectedUserId = id;
 
     document.getElementById('modalUserId').value = user.id;
     document.getElementById('modalName').value = user.name || '';
     document.getElementById('modalUsername').value = user.username || '';
-    document.getElementById('modalUsername').disabled = true; // Cannot edit username
+    document.getElementById('modalUsername').disabled = true;
     document.getElementById('modalRole').value = user.role || 'user';
-    document.getElementById('modalMobile').value = user.mobile || '';
-    document.getElementById('modalEmail').value = user.email || '';
+    document.getElementById('modalCircle').value = user.allowed_circle || '';
+    document.getElementById('modalOA').value = user.allowed_oa || '';
+    document.getElementById('modalCustomers').value = user.allowed_customers || '';
+    document.getElementById('modalBackdate').checked = user.backdate_rights || false;
 
-    // Hide password field for standard edit (use action buttons for pwd change)
+    // Set Permissions
+    let perms = [];
+    try { perms = typeof user.permissions === 'string' ? JSON.parse(user.permissions) : user.permissions; } catch (e) { }
+    const checkboxes = document.querySelectorAll('#dynamicPermissionsContainer input[type="checkbox"]');
+    checkboxes.forEach(cb => {
+        cb.checked = (perms || []).includes(cb.value);
+    });
+
+    // Hide password field during standard edit
     document.getElementById('passwordRow').style.display = 'none';
     document.getElementById('modalPassword').removeAttribute('required');
 
@@ -150,63 +164,42 @@ function openEditModal(id) {
     document.getElementById('userModal').style.display = 'flex';
 }
 
-function openRightsModal(user) {
-    // Check boxes based on user.permissions
-    let perms = [];
-    try { perms = typeof user.permissions === 'string' ? JSON.parse(user.permissions) : user.permissions; } catch (e) { }
-    if (!perms) perms = [];
-
-    const checkboxes = document.querySelectorAll('input[name="modulePerm"]');
-    checkboxes.forEach(cb => {
-        cb.checked = perms.includes(cb.value);
-    });
-
-    document.getElementById('rightsModal').style.display = 'flex';
-}
-
-function openAreaModal(user) {
-    document.getElementById('areaCircle').value = user.allowed_circle || '';
-    document.getElementById('areaOA').value = user.allowed_oa || '';
-    document.getElementById('areaModal').style.display = 'flex';
-}
-
 function closeModals() {
-    document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+    document.getElementById('userModal').style.display = 'none';
 }
 
-window.closeModals = closeModals; // global for HTML onclicks
+window.closeModals = closeModals;
 
-// --- SAVE FUNCTIONS (API CALLS) ---
-
+// --- SAVE FUNCTION ---
 async function saveUser(e) {
     e.preventDefault();
     const id = document.getElementById('modalUserId').value;
     const isEditing = id !== '';
 
+    // Gather permissions
+    const permissions = [];
+    document.querySelectorAll('#dynamicPermissionsContainer input[type="checkbox"]:checked').forEach(cb => {
+        permissions.push(cb.value);
+    });
+
     const payload = {
         name: document.getElementById('modalName').value,
+        username: document.getElementById('modalUsername').value,
         role: document.getElementById('modalRole').value,
-        mobile: document.getElementById('modalMobile').value,
-        email: document.getElementById('modalEmail').value
+        reports_to: document.getElementById('modalReportsTo').value || null,
+        allowed_circle: document.getElementById('modalCircle').value || null,
+        allowed_oa: document.getElementById('modalOA').value || null,
+        allowed_customers: document.getElementById('modalCustomers').value || null,
+        permissions: permissions,
+        backdate_rights: document.getElementById('modalBackdate').checked
     };
 
-    let url = '/api/users';
-    let method = 'POST';
-
-    if (isEditing) {
-        url = `/api/users/${id}`;
-        method = 'PUT';
-        // Keep existing area/perms
-        const existing = users.find(u => Math.abs(u.id) === Math.abs(id));
-        if (existing) {
-            payload.allowed_circle = existing.allowed_circle;
-            payload.allowed_oa = existing.allowed_oa;
-            payload.permissions = existing.permissions;
-        }
-    } else {
-        payload.username = document.getElementById('modalUsername').value;
+    if (!isEditing) {
         payload.password = document.getElementById('modalPassword').value;
     }
+
+    const url = isEditing ? `/api/users/${id}` : '/api/users';
+    const method = isEditing ? 'PUT' : 'POST';
 
     try {
         const res = await window.apiFetch(url, {
@@ -228,82 +221,16 @@ async function saveUser(e) {
     }
 }
 
-async function updatePassword(e) {
-    e.preventDefault();
-    if (!selectedUserId) return;
-
-    const newPwd = document.getElementById('pwdNewPassword').value;
-    try {
-        const res = await window.apiFetch(`/api/users/${selectedUserId}/password`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ new_password: newPwd })
-        });
-        if (res.ok) {
-            alert("Password updated successfully.");
-            closeModals();
-        } else {
-            const err = await res.json();
-            alert(err.error);
-        }
-    } catch (err) {
-        alert('Network error');
-    }
-}
-
-async function saveRights(e) {
-    e.preventDefault();
-    if (!selectedUserId) return;
-    const user = users.find(u => u.id === selectedUserId);
-
-    // Gather checked permissions
-    const perms = [];
-    document.querySelectorAll('input[name="modulePerm"]:checked').forEach(cb => {
-        perms.push(cb.value);
-    });
-
-    const payload = { ...user, permissions: perms };
-
-    try {
-        const res = await window.apiFetch(`/api/users/${selectedUserId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        if (res.ok) {
-            closeModals();
-            loadUsers(); // Refresh data
-        }
-    } catch (err) { alert('Error updating rights'); }
-}
-
-async function saveArea(e) {
-    e.preventDefault();
-    if (!selectedUserId) return;
-    const user = users.find(u => u.id === selectedUserId);
-
-    const payload = {
-        ...user,
-        allowed_circle: document.getElementById('areaCircle').value,
-        allowed_oa: document.getElementById('areaOA').value
-    };
-
-    try {
-        const res = await window.apiFetch(`/api/users/${selectedUserId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        if (res.ok) {
-            closeModals();
-            loadUsers();
-        }
-    } catch (err) { alert('Error updating area coverage'); }
-}
-
 async function deleteUser(id) {
-    if (confirm("Future feature: Deleting users requires checking dependencies (proposals created). Proceed?")) {
-        // Implement DELETE logic when required OR add active/inactive status flag
-        alert("Action stubbed for safety. Recommend setting status to 'inactive' instead.");
-    }
+    if (!confirm("Are you sure you want to delete this user? This action cannot be undone.")) return;
+
+    try {
+        // Note: DELETE endpoint might need to be added to app.js if not already there
+        const res = await window.apiFetch(`/api/users/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+            loadUsers();
+        } else {
+            alert("Could not delete user. They may have related data (proposals/tasks).");
+        }
+    } catch (err) { alert('Network error'); }
 }

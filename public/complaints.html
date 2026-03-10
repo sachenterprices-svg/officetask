@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complaints Center - Coral Infratel</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="auth.js"></script>
+    <style>
+        /* Complaints Page Specific */
+        .complaints-container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.04);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.04);
+            border: 1px solid white;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th {
+            background: #f8fafc;
+            padding: 15px;
+            text-align: left;
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        td {
+            padding: 18px 15px;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 0.95rem;
+            color: #334155;
+        }
+
+        .status-pill {
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 800;
+            display: inline-block;
+        }
+
+        .status-pending {
+            background: #fee2e2;
+            color: #ef4444;
+            border: 1px solid #fecaca;
+        }
+
+        .status-resolved {
+            background: #dcfce7;
+            color: #10b981;
+            border: 1px solid #bbf7d0;
+        }
+
+        .ticket-id {
+            font-weight: 800;
+            color: #002d72;
+        }
+
+        .cust-name {
+            font-weight: 700;
+            color: #1e293b;
+        }
+    </style>
+</head>
+
+<body>
+    <header class="top-header">
+        <div class="header-brand">
+            <span style="color: #002d72;">Coral</span> <span style="color: #f97316;">Infratel</span>
+        </div>
+        <div class="user-meta">
+            <span id="userInfoDisplay" style="font-weight:600;"></span>
+            <button onclick="window.logout()" class="logout-btn">Logout</button>
+        </div>
+    </header>
+
+    <div class="app-body">
+        <aside class="tile-sidebar">
+            <div class="sidebar-header">MENU</div>
+            <a href="dashboard.html" class="module-tile"><i>🏠</i>
+                <div class="tile-content">
+                    <h4>Dashboard</h4>
+                </div>
+            </a>
+        </aside>
+
+        <main class="content-area">
+            <div class="glass-card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px;">
+                    <div>
+                        <h1 style="margin:0; font-weight:800; color:#0f172a;">Service Tickets</h1>
+                        <p style="margin:5px 0 0; color:#64748b; font-weight:500;">Manage and track customer support
+                            requests</p>
+                    </div>
+                    <a href="public_complaint.html" target="_blank"
+                        style="background:#10b981; color:white; padding:12px 24px; border-radius:12px; text-decoration:none; font-weight:800; transition:0.3s; box-shadow:0 4px 12px rgba(16,185,129,0.2);">+
+                        New Ticket</a>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Ticket ID</th>
+                            <th>Customer Name</th>
+                            <th>Issue Type</th>
+                            <th>Status</th>
+                            <th>Date Created</th>
+                        </tr>
+                    </thead>
+                    <tbody id="complaintsBody">
+                        <tr>
+                            <td colspan="5" style="text-align:center; padding:100px; color:#94a3b8;">🚀 Loading
+                                tickets...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const user = JSON.parse(localStorage.getItem('crm_user'));
+            if (!user) { window.location.href = 'login.html'; return; }
+            document.getElementById('userInfoDisplay').textContent = `${user.name || user.username} (${user.role === 'admin' ? 'Admin' : 'User'})`;
+
+            if (user.role !== 'admin') {
+                document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+            }
+
+            // Enforce Add Permission for New Ticket
+            const newTicketBtn = document.querySelector('a[href="public_complaint.html"]');
+            if (newTicketBtn && !window.hasPermission('complaints', 'add')) {
+                newTicketBtn.style.display = 'none';
+            }
+
+            try {
+                const res = await window.apiFetch('/api/complaints');
+                if (res.ok) {
+                    const list = await res.json();
+                    const tbody = document.getElementById('complaintsBody');
+                    if (list.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:100px; color:#94a3b8;">No active tickets found. 🎉</td></tr>';
+                        return;
+                    }
+                    tbody.innerHTML = list.map(c => {
+                        const statusClass = c.status === 'Pending' ? 'status-pending' : 'status-resolved';
+                        return `
+                        <tr>
+                            <td class="ticket-id">#CRM-${String(c.id).padStart(4, '0')}</td>
+                            <td class="cust-name">${c.customer_name}</td>
+                            <td><span style="font-size:0.85rem; background:#f8fafc; padding:4px 10px; border:1px solid #e2e8f0; border-radius:6px; font-weight:600;">${c.issue_type}</span></td>
+                            <td><span class="status-pill ${statusClass}">${c.status}</span></td>
+                            <td style="color:#64748b; font-size:0.85rem; font-weight:500;">${new Date(c.created_at).toLocaleString()}</td>
+                        </tr>`;
+                    }).join('');
+                }
+            } catch (err) { console.error(err); }
+        });
+    </script>
+</body>
+
+</html>

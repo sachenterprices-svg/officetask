@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Import Data - Office Task</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Import Data Specific */
+        .import-container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.04);
+        }
+    </style>
+
+    h1 {
+    color: #0033a0;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 0;
+    }
+
+    .import-section {
+    border: 2.5px dashed #cbd5e1;
+    padding: 60px;
+    text-align: center;
+    border-radius: 20px;
+    margin: 30px 0;
+    transition: 0.3s;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.5);
+    }
+
+    .import-section:hover {
+    border-color: #002d72;
+    background: #f0f7ff;
+    transform: scale(1.01);
+    }
+
+    .import-section i {
+    font-size: 4rem;
+    color: #002d72;
+    margin-bottom: 20px;
+    }
+
+    .btn {
+    padding: 12px 25px;
+    border-radius: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: 0.3s;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 0.9rem;
+    }
+
+    .btn-primary {
+    background: #0033a0;
+    color: white;
+    box-shadow: 0 4px 15px rgba(0, 51, 160, 0.2);
+    }
+
+    .btn-primary:hover {
+    background: #002277;
+    transform: translateY(-2px);
+    }
+
+    .instruction {
+    font-size: 0.95rem;
+    color: #64748b;
+    margin-bottom: 25px;
+    line-height: 1.6;
+    }
+
+    #results {
+    margin-top: 25px;
+    padding: 20px;
+    border-radius: 12px;
+    display: none;
+    font-weight: 600;
+    }
+
+    .success {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+    }
+
+    .error {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+    }
+
+    select {
+    padding: 12px;
+    border-radius: 10px;
+    border: 1.5px solid #e2e8f0;
+    background: white;
+    font-weight: 600;
+    outline: none;
+    }
+
+    select:focus {
+    border-color: #002d72;
+    }
+    </style>
+</head>
+
+<body>
+    <header class="top-header">
+        <div class="header-brand">
+            <span style="color: #002d72;">Coral</span> <span style="color: #f97316;">Infratel</span>
+        </div>
+        <div class="user-meta">
+            <span id="userInfoDisplay" style="font-weight:600;"></span>
+            <button onclick="window.logout()" class="logout-btn">Logout</button>
+        </div>
+    </header>
+
+    <div class="app-body">
+        <aside class="tile-sidebar">
+            <div class="sidebar-header">USER & SYSTEM</div>
+            <a href="dashboard.html" class="module-tile"><i>🏠</i>
+                <div class="tile-content">
+                    <h4>Dashboard</h4>
+                </div>
+            </a>
+            <a href="users.html" class="module-tile admin-only"><i>👥</i>
+                <div class="tile-content">
+                    <h4>Users</h4>
+                </div>
+            </a>
+
+            <div class="sidebar-header" style="margin-top:20px;">BUSINESS MODULES</div>
+            <a href="index.html" class="module-tile"><i>📝</i>
+                <div class="tile-content">
+                    <h4>Proposals</h4>
+                </div>
+            </a>
+            <a href="customers.html" class="module-tile active"><i>📂</i>
+                <div class="tile-content">
+                    <h4>Customers</h4>
+                </div>
+            </a>
+            <a href="complaints.html" class="module-tile"><i>🛠️</i>
+                <div class="tile-content">
+                    <h4>Complaints</h4>
+                </div>
+            </a>
+            <a href="reconciliation.html" class="module-tile"><i>💰</i>
+                <div class="tile-content">
+                    <h4>Reconciliation</h4>
+                </div>
+            </a>
+            <a href="recurring_tasks.html" class="module-tile admin-only"><i>⏱️</i>
+                <div class="tile-content">
+                    <h4>Recurring Tasks</h4>
+                </div>
+            </a>
+        </aside>
+
+        <main class="content-area">
+            <div class="container">
+                <h1><i class="fas fa-file-import"></i> Batch Import Data</h1>
+                <p class="instruction">Upload an Excel or CSV file to batch import Customers or Telephone Lines. Ensure
+                    the
+                    headers match the expected field names.</p>
+
+                <div style="margin-bottom: 20px;">
+                    <label><b>Import Type:</b></label>
+                    <select id="importType">
+                        <option value="customers">Customers (Master Data)</option>
+                        <option value="lines">Telephone Lines (Section 4)</option>
+                    </select>
+                </div>
+
+                <div class="import-section" onclick="document.getElementById('fileInput').click()">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <h3>Click to Upload File</h3>
+                    <p>Support for .xlsx, .xls, .csv</p>
+                    <input type="file" id="fileInput" hidden accept=".xlsx, .xls, .csv">
+                </div>
+
+                <div id="results"></div>
+                <div style="margin-top: 20px; display: flex; justify-content: space-between;">
+                    <button class="btn" style="background:#64748b; color:white;"
+                        onclick="location.href='customers.html'">Back
+                        to CRM</button>
+                    <button class="btn btn-primary" id="startImport" disabled>Start Import</button>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="auth.js"></script>
+    <script>
+        let parsedData = null;
+        const fileInput = document.getElementById('fileInput');
+        const startBtn = document.getElementById('startImport');
+        const results = document.getElementById('results');
+        const importSelect = document.getElementById('importType');
+
+        // Handle URL parameters for pre-selection
+        const urlParams = new URLSearchParams(window.location.search);
+        const preType = urlParams.get('type');
+        if (preType) {
+            if (preType === 'customers') importSelect.value = 'customers';
+            if (preType === 'lines') importSelect.value = 'lines';
+            // Products currently uses customer import or handles orders specifically
+        }
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.SheetNames[0];
+                parsedData = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet]);
+
+                results.style.display = 'block';
+                results.className = 'success';
+                results.innerHTML = `<strong>Ready:</strong> ${parsedData.length} rows found in ${file.name}.`;
+                startBtn.disabled = false;
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        startBtn.addEventListener('click', async () => {
+            const type = document.getElementById('importType').value;
+            const endpoint = `/api/import/${type}`;
+            const key = type === 'customers' ? 'customers' : 'lines';
+
+            startBtn.disabled = true;
+            startBtn.textContent = 'Importing...';
+
+            try {
+                const res = await window.apiFetch(endpoint, {
+                    method: 'POST',
+                    body: JSON.stringify({ [key]: parsedData })
+                });
+
+                const data = await res.json();
+                if (res.ok) {
+                    results.className = 'success';
+                    results.innerHTML = `<strong>Success!</strong> ${data.message}`;
+                } else {
+                    results.className = 'error';
+                    results.innerHTML = `<strong>Error:</strong> ${data.error}`;
+                }
+            } catch (err) {
+                results.className = 'error';
+                results.innerHTML = `<strong>Error:</strong> Connection failed.`;
+            } finally {
+                startBtn.textContent = 'Start Import';
+                startBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+
+</html>

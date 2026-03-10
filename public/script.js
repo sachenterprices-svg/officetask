@@ -440,6 +440,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function submitProposal() {
+        if (!window.hasPermission('proposals', 'add')) {
+            alert("You do not have permission to create proposals.");
+            return;
+        }
         const payload = window.currentProposalPayload;
         if (!payload || !payload.custName) {
             alert("Please fill in customer details before submitting.");
