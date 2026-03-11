@@ -262,14 +262,27 @@ async function initializeCustomersTable() {
 async function initializeBsnlTables() {
     try {
         await pool.query(`
-            CREATE TABLE IF NOT EXISTS bsnl_circles (
+            CREATE TABLE IF NOT EXISTS bsnl_zones (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(100) NOT NULL UNIQUE,
-                code VARCHAR(2) NOT NULL UNIQUE,
-                vendor_code VARCHAR(50),
+                code VARCHAR(10),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB
         `);
+
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS bsnl_circles (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(100) NOT NULL UNIQUE,
+                code VARCHAR(5) NOT NULL UNIQUE,
+                vendor_code VARCHAR(50),
+                zone_id INT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (zone_id) REFERENCES bsnl_zones(id) ON DELETE SET NULL
+            ) ENGINE=InnoDB
+        `);
+        // Add zone_id column if not exists (for existing tables)
+        await pool.query(`ALTER TABLE bsnl_circles ADD COLUMN IF NOT EXISTS zone_id INT`).catch(() => {});
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS bsnl_oas (
@@ -842,10 +855,50 @@ app.post('/api/complaints', async (req, res) => {
     }
 });
 
-// --- BSNL CIRCLE/OA ROUTES ---
+// --- BSNL ZONE/CIRCLE/OA ROUTES ---
+app.get('/api/bsnl/zones', authenticateToken, async (req, res) => {
+    try {
+        const [zones] = await pool.query('SELECT * FROM bsnl_zones ORDER BY name ASC');
+        res.json(zones);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch zones' });
+    }
+});
+
+app.post('/api/bsnl/zones', authenticateToken, isAdmin, async (req, res) => {
+    const { id, name, code } = req.body;
+    try {
+        if (id) {
+            await pool.query('UPDATE bsnl_zones SET name=?, code=? WHERE id=?', [name, code || null, id]);
+            res.json({ message: 'Zone updated' });
+        } else {
+            const [result] = await pool.query('INSERT INTO bsnl_zones (name, code) VALUES (?, ?)', [name, code || null]);
+            res.status(201).json({ id: result.insertId, message: 'Zone added' });
+        }
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to save zone' });
+    }
+});
+
+app.delete('/api/bsnl/zones/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const [inUse] = await pool.query('SELECT id FROM bsnl_circles WHERE zone_id = ? LIMIT 1', [req.params.id]);
+        if (inUse.length > 0) return res.status(400).json({ error: 'Zone in use by circles' });
+        await pool.query('DELETE FROM bsnl_zones WHERE id = ?', [req.params.id]);
+        res.json({ message: 'Zone deleted' });
+    } catch (err) {
+        res.status(500).json({ error: 'Delete failed' });
+    }
+});
+
 app.get('/api/bsnl/circles', authenticateToken, async (req, res) => {
     try {
-        const [circles] = await pool.query('SELECT * FROM bsnl_circles ORDER BY name ASC');
+        const [circles] = await pool.query(`
+            SELECT c.*, z.name as zone_name, z.code as zone_code
+            FROM bsnl_circles c
+            LEFT JOIN bsnl_zones z ON c.zone_id = z.id
+            ORDER BY c.name ASC
+        `);
         for (let circle of circles) {
             const [oas] = await pool.query('SELECT * FROM bsnl_oas WHERE circle_id = ? ORDER BY name ASC', [circle.id]);
             circle.oas = oas;
@@ -857,13 +910,13 @@ app.get('/api/bsnl/circles', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/bsnl/circles', authenticateToken, isAdmin, async (req, res) => {
-    const { id, name, code, vendor_code } = req.body;
+    const { id, name, code, vendor_code, zone_id } = req.body;
     try {
         if (id) {
-            await pool.query('UPDATE bsnl_circles SET name=?, code=?, vendor_code=? WHERE id=?', [name, code, vendor_code, id]);
+            await pool.query('UPDATE bsnl_circles SET name=?, code=?, vendor_code=?, zone_id=? WHERE id=?', [name, code, vendor_code || null, zone_id || null, id]);
             res.json({ message: 'Circle updated' });
         } else {
-            const [result] = await pool.query('INSERT INTO bsnl_circles (name, code, vendor_code) VALUES (?, ?, ?)', [name, code, vendor_code]);
+            const [result] = await pool.query('INSERT INTO bsnl_circles (name, code, vendor_code, zone_id) VALUES (?, ?, ?, ?)', [name, code, vendor_code || null, zone_id || null]);
             res.status(201).json({ id: result.insertId, message: 'Circle added' });
         }
     } catch (err) {
@@ -1882,6 +1935,77 @@ async function startupChecks() {
     await initializeAdmin();
     console.log('🚀 [READY] All startup checks complete. Server is fully ready!');
 }
+
+// --- ADMIN DATA IMPORT ROUTES ---
+
+// Step 1: Clear all test data (TRUNCATE tables in FK-safe order)
+app.post('/api/admin/clear-test-data', authenticateToken, async (req, res) => {
+    const conn = await pool.getConnection();
+    try {
+        await conn.query('SET FOREIGN_KEY_CHECKS = 0');
+        await conn.query('TRUNCATE TABLE customer_lines');
+        await conn.query('TRUNCATE TABLE customer_orders');
+        await conn.query('TRUNCATE TABLE customers');
+        await conn.query('TRUNCATE TABLE bsnl_oas');
+        await conn.query('TRUNCATE TABLE bsnl_circles');
+        await conn.query('TRUNCATE TABLE bsnl_zones');
+        await conn.query('SET FOREIGN_KEY_CHECKS = 1');
+        res.json({ success: true, message: 'Test data cleared successfully' });
+    } catch (err) {
+        console.error('Clear test data error:', err);
+        res.status(500).json({ success: false, error: err.message });
+    } finally {
+        conn.release();
+    }
+});
+
+// Step 2: Execute SQL import (receives raw SQL text in body)
+app.post('/api/admin/import-sql',
+    authenticateToken,
+    express.text({ type: '*/*', limit: '10mb' }),
+    async (req, res) => {
+        const sqlContent = req.body;
+        if (!sqlContent || typeof sqlContent !== 'string') {
+            return res.status(400).json({ success: false, error: 'No SQL content received' });
+        }
+
+        // Split SQL into individual statements (handle multi-line statements)
+        const statements = sqlContent
+            .split(/;\s*\r?\n/)
+            .map(s => s.trim())
+            .filter(s => s.length > 0 && !s.startsWith('--'));
+
+        const conn = await pool.getConnection();
+        let ok = 0;
+        const errors = [];
+
+        try {
+            for (const stmt of statements) {
+                try {
+                    await conn.query(stmt);
+                    ok++;
+                } catch (e) {
+                    // Skip duplicate key warnings, only log real errors
+                    if (!e.message.includes('Duplicate entry')) {
+                        errors.push(e.message.substring(0, 150));
+                    } else {
+                        ok++;
+                    }
+                }
+            }
+            res.json({
+                success: true,
+                executed: ok,
+                total: statements.length,
+                errors: errors.slice(0, 10)
+            });
+        } catch (err) {
+            res.status(500).json({ success: false, error: err.message });
+        } finally {
+            conn.release();
+        }
+    }
+);
 
 // Support for both local development and Vercel Serverless Functions
 if (require.main === module) {

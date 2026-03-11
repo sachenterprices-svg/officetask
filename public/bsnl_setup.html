@@ -10,39 +10,44 @@
     <style>
         .page-title{font-size:1.6rem;font-weight:800;color:#0f172a;margin:0}
         .page-sub{color:#64748b;font-size:.9rem;margin:4px 0 0}
-        .setup-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px}
-        .panel{background:#fff;border-radius:16px;padding:24px;box-shadow:0 4px 20px rgba(0,0,0,.05);border:1px solid #e2e8f0}
-        .panel-title{font-size:1rem;font-weight:800;color:#002d72;margin:0 0 18px;padding-bottom:12px;border-bottom:2px solid #f1f5f9;display:flex;align-items:center;gap:8px}
-        .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-        .form-group{margin-bottom:14px}
-        .form-group label{display:block;margin-bottom:5px;font-size:.8rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.4px}
-        .form-group input,.form-group select{width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-family:inherit;font-size:.88rem;color:#334155;box-sizing:border-box;background:#f8fafc;transition:border-color .2s}
+        .setup-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
+        .panel{background:#fff;border-radius:16px;padding:22px;box-shadow:0 4px 20px rgba(0,0,0,.05);border:1px solid #e2e8f0}
+        .panel-title{font-size:.95rem;font-weight:800;color:#002d72;margin:0 0 16px;padding-bottom:10px;border-bottom:2px solid #f1f5f9;display:flex;align-items:center;gap:8px}
+        .form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+        .form-group{margin-bottom:12px}
+        .form-group label{display:block;margin-bottom:4px;font-size:.78rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.4px}
+        .form-group input,.form-group select{width:100%;padding:9px 11px;border:1.5px solid #e2e8f0;border-radius:9px;font-family:inherit;font-size:.86rem;color:#334155;box-sizing:border-box;background:#f8fafc;transition:border-color .2s}
         .form-group input:focus,.form-group select:focus{border-color:#002d72;outline:none;background:#fff}
         .form-actions{display:flex;gap:8px;margin-top:4px}
-        .btn-save{background:#002d72;color:#fff;border:none;padding:10px 22px;border-radius:9px;font-weight:700;font-size:.85rem;cursor:pointer;transition:.2s}
+        .btn-save{background:#002d72;color:#fff;border:none;padding:9px 20px;border-radius:9px;font-weight:700;font-size:.83rem;cursor:pointer;transition:.2s}
         .btn-save:hover{background:#1e40af}
-        .btn-reset{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;padding:10px 16px;border-radius:9px;font-weight:600;font-size:.85rem;cursor:pointer}
-        .data-table{width:100%;border-collapse:collapse;margin-top:18px;font-size:.84rem}
+        .btn-reset{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;padding:9px 14px;border-radius:9px;font-weight:600;font-size:.83rem;cursor:pointer}
+        .data-table{width:100%;border-collapse:collapse;margin-top:16px;font-size:.82rem}
         .data-table thead{background:#f8fafc}
-        .data-table th{padding:10px 12px;text-align:left;font-size:.7rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid #e2e8f0}
-        .data-table td{padding:10px 12px;border-bottom:1px solid #f8fafc;color:#334155;vertical-align:middle}
+        .data-table th{padding:9px 10px;text-align:left;font-size:.68rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid #e2e8f0}
+        .data-table td{padding:9px 10px;border-bottom:1px solid #f8fafc;color:#334155;vertical-align:middle}
         .data-table tr:hover td{background:#fafbff}
-        .code-badge{background:#eff6ff;color:#1d4ed8;padding:3px 8px;border-radius:6px;font-size:.75rem;font-weight:700;font-family:monospace}
-        .circle-tag{background:#f0fdf4;color:#15803d;padding:3px 8px;border-radius:6px;font-size:.72rem;font-weight:600}
-        .action-btns{display:flex;gap:6px}
-        .btn-edit-sm{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;padding:5px 10px;border-radius:6px;font-size:.75rem;font-weight:700;cursor:pointer}
+        .code-badge{background:#eff6ff;color:#1d4ed8;padding:3px 7px;border-radius:6px;font-size:.73rem;font-weight:700;font-family:monospace}
+        .zone-tag{background:#fdf4ff;color:#7c3aed;padding:3px 7px;border-radius:6px;font-size:.72rem;font-weight:600}
+        .circle-tag{background:#f0fdf4;color:#15803d;padding:3px 7px;border-radius:6px;font-size:.72rem;font-weight:600}
+        .action-btns{display:flex;gap:5px}
+        .btn-edit-sm{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;padding:4px 9px;border-radius:6px;font-size:.73rem;font-weight:700;cursor:pointer}
         .btn-edit-sm:hover{background:#dbeafe}
-        .btn-del-sm{background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;padding:5px 8px;border-radius:6px;font-size:.75rem;font-weight:700;cursor:pointer}
+        .btn-del-sm{background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;padding:4px 7px;border-radius:6px;font-size:.73rem;font-weight:700;cursor:pointer}
         .btn-del-sm:hover{background:#fecaca}
-        .empty-row td{text-align:center;padding:40px;color:#94a3b8;font-style:italic}
+        .empty-row td{text-align:center;padding:30px;color:#94a3b8;font-style:italic}
         .stats-chips{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
-        .chip{background:#f8fafc;border:1px solid #e2e8f0;border-radius:20px;padding:6px 16px;font-size:.82rem;font-weight:600;color:#475569;display:flex;align-items:center;gap:8px}
-        .chip-count{background:#002d72;color:#fff;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:800}
+        .chip{background:#f8fafc;border:1px solid #e2e8f0;border-radius:20px;padding:6px 14px;font-size:.8rem;font-weight:600;color:#475569;display:flex;align-items:center;gap:8px}
+        .chip-count{background:#002d72;color:#fff;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:800}
         .toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-weight:600;font-size:.88rem;z-index:2000;transform:translateY(20px);opacity:0;transition:.3s}
         .toast.show{transform:translateY(0);opacity:1}
         .toast-success{background:#002d72;color:#fff}
         .toast-error{background:#dc2626;color:#fff}
-        @media(max-width:900px){.setup-grid{grid-template-columns:1fr}}
+        .arrow-flow{display:flex;align-items:center;gap:6px;margin-bottom:18px;font-size:.82rem;font-weight:600;color:#64748b}
+        .arrow-flow span{background:#f1f5f9;padding:4px 12px;border-radius:20px;color:#334155}
+        .arrow-flow i{color:#94a3b8;font-style:normal}
+        @media(max-width:1100px){.setup-grid{grid-template-columns:1fr 1fr}}
+        @media(max-width:700px){.setup-grid{grid-template-columns:1fr}}
     </style>
 </head>
 <body>
@@ -62,20 +67,62 @@
             <a href="engineers_master.html" class="module-tile admin-only"><i>👷</i><div class="tile-content"><h4>Engineers Master</h4></div></a>
             <a href="bsnl_setup.html" class="module-tile active admin-only"><i>🗺️</i><div class="tile-content"><h4>Circle / OA Setup</h4></div></a>
         </aside>
-        <main class="content-area" style="padding:28px;">
-            <div style="margin-bottom:20px;">
-                <h1 class="page-title">BSNL Circle &amp; OA Setup</h1>
-                <p class="page-sub">Complaint number generation ke liye Circle aur OA codes manage karein</p>
+        <main class="content-area" style="padding:24px;">
+            <div style="margin-bottom:16px;">
+                <h1 class="page-title">BSNL Zone / Circle / OA Setup</h1>
+                <p class="page-sub">Complaint number generation ke liye Zone, Circle aur OA manage karein</p>
             </div>
             <div class="stats-chips">
-                <div class="chip">Total Circles <span class="chip-count" id="circleCount">0</span></div>
-                <div class="chip">Total OAs <span class="chip-count" id="oaCount">0</span></div>
+                <div class="chip">Zones <span class="chip-count" id="zoneCount">0</span></div>
+                <div class="chip">Circles <span class="chip-count" id="circleCount">0</span></div>
+                <div class="chip">OAs <span class="chip-count" id="oaCount">0</span></div>
+            </div>
+            <div class="arrow-flow">
+                <span>🗺️ Zone</span>
+                <i>→</i>
+                <span>📍 Circle</span>
+                <i>→</i>
+                <span>🏢 OA</span>
             </div>
             <div class="setup-grid">
+
+                <!-- ===== PANEL 1: ZONES ===== -->
                 <div class="panel">
-                    <div class="panel-title">1. Circles (Circle)</div>
+                    <div class="panel-title">🗺️ 1. Zones (Zone)</div>
+                    <form id="zoneForm">
+                        <input type="hidden" id="zoneId">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Zone Name</label>
+                                <input type="text" id="zoneName" placeholder="e.g. North" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Zone Code</label>
+                                <input type="text" id="zoneCode" maxlength="5" placeholder="NTH" style="text-transform:uppercase;">
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-save" id="saveZoneBtn">Save Zone</button>
+                            <button type="button" class="btn-reset" id="resetZoneBtn">Reset</button>
+                        </div>
+                    </form>
+                    <table class="data-table">
+                        <thead><tr><th>Code</th><th>Zone Name</th><th>Actions</th></tr></thead>
+                        <tbody id="zoneList"><tr class="empty-row"><td colspan="3">Loading...</td></tr></tbody>
+                    </table>
+                </div>
+
+                <!-- ===== PANEL 2: CIRCLES ===== -->
+                <div class="panel">
+                    <div class="panel-title">📍 2. Circles (Circle)</div>
                     <form id="circleForm">
                         <input type="hidden" id="circleId">
+                        <div class="form-group">
+                            <label>Parent Zone</label>
+                            <select id="parentZone" required>
+                                <option value="">-- Select Zone --</option>
+                            </select>
+                        </div>
                         <div class="form-row">
                             <div class="form-group">
                                 <label>Circle Name</label>
@@ -96,12 +143,14 @@
                         </div>
                     </form>
                     <table class="data-table">
-                        <thead><tr><th>Code</th><th>Circle Name</th><th>Vendor</th><th>Actions</th></tr></thead>
+                        <thead><tr><th>Code</th><th>Circle</th><th>Zone</th><th>Actions</th></tr></thead>
                         <tbody id="circleList"><tr class="empty-row"><td colspan="4">Loading...</td></tr></tbody>
                     </table>
                 </div>
+
+                <!-- ===== PANEL 3: OAs ===== -->
                 <div class="panel">
-                    <div class="panel-title">2. OA Names (OA)</div>
+                    <div class="panel-title">🏢 3. OA Names (OA)</div>
                     <form id="oaForm">
                         <input type="hidden" id="oaId">
                         <div class="form-group">
@@ -130,20 +179,117 @@
                         <tbody id="oaList"><tr class="empty-row"><td colspan="4">Loading...</td></tr></tbody>
                     </table>
                 </div>
+
             </div>
         </main>
     </div>
     <div class="toast" id="toast"></div>
     <script>
+    var zones = [];
     var circles = [];
+
     document.addEventListener('DOMContentLoaded', function() {
         var user = JSON.parse(localStorage.getItem('crm_user'));
         if (!user) { window.location.href = 'login.html'; return; }
         if (user.role !== 'admin') { window.location.href = 'dashboard.html'; return; }
         document.getElementById('userInfoDisplay').textContent = (user.name || user.username) + ' (Admin)';
-        loadData();
+        loadAll();
     });
-    async function loadData() {
+
+    async function loadAll() {
+        await loadZones();
+        await loadCircles();
+    }
+
+    // ===== ZONES =====
+    async function loadZones() {
+        try {
+            var res = await window.apiFetch('/api/bsnl/zones');
+            if (res.ok) {
+                zones = await res.json();
+                renderZones();
+                updateZoneDropdown();
+                document.getElementById('zoneCount').textContent = zones.length;
+            } else {
+                document.getElementById('zoneList').innerHTML = '<tr class="empty-row"><td colspan="3" style="color:#ef4444;">Error loading zones. Server error.</td></tr>';
+            }
+        } catch(e) {
+            document.getElementById('zoneList').innerHTML = '<tr class="empty-row"><td colspan="3" style="color:#ef4444;">Network error. Check server connection.</td></tr>';
+            showToast('Zone load error', 'error');
+        }
+    }
+
+    function renderZones() {
+        var list = document.getElementById('zoneList');
+        if (!zones.length) {
+            list.innerHTML = '<tr class="empty-row"><td colspan="3">No zones added yet.</td></tr>';
+            return;
+        }
+        list.innerHTML = zones.map(function(z) {
+            return '<tr>'
+                + '<td><span class="code-badge">' + (z.code || '-') + '</span></td>'
+                + '<td style="font-weight:600;">' + z.name + '</td>'
+                + '<td><div class="action-btns">'
+                + '<button class="btn-edit-sm" onclick="editZone(' + z.id + ')">Edit</button>'
+                + '<button class="btn-del-sm" onclick="deleteZone(' + z.id + ')">Del</button>'
+                + '</div></td></tr>';
+        }).join('');
+    }
+
+    function updateZoneDropdown() {
+        var sel = document.getElementById('parentZone');
+        var cur = sel.value;
+        sel.innerHTML = '<option value="">-- Select Zone --</option>';
+        zones.forEach(function(z) {
+            var o = document.createElement('option');
+            o.value = z.id; o.textContent = z.name;
+            sel.appendChild(o);
+        });
+        if (cur) sel.value = cur;
+    }
+
+    document.getElementById('zoneForm').onsubmit = async function(e) {
+        e.preventDefault();
+        var zid = document.getElementById('zoneId').value;
+        var payload = {
+            name: document.getElementById('zoneName').value.trim(),
+            code: document.getElementById('zoneCode').value.trim().toUpperCase()
+        };
+        if (zid) payload.id = zid;
+        try {
+            var res = await window.apiFetch('/api/bsnl/zones', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+            if (res.ok) { showToast(zid ? 'Zone updated!' : 'Zone added!', 'success'); resetZoneForm(); await loadAll(); }
+            else { var err = await res.json(); showToast(err.error || 'Save failed', 'error'); }
+        } catch(e) { showToast('Network error', 'error'); }
+    };
+
+    function editZone(id) {
+        var z = zones.find(function(x){ return x.id === id; });
+        if (!z) return;
+        document.getElementById('zoneId').value = z.id;
+        document.getElementById('zoneName').value = z.name;
+        document.getElementById('zoneCode').value = z.code || '';
+        document.getElementById('saveZoneBtn').textContent = 'Update Zone';
+        document.getElementById('zoneName').focus();
+    }
+
+    async function deleteZone(id) {
+        if (!confirm('Delete this zone? Make sure no circles are using it.')) return;
+        try {
+            var res = await window.apiFetch('/api/bsnl/zones/' + id, {method:'DELETE'});
+            if (res.ok) { showToast('Zone deleted', 'success'); await loadAll(); }
+            else { var err = await res.json(); showToast(err.error || 'Delete failed', 'error'); }
+        } catch(e) { showToast('Error', 'error'); }
+    }
+
+    function resetZoneForm() {
+        document.getElementById('zoneForm').reset();
+        document.getElementById('zoneId').value = '';
+        document.getElementById('saveZoneBtn').textContent = 'Save Zone';
+    }
+
+    // ===== CIRCLES =====
+    async function loadCircles() {
         try {
             var res = await window.apiFetch('/api/bsnl/circles');
             if (res.ok) {
@@ -155,12 +301,16 @@
                 var oaTotal = circles.reduce(function(s,c){ return s + (c.oas||[]).length; }, 0);
                 document.getElementById('oaCount').textContent = oaTotal;
             } else {
-                showToast('Data load failed', 'error');
+                document.getElementById('circleList').innerHTML = '<tr class="empty-row"><td colspan="4" style="color:#ef4444;">Error loading circles. Server error.</td></tr>';
+                document.getElementById('oaList').innerHTML = '<tr class="empty-row"><td colspan="4" style="color:#ef4444;">Error loading OAs.</td></tr>';
             }
         } catch(e) {
-            showToast('Server error', 'error');
+            document.getElementById('circleList').innerHTML = '<tr class="empty-row"><td colspan="4" style="color:#ef4444;">Network error. Check server connection.</td></tr>';
+            document.getElementById('oaList').innerHTML = '<tr class="empty-row"><td colspan="4" style="color:#ef4444;">Network error.</td></tr>';
+            showToast('Circle load error', 'error');
         }
     }
+
     function renderCircles() {
         var list = document.getElementById('circleList');
         if (!circles.length) {
@@ -168,15 +318,74 @@
             return;
         }
         list.innerHTML = circles.map(function(c) {
-            return '<tr><td><span class="code-badge">' + c.code + '</span></td>'
+            return '<tr>'
+                + '<td><span class="code-badge">' + c.code + '</span></td>'
                 + '<td style="font-weight:600;">' + c.name + '</td>'
-                + '<td style="color:#94a3b8;font-size:.8rem;">' + (c.vendor_code || '-') + '</td>'
+                + '<td><span class="zone-tag">' + (c.zone_name || '-') + '</span></td>'
                 + '<td><div class="action-btns">'
                 + '<button class="btn-edit-sm" onclick="editCircle(' + c.id + ')">Edit</button>'
                 + '<button class="btn-del-sm" onclick="deleteCircle(' + c.id + ')">Del</button>'
                 + '</div></td></tr>';
         }).join('');
     }
+
+    function updateCircleDropdown() {
+        var sel = document.getElementById('parentCircle');
+        var cur = sel.value;
+        sel.innerHTML = '<option value="">-- Select Circle --</option>';
+        circles.forEach(function(c) {
+            var o = document.createElement('option');
+            o.value = c.id; o.textContent = c.name;
+            sel.appendChild(o);
+        });
+        if (cur) sel.value = cur;
+    }
+
+    document.getElementById('circleForm').onsubmit = async function(e) {
+        e.preventDefault();
+        var cid = document.getElementById('circleId').value;
+        var payload = {
+            name: document.getElementById('circleName').value.trim(),
+            code: document.getElementById('circleCode').value.trim().toUpperCase(),
+            zone_id: document.getElementById('parentZone').value || null,
+            vendor_code: document.getElementById('circleVendor').value.trim()
+        };
+        if (cid) payload.id = cid;
+        try {
+            var res = await window.apiFetch('/api/bsnl/circles', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+            if (res.ok) { showToast(cid ? 'Circle updated!' : 'Circle added!', 'success'); resetCircleForm(); await loadCircles(); }
+            else { var err = await res.json(); showToast(err.error || 'Save failed', 'error'); }
+        } catch(e) { showToast('Network error', 'error'); }
+    };
+
+    function editCircle(id) {
+        var c = circles.find(function(x){ return x.id === id; });
+        if (!c) return;
+        document.getElementById('circleId').value = c.id;
+        document.getElementById('parentZone').value = c.zone_id || '';
+        document.getElementById('circleName').value = c.name;
+        document.getElementById('circleCode').value = c.code;
+        document.getElementById('circleVendor').value = c.vendor_code || '';
+        document.getElementById('saveCircleBtn').textContent = 'Update Circle';
+        document.getElementById('circleName').focus();
+    }
+
+    async function deleteCircle(id) {
+        if (!confirm('Delete this circle? All associated OAs will also be deleted.')) return;
+        try {
+            var res = await window.apiFetch('/api/bsnl/circles/' + id, {method:'DELETE'});
+            if (res.ok) { showToast('Circle deleted', 'success'); await loadCircles(); }
+            else { var err = await res.json(); showToast(err.error || 'Delete failed', 'error'); }
+        } catch(e) { showToast('Error', 'error'); }
+    }
+
+    function resetCircleForm() {
+        document.getElementById('circleForm').reset();
+        document.getElementById('circleId').value = '';
+        document.getElementById('saveCircleBtn').textContent = 'Save Circle';
+    }
+
+    // ===== OAs =====
     function renderOAs() {
         var list = document.getElementById('oaList');
         var allOas = [];
@@ -190,7 +399,8 @@
             return;
         }
         list.innerHTML = allOas.map(function(oa) {
-            return '<tr><td><span class="circle-tag">' + oa.circleName + '</span></td>'
+            return '<tr>'
+                + '<td><span class="circle-tag">' + oa.circleName + '</span></td>'
                 + '<td><span class="code-badge">' + oa.code + '</span></td>'
                 + '<td style="font-weight:600;">' + oa.name + '</td>'
                 + '<td><div class="action-btns">'
@@ -199,55 +409,7 @@
                 + '</div></td></tr>';
         }).join('');
     }
-    function updateCircleDropdown() {
-        var sel = document.getElementById('parentCircle');
-        var cur = sel.value;
-        sel.innerHTML = '<option value="">-- Select Circle --</option>';
-        circles.forEach(function(c) {
-            var o = document.createElement('option');
-            o.value = c.id; o.textContent = c.name;
-            sel.appendChild(o);
-        });
-        if (cur) sel.value = cur;
-    }
-    document.getElementById('circleForm').onsubmit = async function(e) {
-        e.preventDefault();
-        var cid = document.getElementById('circleId').value;
-        var payload = {
-            name: document.getElementById('circleName').value.trim(),
-            code: document.getElementById('circleCode').value.trim().toUpperCase(),
-            vendor_code: document.getElementById('circleVendor').value.trim()
-        };
-        if (cid) payload.id = cid;
-        try {
-            var res = await window.apiFetch('/api/bsnl/circles', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
-            if (res.ok) { showToast(cid ? 'Circle updated!' : 'Circle added!', 'success'); resetCircleForm(); await loadData(); }
-            else { var err = await res.json(); showToast(err.error || 'Save failed', 'error'); }
-        } catch(e) { showToast('Network error', 'error'); }
-    };
-    function editCircle(id) {
-        var c = circles.find(function(x){ return x.id === id; });
-        if (!c) return;
-        document.getElementById('circleId').value = c.id;
-        document.getElementById('circleName').value = c.name;
-        document.getElementById('circleCode').value = c.code;
-        document.getElementById('circleVendor').value = c.vendor_code || '';
-        document.getElementById('saveCircleBtn').textContent = 'Update Circle';
-        document.getElementById('circleName').focus();
-    }
-    async function deleteCircle(id) {
-        if (!confirm('Delete this circle? All associated OAs will also be deleted.')) return;
-        try {
-            var res = await window.apiFetch('/api/bsnl/circles/' + id, {method:'DELETE'});
-            if (res.ok) { showToast('Circle deleted', 'success'); await loadData(); }
-            else { var err = await res.json(); showToast(err.error || 'Delete failed', 'error'); }
-        } catch(e) { showToast('Error', 'error'); }
-    }
-    function resetCircleForm() {
-        document.getElementById('circleForm').reset();
-        document.getElementById('circleId').value = '';
-        document.getElementById('saveCircleBtn').textContent = 'Save Circle';
-    }
+
     document.getElementById('oaForm').onsubmit = async function(e) {
         e.preventDefault();
         var oid = document.getElementById('oaId').value;
@@ -259,10 +421,11 @@
         if (oid) payload.id = oid;
         try {
             var res = await window.apiFetch('/api/bsnl/oas', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
-            if (res.ok) { showToast(oid ? 'OA updated!' : 'OA added!', 'success'); resetOaForm(); await loadData(); }
+            if (res.ok) { showToast(oid ? 'OA updated!' : 'OA added!', 'success'); resetOaForm(); await loadCircles(); }
             else { var err = await res.json(); showToast(err.error || 'Save failed', 'error'); }
         } catch(e) { showToast('Network error', 'error'); }
     };
+
     function editOa(circleId, oaId) {
         var circle = circles.find(function(c){ return c.id === circleId; });
         if (!circle) return;
@@ -275,21 +438,26 @@
         document.getElementById('saveOaBtn').textContent = 'Update OA';
         document.getElementById('oaName').focus();
     }
+
     async function deleteOa(id) {
         if (!confirm('Delete this OA?')) return;
         try {
             var res = await window.apiFetch('/api/bsnl/oas/' + id, {method:'DELETE'});
-            if (res.ok) { showToast('OA deleted', 'success'); await loadData(); }
+            if (res.ok) { showToast('OA deleted', 'success'); await loadCircles(); }
             else { var err = await res.json(); showToast(err.error || 'Delete failed', 'error'); }
         } catch(e) { showToast('Error', 'error'); }
     }
+
     function resetOaForm() {
         document.getElementById('oaForm').reset();
         document.getElementById('oaId').value = '';
         document.getElementById('saveOaBtn').textContent = 'Save OA';
     }
+
+    document.getElementById('resetZoneBtn').onclick = resetZoneForm;
     document.getElementById('resetCircleBtn').onclick = resetCircleForm;
     document.getElementById('resetOaBtn').onclick = resetOaForm;
+
     function showToast(msg, type) {
         var t = document.getElementById('toast');
         t.textContent = msg;
