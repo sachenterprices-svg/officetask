@@ -202,16 +202,18 @@
     let currentOffset = 0;
     const SIDEBAR_ITEMS = [
         { icon: '🏠', label: 'Dashboard', href: 'dashboard.html' },
-        { icon: '🎫', label: 'Complaints', href: 'complaints_manage.html' },
-        { icon: '📊', label: 'Complaints Report', href: 'complaints_report.html', active: true, adminOnly: true },
+        { icon: '🎫', label: 'Complaints', href: 'complaints_manage.html', perm: 'complaints' },
+        { icon: '📊', label: 'Complaints Report', href: 'complaints_report.html', active: true, perm: 'complaints' },
         { icon: '👷', label: 'Engineers Master', href: 'engineers_master.html', adminOnly: true },
     ];
 
     document.addEventListener('DOMContentLoaded', async () => {
         const user = JSON.parse(localStorage.getItem('crm_user'));
         if (!user) { window.location.href = 'login.html'; return; }
-        if (user.role !== 'admin') { window.location.href = 'complaints_manage.html'; return; }
-        document.getElementById('userInfoDisplay').textContent = `${user.name || user.username} (Admin)`;
+        // Permission check - user must have complaints:view permission
+        if (!window.hasModuleAccess('complaints')) { window.location.href = 'dashboard.html'; return; }
+        const roleLabel = user.role === 'admin' ? 'Admin' : 'Engineer';
+        document.getElementById('userInfoDisplay').textContent = `${user.name || user.username} (${roleLabel})`;
         buildSidebar(user);
         await loadMeta();
         // Set default date range: current month
@@ -226,7 +228,10 @@
         const sidebar = document.getElementById('sidebar');
         sidebar.innerHTML = `<div class="sidebar-header">MENU</div>`;
         SIDEBAR_ITEMS.forEach(item => {
+            // Hide admin-only items for non-admin
             if (item.adminOnly && user.role !== 'admin') return;
+            // Hide permission-gated items if user lacks permission
+            if (item.perm && !window.hasModuleAccess(item.perm)) return;
             const a = document.createElement('a');
             a.href = item.href;
             a.className = 'module-tile' + (item.active ? ' active' : '');
@@ -251,17 +256,20 @@
             }
         } catch(e) {}
         try {
-            // Load engineers
-            const res = await window.apiFetch('/api/users');
-            if (res.ok) {
-                const users = await res.json();
-                const sel = document.getElementById('fEngineer');
-                users.filter(u => u.role !== 'admin').forEach(u => {
-                    const o = document.createElement('option');
-                    o.value = u.name || u.username;
-                    o.textContent = u.name || u.username;
-                    sel.appendChild(o);
-                });
+            // Load engineers - only admin can access /api/users
+            const user = JSON.parse(localStorage.getItem('crm_user'));
+            if (user && user.role === 'admin') {
+                const res = await window.apiFetch('/api/users');
+                if (res.ok) {
+                    const users = await res.json();
+                    const sel = document.getElementById('fEngineer');
+                    users.filter(u => u.role !== 'admin').forEach(u => {
+                        const o = document.createElement('option');
+                        o.value = u.name || u.username;
+                        o.textContent = u.name || u.username;
+                        sel.appendChild(o);
+                    });
+                }
             }
         } catch(e) {}
     }

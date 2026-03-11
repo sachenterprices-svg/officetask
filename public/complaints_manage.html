@@ -281,8 +281,8 @@
     let currentId = null;
     const SIDEBAR_ITEMS = [
         { icon: '🏠', label: 'Dashboard', href: 'dashboard.html' },
-        { icon: '🎫', label: 'Complaints', href: 'complaints_manage.html', active: true },
-        { icon: '📊', label: 'Complaints Report', href: 'complaints_report.html', adminOnly: true },
+        { icon: '🎫', label: 'Complaints', href: 'complaints_manage.html', active: true, perm: 'complaints' },
+        { icon: '📊', label: 'Complaints Report', href: 'complaints_report.html', perm: 'complaints' },
         { icon: '👷', label: 'Engineers Master', href: 'engineers_master.html', adminOnly: true },
     ];
 
@@ -304,6 +304,7 @@
         sidebar.innerHTML = `<div class="sidebar-header">MENU</div>`;
         SIDEBAR_ITEMS.forEach(item => {
             if (item.adminOnly && user.role !== 'admin') return;
+            if (item.perm && !window.hasModuleAccess(item.perm)) return;
             const a = document.createElement('a');
             a.href = item.href;
             a.className = 'module-tile' + (item.active ? ' active' : '');

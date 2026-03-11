@@ -115,11 +115,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
     }
 
-    // Handle Module-Specific Sidebar Links — HIDE if no permission (not just disable)
+    // Handle Module-Specific Sidebar Links — HIDE if no permission
     const sidebarChecks = [
         { id: 'navProposals', perm: 'proposals' },
         { id: 'navComplaints', perm: 'complaints' },
-        { id: 'navMasters', perm: 'customers' }
+        { id: 'navMasters', perm: 'customers' },
+        { id: 'navReconciliation', perm: 'reconciliation' },
+        { id: 'navSystem', perm: 'system' },
     ];
 
     sidebarChecks.forEach(check => {
