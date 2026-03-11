@@ -66,8 +66,8 @@ window.apiFetch = async function (url, options = {}) {
 
     const res = await fetch(finalUrl, options);
 
-    // If 401/403 (Token expired or unauthorized), force logout
-    if (res.status === 401 || res.status === 403) {
+    // Only force logout on 401 (token expired/invalid), NOT on 403 (permission denied)
+    if (res.status === 401) {
         localStorage.removeItem('crm_token');
         localStorage.removeItem('crm_user');
         window.location.href = 'login.html';

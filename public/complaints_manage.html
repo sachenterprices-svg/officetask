@@ -293,8 +293,9 @@
         buildSidebar(user);
         if (user.role !== 'admin') {
             document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+        } else {
+            await loadEngineers();
         }
-        await loadEngineers();
         await loadComplaints();
     });
 
