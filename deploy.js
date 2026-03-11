@@ -8,7 +8,7 @@ const target = process.argv[2] || 'crm';
 
 const targets = {
     crm: {
-        remoteRoot: process.env.FTP_REMOTE_ROOT_CRM || "/public_html/officetask/",
+        remoteRoot: "/",  // FTP user CRM@ is already chrooted to /public_html/officetask/
         localRoot: path.join(__dirname, "public"),
         include: ["*", "**/*"]
     },
