@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complaints - Coral Infratel</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="auth.js"></script>
+    <style>
+        .page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:28px; }
+        .page-title { font-size:1.6rem; font-weight:800; color:#0f172a; margin:0; }
+        .page-sub { color:#64748b; font-size:0.9rem; margin:4px 0 0; }
+
+        .filter-bar { background:#fff; border-radius:14px; padding:16px 20px; display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:20px; box-shadow:0 2px 12px rgba(0,0,0,0.05); border:1px solid #e2e8f0; }
+        .filter-bar select, .filter-bar input { padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; font-family:inherit; font-size:0.85rem; color:#334155; background:#f8fafc; }
+        .filter-bar select:focus, .filter-bar input:focus { border-color:#002d72; outline:none; background:#fff; }
+        .btn-search { background:#002d72; color:#fff; border:none; padding:8px 20px; border-radius:8px; font-weight:700; font-size:0.85rem; cursor:pointer; transition:0.2s; }
+        .btn-search:hover { background:#001f4d; }
+        .btn-reset { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; padding:8px 16px; border-radius:8px; font-weight:600; font-size:0.85rem; cursor:pointer; }
+
+        .table-card { background:#fff; border-radius:16px; box-shadow:0 4px 20px rgba(0,0,0,0.05); border:1px solid #e2e8f0; overflow:hidden; }
+        .table-toolbar { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid #f1f5f9; }
+        .table-info { font-size:0.85rem; color:#64748b; font-weight:500; }
+        .search-box { display:flex; align-items:center; gap:8px; }
+        .search-box input { padding:7px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.85rem; width:220px; }
+
+        table { width:100%; border-collapse:collapse; }
+        thead { background:#f8fafc; }
+        th { padding:12px 16px; text-align:left; font-size:0.72rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.8px; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
+        td { padding:14px 16px; border-bottom:1px solid #f8fafc; font-size:0.88rem; color:#334155; vertical-align:middle; }
+        tr:hover td { background:#fafbff; }
+
+        .complaint-no { font-weight:700; color:#002d72; font-size:0.82rem; letter-spacing:0.3px; }
+        .customer-cell { font-weight:600; color:#0f172a; }
+        .tel-cell { font-family:monospace; font-size:0.85rem; color:#475569; }
+        .mobile-cell { font-size:0.85rem; color:#64748b; }
+
+        .priority-badge { padding:4px 10px; border-radius:20px; font-size:0.72rem; font-weight:700; display:inline-block; }
+        .priority-low { background:#fef9c3; color:#854d0e; border:1px solid #fde68a; }
+        .priority-medium { background:#fed7aa; color:#9a3412; border:1px solid #fdba74; }
+        .priority-high { background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; }
+
+        .status-badge { padding:4px 12px; border-radius:20px; font-size:0.72rem; font-weight:700; display:inline-block; }
+        .status-pending { background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; }
+        .status-progress { background:#dbeafe; color:#1d4ed8; border:1px solid #93c5fd; }
+        .status-resolved { background:#dcfce7; color:#16a34a; border:1px solid #86efac; }
+
+        .btn-action { background:#002d72; color:#fff; border:none; padding:7px 14px; border-radius:8px; font-size:0.8rem; font-weight:700; cursor:pointer; transition:0.2s; display:inline-flex; align-items:center; gap:5px; }
+        .btn-action:hover { background:#1e40af; transform:translateY(-1px); }
+
+        .no-data { text-align:center; padding:80px 20px; color:#94a3b8; font-size:0.95rem; }
+
+        /* ---- SIDE PANEL (Complaint Status) ---- */
+        .panel-overlay { position:fixed; inset:0; background:rgba(15,23,42,0.4); z-index:1000; opacity:0; visibility:hidden; transition:0.25s; }
+        .panel-overlay.open { opacity:1; visibility:visible; }
+        .side-panel { position:fixed; right:0; top:0; bottom:0; width:520px; background:#fff; box-shadow:-8px 0 40px rgba(0,0,0,0.12); z-index:1001; transform:translateX(100%); transition:transform 0.3s cubic-bezier(0.4,0,0.2,1); overflow-y:auto; }
+        .side-panel.open { transform:translateX(0); }
+
+        .panel-header { background:linear-gradient(135deg,#002d72,#1e40af); color:#fff; padding:24px 28px; position:sticky; top:0; z-index:2; }
+        .panel-header h3 { margin:0 0 4px; font-size:1.15rem; font-weight:800; }
+        .panel-header p { margin:0; font-size:0.82rem; opacity:0.75; }
+        .panel-close { position:absolute; right:20px; top:50%; transform:translateY(-50%); background:rgba(255,255,255,0.15); border:none; color:#fff; width:32px; height:32px; border-radius:50%; font-size:1.1rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:0.2s; }
+        .panel-close:hover { background:rgba(255,255,255,0.25); }
+
+        .panel-body { padding:24px 28px; }
+        .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px; background:#f8fafc; border-radius:12px; padding:16px; border:1px solid #e2e8f0; }
+        .info-item label { font-size:0.72rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:4px; }
+        .info-item .val { font-size:0.9rem; font-weight:600; color:#0f172a; }
+        .info-item.full { grid-column:1/-1; }
+
+        .form-section { margin-bottom:20px; }
+        .form-section h4 { font-size:0.78rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin:0 0 12px; padding-bottom:8px; border-bottom:1px solid #f1f5f9; }
+        .form-group { margin-bottom:14px; }
+        .form-group label { display:block; margin-bottom:6px; font-size:0.82rem; font-weight:600; color:#475569; }
+        .form-group select, .form-group textarea { width:100%; padding:10px 12px; border:1px solid #e2e8f0; border-radius:10px; font-family:inherit; font-size:0.88rem; color:#334155; background:#fff; box-sizing:border-box; transition:border-color 0.2s; }
+        .form-group select:focus, .form-group textarea:focus { border-color:#002d72; outline:none; background:#fff; }
+        .form-group textarea { resize:vertical; min-height:80px; }
+        .word-count { font-size:0.75rem; color:#94a3b8; text-align:right; margin-top:4px; }
+
+        .panel-footer { padding:16px 28px; border-top:1px solid #f1f5f9; display:flex; gap:10px; background:#fff; position:sticky; bottom:0; }
+        .btn-submit-panel { flex:1; background:#002d72; color:#fff; border:none; padding:12px; border-radius:10px; font-weight:700; font-size:0.9rem; cursor:pointer; transition:0.2s; }
+        .btn-submit-panel:hover { background:#1e40af; }
+        .btn-cancel-panel { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; padding:12px 20px; border-radius:10px; font-weight:600; font-size:0.9rem; cursor:pointer; }
+
+        .toast { position:fixed; bottom:24px; right:24px; padding:14px 20px; border-radius:12px; font-weight:600; font-size:0.88rem; z-index:2000; transform:translateY(20px); opacity:0; transition:0.3s; }
+        .toast.show { transform:translateY(0); opacity:1; }
+        .toast-success { background:#002d72; color:#fff; }
+        .toast-error { background:#dc2626; color:#fff; }
+
+        .pagination { display:flex; gap:6px; align-items:center; padding:14px 20px; border-top:1px solid #f1f5f9; }
+        .page-btn { padding:6px 12px; border:1px solid #e2e8f0; border-radius:7px; background:#fff; font-size:0.82rem; font-weight:600; cursor:pointer; color:#475569; transition:0.15s; }
+        .page-btn:hover, .page-btn.active { background:#002d72; color:#fff; border-color:#002d72; }
+        .page-info { font-size:0.82rem; color:#94a3b8; margin-left:8px; }
+    </style>
+</head>
+<body>
+    <header class="top-header">
+        <div class="header-brand">
+            <span style="color:#002d72;">Coral</span> <span style="color:#f97316;">Infratel</span>
+        </div>
+        <div class="user-meta">
+            <span id="userInfoDisplay" style="font-weight:600;"></span>
+            <button onclick="window.logout()" class="logout-btn">Logout</button>
+        </div>
+    </header>
+
+    <div class="app-body">
+        <aside class="tile-sidebar" id="sidebar"></aside>
+
+        <main class="content-area" style="padding:28px;">
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">Complaints</h1>
+                    <p class="page-sub">Manage and resolve customer complaints</p>
+                </div>
+            </div>
+
+            <!-- Filter Bar -->
+            <div class="filter-bar">
+                <select id="fStatus">
+                    <option value="">--All Status--</option>
+                    <option>Pending</option>
+                    <option>In Progress</option>
+                    <option>Resolved</option>
+                    <option>Cancelled</option>
+                </select>
+                <select id="fPriority">
+                    <option value="">--All Priority--</option>
+                    <option>Low</option>
+                    <option>Medium</option>
+                    <option>High</option>
+                </select>
+                <input type="date" id="fStart">
+                <input type="date" id="fEnd">
+                <button class="btn-search" onclick="loadComplaints()">Search</button>
+                <button class="btn-reset" onclick="resetFilters()">Reset</button>
+            </div>
+
+            <!-- Table -->
+            <div class="table-card">
+                <div class="table-toolbar">
+                    <span class="table-info" id="tableInfo">Loading...</span>
+                    <div class="search-box">
+                        <input type="text" id="searchBox" placeholder="Search complaint..." oninput="filterLocal()">
+                    </div>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Complaint No</th>
+                                <th>Telephone No</th>
+                                <th>Customer Name</th>
+                                <th>Complainee</th>
+                                <th>Mobile No</th>
+                                <th>Engineer</th>
+                                <th>Priority</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="complaintsBody">
+                            <tr><td colspan="10" class="no-data">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination" id="pagination"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Side Panel Overlay -->
+    <div class="panel-overlay" id="panelOverlay" onclick="closePanel()"></div>
+
+    <!-- Complaint Status Side Panel -->
+    <div class="side-panel" id="sidePanel">
+        <div class="panel-header">
+            <button class="panel-close" onclick="closePanel()">✕</button>
+            <h3>Complaint Status Update</h3>
+            <p id="panelComplaintNo">Loading...</p>
+        </div>
+        <div class="panel-body">
+            <div class="info-grid" id="infoGrid">
+                <div class="info-item">
+                    <label>Priority</label>
+                    <div class="val" id="infoPriority">-</div>
+                </div>
+                <div class="info-item">
+                    <label>Status</label>
+                    <div class="val" id="infoStatus">-</div>
+                </div>
+                <div class="info-item">
+                    <label>Customer</label>
+                    <div class="val" id="infoCustomer">-</div>
+                </div>
+                <div class="info-item">
+                    <label>Mobile No</label>
+                    <div class="val" id="infoMobile">-</div>
+                </div>
+                <div class="info-item">
+                    <label>Email</label>
+                    <div class="val" id="infoEmail">-</div>
+                </div>
+                <div class="info-item">
+                    <label>Telephone</label>
+                    <div class="val" id="infoTel">-</div>
+                </div>
+                <div class="info-item full">
+                    <label>Complaint Message</label>
+                    <div class="val" id="infoDesc" style="font-weight:400; color:#475569; line-height:1.5;">-</div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h4>Update Action</h4>
+                <div class="form-group">
+                    <label>Fault At</label>
+                    <select id="faultAt">
+                        <option value="">-- Select Fault Location --</option>
+                        <option>Exchange Side</option>
+                        <option>Customer Side</option>
+                        <option>Line / Cabling</option>
+                        <option>Software / Config Issue</option>
+                        <option>Hardware Failure</option>
+                        <option>Power Issue</option>
+                        <option>Under Investigation</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Complaint Status</label>
+                    <select id="compStatus">
+                        <option value="">-- Select Status --</option>
+                        <option>Pending</option>
+                        <option>In Progress</option>
+                        <option>Resolved</option>
+                        <option>Cancelled</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Priority</label>
+                    <select id="compPriority">
+                        <option value="">-- Select Priority --</option>
+                        <option>Low</option>
+                        <option>Medium</option>
+                        <option>High</option>
+                    </select>
+                </div>
+                <div class="form-group admin-only">
+                    <label>Assign Engineer</label>
+                    <select id="assignEngineer">
+                        <option value="">-- Select Engineer --</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h4>Remarks & Comments</h4>
+                <div class="form-group">
+                    <label>Assigner Comments</label>
+                    <textarea id="assignerComments" rows="3" placeholder="Internal notes for engineer..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Engineer Remark</label>
+                    <textarea id="engineerRemark" rows="3" placeholder="Action taken / resolution notes..." oninput="countWords(this,'wordCount')"></textarea>
+                    <div class="word-count"><span id="wordCount">0</span>/50 words</div>
+                </div>
+            </div>
+        </div>
+        <div class="panel-footer">
+            <button class="btn-cancel-panel" onclick="closePanel()">Cancel</button>
+            <button class="btn-submit-panel" onclick="submitUpdate()">Save Update</button>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+    let allComplaints = [];
+    let currentId = null;
+    const SIDEBAR_ITEMS = [
+        { icon: '🏠', label: 'Dashboard', href: 'dashboard.html' },
+        { icon: '🎫', label: 'Complaints', href: 'complaints_manage.html', active: true },
+        { icon: '📊', label: 'Complaints Report', href: 'complaints_report.html', adminOnly: true },
+        { icon: '👷', label: 'Engineers Master', href: 'engineers_master.html', adminOnly: true },
+    ];
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        const user = JSON.parse(localStorage.getItem('crm_user'));
+        if (!user) { window.location.href = 'login.html'; return; }
+        document.getElementById('userInfoDisplay').textContent = `${user.name || user.username} (${user.role === 'admin' ? 'Admin' : 'Engineer'})`;
+        buildSidebar(user);
+        if (user.role !== 'admin') {
+            document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+        }
+        await loadEngineers();
+        await loadComplaints();
+    });
+
+    function buildSidebar(user) {
+        const sidebar = document.getElementById('sidebar');
+        sidebar.innerHTML = `<div class="sidebar-header">MENU</div>`;
+        SIDEBAR_ITEMS.forEach(item => {
+            if (item.adminOnly && user.role !== 'admin') return;
+            const a = document.createElement('a');
+            a.href = item.href;
+            a.className = 'module-tile' + (item.active ? ' active' : '');
+            a.innerHTML = `<i>${item.icon}</i><div class="tile-content"><h4>${item.label}</h4></div>`;
+            sidebar.appendChild(a);
+        });
+    }
+
+    async function loadEngineers() {
+        try {
+            const res = await window.apiFetch('/api/users');
+            if (res.ok) {
+                const users = await res.json();
+                const sel = document.getElementById('assignEngineer');
+                users.filter(u => u.role !== 'admin').forEach(u => {
+                    const opt = document.createElement('option');
+                    opt.value = u.id;
+                    opt.textContent = u.name || u.username;
+                    sel.appendChild(opt);
+                });
+            }
+        } catch (e) {}
+    }
+
+    async function loadComplaints() {
+        try {
+            const res = await window.apiFetch('/api/complaints');
+            if (res.ok) {
+                allComplaints = await res.json();
+                applyFilters();
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    function applyFilters() {
+        const status = document.getElementById('fStatus').value;
+        const priority = document.getElementById('fPriority').value;
+        const start = document.getElementById('fStart').value;
+        const end = document.getElementById('fEnd').value;
+        let data = allComplaints.filter(c => {
+            if (status && c.status !== status) return false;
+            if (priority && c.priority !== priority) return false;
+            const d = new Date(c.created_at);
+            if (start && d < new Date(start)) return false;
+            if (end && d > new Date(end + 'T23:59:59')) return false;
+            return true;
+        });
+        renderTable(data);
+    }
+
+    function filterLocal() {
+        const q = document.getElementById('searchBox').value.toLowerCase();
+        const data = allComplaints.filter(c =>
+            (c.customer_name || '').toLowerCase().includes(q) ||
+            (c.complaint_no || '').toLowerCase().includes(q) ||
+            (c.telephone_number || '').includes(q)
+        );
+        renderTable(data);
+    }
+
+    function renderTable(data) {
+        document.getElementById('tableInfo').textContent = `Showing ${data.length} of ${allComplaints.length} complaints`;
+        const tbody = document.getElementById('complaintsBody');
+        if (!data.length) {
+            tbody.innerHTML = '<tr><td colspan="10" class="no-data">No complaints found.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = data.map(c => {
+            const pClass = c.priority === 'High' ? 'priority-high' : c.priority === 'Medium' ? 'priority-medium' : 'priority-low';
+            const sClass = c.status === 'Resolved' ? 'status-resolved' : c.status === 'In Progress' ? 'status-progress' : 'status-pending';
+            const date = new Date(c.created_at).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+            return `<tr>
+                <td><span class="complaint-no">${c.complaint_no || '-'}</span></td>
+                <td class="tel-cell">${c.std_code ? c.std_code + '-' : ''}${c.telephone_number || '-'}</td>
+                <td class="customer-cell">${c.customer_name || '-'}</td>
+                <td style="color:#64748b;">${c.complainee_name || '-'}</td>
+                <td class="mobile-cell">${c.mobile || '-'}</td>
+                <td style="font-weight:600; color:#002d72;">${c.assigned_username || c.assigned_user || '<span style="color:#94a3b8;font-style:italic;">Unassigned</span>'}</td>
+                <td><span class="priority-badge ${pClass}">${c.priority || 'Low'}</span></td>
+                <td><span class="status-badge ${sClass}">${c.status || 'Pending'}</span></td>
+                <td style="color:#64748b; font-size:0.82rem;">${date}</td>
+                <td>
+                    <button class="btn-action" onclick="openPanel(${c.id})">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        Update
+                    </button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    function resetFilters() {
+        document.getElementById('fStatus').value = '';
+        document.getElementById('fPriority').value = '';
+        document.getElementById('fStart').value = '';
+        document.getElementById('fEnd').value = '';
+        document.getElementById('searchBox').value = '';
+        renderTable(allComplaints);
+    }
+
+    function openPanel(id) {
+        const c = allComplaints.find(x => x.id === id);
+        if (!c) return;
+        currentId = id;
+        document.getElementById('panelComplaintNo').textContent = c.complaint_no || `CRM-${String(id).padStart(4,'0')}`;
+        document.getElementById('infoPriority').innerHTML = `<span class="priority-badge priority-${(c.priority||'Low').toLowerCase()}">${c.priority||'Low'}</span>`;
+        document.getElementById('infoStatus').textContent = c.status || 'Pending';
+        document.getElementById('infoCustomer').textContent = c.customer_name || '-';
+        document.getElementById('infoMobile').textContent = c.mobile || '-';
+        document.getElementById('infoEmail').textContent = c.email || '-';
+        document.getElementById('infoTel').textContent = (c.std_code ? c.std_code + '-' : '') + (c.telephone_number || '-');
+        document.getElementById('infoDesc').textContent = c.description || '-';
+        document.getElementById('faultAt').value = c.fault_at || '';
+        document.getElementById('compStatus').value = c.status || '';
+        document.getElementById('compPriority').value = c.priority || '';
+        document.getElementById('assignerComments').value = c.assigner_comments || '';
+        document.getElementById('engineerRemark').value = c.remark || '';
+        if (c.assigned_to) document.getElementById('assignEngineer').value = c.assigned_to;
+        countWords(document.getElementById('engineerRemark'), 'wordCount');
+        document.getElementById('panelOverlay').classList.add('open');
+        document.getElementById('sidePanel').classList.add('open');
+    }
+
+    function closePanel() {
+        document.getElementById('panelOverlay').classList.remove('open');
+        document.getElementById('sidePanel').classList.remove('open');
+        currentId = null;
+    }
+
+    async function submitUpdate() {
+        if (!currentId) return;
+        const payload = {
+            fault_at: document.getElementById('faultAt').value,
+            status: document.getElementById('compStatus').value || undefined,
+            priority: document.getElementById('compPriority').value || undefined,
+            remark: document.getElementById('engineerRemark').value,
+            assigner_comments: document.getElementById('assignerComments').value,
+        };
+        const eng = document.getElementById('assignEngineer').value;
+        if (eng) payload.assigned_to = eng;
+        try {
+            const res = await window.apiFetch(`/api/complaints/${currentId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+            if (res.ok) {
+                showToast('Complaint updated successfully!', 'success');
+                closePanel();
+                await loadComplaints();
+            } else {
+                showToast('Update failed. Try again.', 'error');
+            }
+        } catch (e) { showToast('Network error.', 'error'); }
+    }
+
+    function countWords(el, countId) {
+        const words = el.value.trim().split(/\s+/).filter(w => w);
+        document.getElementById(countId).textContent = words.length;
+        if (words.length > 50) el.style.borderColor = '#dc2626';
+        else el.style.borderColor = '';
+    }
+
+    function showToast(msg, type) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.className = `toast toast-${type} show`;
+        setTimeout(() => t.classList.remove('show'), 3000);
+    }
+    </script>
+</body>
+</html>

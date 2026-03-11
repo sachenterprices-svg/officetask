@@ -34,10 +34,12 @@ const pool = mysql.createPool({
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
-    port: process.env.DB_PORT,
+    port: parseInt(process.env.DB_PORT) || 3306,
     waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
+    connectionLimit: 5,
+    queueLimit: 0,
+    connectTimeout: 30000,
+    ssl: false
 });
 
 // Upgrade Users Table for Advanced Features
@@ -106,22 +108,77 @@ async function initializeComplaintsTable() {
         await pool.query(`
             CREATE TABLE IF NOT EXISTS complaints (
                 id INT AUTO_INCREMENT PRIMARY KEY,
+                complaint_no VARCHAR(30),
                 customer_name VARCHAR(255) NOT NULL,
+                complainee_name VARCHAR(255),
                 mobile VARCHAR(20),
                 email VARCHAR(150),
                 std_code VARCHAR(10),
                 telephone_number VARCHAR(20),
+                circle VARCHAR(100),
+                oa_name VARCHAR(100),
                 issue_type VARCHAR(100),
                 description TEXT,
+                priority ENUM('Low','Medium','High') DEFAULT 'Low',
                 status VARCHAR(50) DEFAULT 'Pending',
+                fault_at VARCHAR(150),
+                remark TEXT,
+                assigner_comments TEXT,
                 assigned_to INT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB
         `);
+        // Add new columns if they don't exist (for existing installs)
+        const newCols = [
+            { name: 'complaint_no', type: 'VARCHAR(30)' },
+            { name: 'complainee_name', type: 'VARCHAR(255)' },
+            { name: 'circle', type: 'VARCHAR(100)' },
+            { name: 'oa_name', type: 'VARCHAR(100)' },
+            { name: 'priority', type: "ENUM('Low','Medium','High') DEFAULT 'Low'" },
+            { name: 'fault_at', type: 'VARCHAR(150)' },
+            { name: 'remark', type: 'TEXT' },
+            { name: 'assigner_comments', type: 'TEXT' }
+        ];
+        for (const col of newCols) {
+            try {
+                await pool.query(`ALTER TABLE complaints ADD COLUMN ${col.name} ${col.type}`);
+            } catch (e) { /* column already exists */ }
+        }
         console.log('✅ Complaints table initialized.');
     } catch (err) {
         console.error('⚠️ Could not initialize complaints table:', err.message);
+    }
+}
+
+// Generate complaint number: e.g. HR260309FDB007
+async function generateComplaintNo(circle, oa_name) {
+    try {
+        const circleCodeMap = {
+            'haryana': 'HR', 'rajasthan': 'RJ', 'bihar': 'BH', 'punjab': 'PB',
+            'himachal pradesh': 'HP', 'maharashtra': 'MH', 'uttar pradesh (east)': 'UE',
+            'uttar pradesh (west)': 'UW', 'gujarat': 'GJ', 'madhya pradesh': 'MP',
+            'andhra pradesh': 'AP', 'karnataka': 'KK', 'tamil nadu': 'TN',
+            'kerala': 'KL', 'west bengal': 'WB', 'odisha': 'OD', 'jharkhand': 'JK',
+            'chhattisgarh': 'CG', 'uttarakhand': 'UK', 'delhi': 'DL'
+        };
+        const circleKey = (circle || '').toLowerCase().trim();
+        const circleCode = circleCodeMap[circleKey] || (circle || 'XX').toUpperCase().substring(0, 2);
+        const oaCode = (oa_name || 'GEN').replace(/[^a-zA-Z]/g, '').toUpperCase().substring(0, 3).padEnd(3, 'X');
+        const now = new Date();
+        const yy = String(now.getFullYear()).slice(2);
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        const dateStr = `${yy}${mm}${dd}`;
+        const prefix = `${circleCode}${dateStr}${oaCode}`;
+        const [[{ cnt }]] = await pool.query(
+            `SELECT COUNT(*) as cnt FROM complaints WHERE complaint_no LIKE ?`,
+            [`${prefix}%`]
+        );
+        const seq = String(cnt + 1).padStart(3, '0');
+        return `${prefix}${seq}`;
+    } catch (e) {
+        return `XX${Date.now()}`;
     }
 }
 
@@ -196,8 +253,39 @@ async function initializeCustomersTable() {
         await upgradeCustomersTableAdvanced();
         await initializeCustomerLinesTable();
         await initializeCustomerOrdersTable();
+        await initializeBsnlTables();
     } catch (err) {
         console.error('⚠️ Could not initialize customers table:', err.message);
+    }
+}
+
+async function initializeBsnlTables() {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS bsnl_circles (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(100) NOT NULL UNIQUE,
+                code VARCHAR(2) NOT NULL UNIQUE,
+                vendor_code VARCHAR(50),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB
+        `);
+
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS bsnl_oas (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                circle_id INT NOT NULL,
+                name VARCHAR(100) NOT NULL,
+                code VARCHAR(3) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_oa (circle_id, name),
+                UNIQUE KEY unique_oa_code (circle_id, code),
+                FOREIGN KEY (circle_id) REFERENCES bsnl_circles(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB
+        `);
+        console.log('✅ BSNL Circles and OAs tables initialized.');
+    } catch (err) {
+        console.error('⚠️ Could not initialize BSNL tables:', err.message);
     }
 }
 
@@ -385,6 +473,7 @@ async function upgradeCustomersTableAdvanced() {
             { name: 'tech_person_email', type: 'VARCHAR(150)' },
             { name: 'customer_status', type: 'VARCHAR(50) DEFAULT "OPEN"' },
             { name: 'customer_closed_date', type: 'DATE' },
+            { name: 'oa_name', type: 'VARCHAR(100)' },
             { name: 'revenue_level', type: 'VARCHAR(100)' },
             { name: 'epabx_model', type: 'VARCHAR(100)' },
             { name: 'product_start_date', type: 'DATE' },
@@ -644,12 +733,20 @@ app.patch('/api/proposals/:id/followup', authenticateToken, async (req, res) => 
 // --- COMPLAINTS ROUTES ---
 app.get('/api/complaints', authenticateToken, async (req, res) => {
     try {
-        const [rows] = await pool.query(`
-            SELECT c.*, u.username as assigned_username 
-            FROM complaints c 
-            LEFT JOIN users u ON c.assigned_to = u.id 
-            ORDER BY c.created_at DESC
-        `);
+        const user = req.user;
+        let query = `
+            SELECT c.*, u.name as assigned_username, u.username as assigned_user
+            FROM complaints c
+            LEFT JOIN users u ON c.assigned_to = u.id
+        `;
+        const params = [];
+        // Engineers only see their assigned complaints
+        if (user.role !== 'admin') {
+            query += ' WHERE c.assigned_to = ?';
+            params.push(user.id);
+        }
+        query += ' ORDER BY c.created_at DESC';
+        const [rows] = await pool.query(query, params);
         res.json(rows);
     } catch (err) {
         console.error('Fetch complaints error:', err);
@@ -657,28 +754,160 @@ app.get('/api/complaints', authenticateToken, async (req, res) => {
     }
 });
 
-app.post('/api/complaints', async (req, res) => {
-    const { customer_name, mobile, email, issue_type, description, std_code, telephone_number } = req.body;
+// Complaints Report with filters
+app.get('/api/complaints/report', authenticateToken, async (req, res) => {
     try {
+        const { circle, oa, status, engineer, search, start, end, limit = 40, offset = 0 } = req.query;
+        let where = [];
+        const params = [];
+        if (circle) { where.push('c.circle = ?'); params.push(circle); }
+        if (oa) { where.push('c.oa_name = ?'); params.push(oa); }
+        if (status && status !== '--All--') { where.push('c.status = ?'); params.push(status); }
+        if (engineer && engineer !== '--All--') { where.push('u.name = ?'); params.push(engineer); }
+        if (search) { where.push('(c.customer_name LIKE ? OR c.complaint_no LIKE ? OR c.telephone_number LIKE ?)'); params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
+        if (start) { where.push('DATE(c.created_at) >= ?'); params.push(start); }
+        if (end) { where.push('DATE(c.created_at) <= ?'); params.push(end); }
+        const whereStr = where.length ? 'WHERE ' + where.join(' AND ') : '';
+        const [rows] = await pool.query(`
+            SELECT c.*, u.name as engineer_name
+            FROM complaints c
+            LEFT JOIN users u ON c.assigned_to = u.id
+            ${whereStr}
+            ORDER BY c.created_at DESC
+            LIMIT ? OFFSET ?
+        `, [...params, parseInt(limit), parseInt(offset)]);
+        const [[{ total }]] = await pool.query(`SELECT COUNT(*) as total FROM complaints c LEFT JOIN users u ON c.assigned_to = u.id ${whereStr}`, params);
+        res.json({ rows, total });
+    } catch (err) {
+        console.error('Complaints report error:', err);
+        res.status(500).json({ error: 'Failed to fetch report' });
+    }
+});
+
+// Update complaint (engineer action)
+app.put('/api/complaints/:id', authenticateToken, async (req, res) => {
+    const { fault_at, status, remark, assigner_comments, priority, assigned_to } = req.body;
+    try {
+        const fields = [];
+        const params = [];
+        if (fault_at !== undefined) { fields.push('fault_at=?'); params.push(fault_at); }
+        if (status !== undefined) { fields.push('status=?'); params.push(status); }
+        if (remark !== undefined) { fields.push('remark=?'); params.push(remark); }
+        if (assigner_comments !== undefined) { fields.push('assigner_comments=?'); params.push(assigner_comments); }
+        if (priority !== undefined) { fields.push('priority=?'); params.push(priority); }
+        if (assigned_to !== undefined) { fields.push('assigned_to=?'); params.push(assigned_to); }
+        if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
+        params.push(req.params.id);
+        await pool.query(`UPDATE complaints SET ${fields.join(',')} WHERE id=?`, params);
+        res.json({ message: 'Complaint updated' });
+    } catch (err) {
+        console.error('Update complaint error:', err);
+        res.status(500).json({ error: 'Failed to update complaint' });
+    }
+});
+
+app.post('/api/complaints', async (req, res) => {
+    const { customer_name, complainee_name, mobile, email, issue_type, description, std_code, telephone_number } = req.body;
+    try {
+        // Lookup circle and OA from customers table
+        let circle = '', oa_name = '';
+        try {
+            const [custRows] = await pool.query(
+                'SELECT circle, oa_name FROM customers WHERE telephone_number=? AND telephone_code=? LIMIT 1',
+                [telephone_number, std_code]
+            );
+            if (custRows.length > 0) { circle = custRows[0].circle || ''; oa_name = custRows[0].oa_name || ''; }
+        } catch (e) { /* ignore */ }
+
+        const complaint_no = await generateComplaintNo(circle, oa_name);
         const [result] = await pool.query(
-            'INSERT INTO complaints (customer_name, mobile, email, issue_type, description, std_code, telephone_number) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [customer_name, mobile, email, issue_type, description, std_code, telephone_number]
+            'INSERT INTO complaints (complaint_no, customer_name, complainee_name, mobile, email, issue_type, description, std_code, telephone_number, circle, oa_name, assigner_comments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [complaint_no, customer_name, complainee_name || customer_name, mobile, email, issue_type || 'Auto-Support', description, std_code, telephone_number, circle, oa_name, 'System Auto Assign']
         );
 
         const ticketId = `CRM-${String(result.insertId).padStart(4, '0')}`;
-        const complaintData = { ticket_id: ticketId, customer_name, mobile, email, issue_type, description };
+        const complaintData = { ticket_id: ticketId, complaint_no, customer_name, mobile, email, issue_type, description };
 
-        // Background Notifications (Placeholders for tomorrow's implementation)
         sendEmailNotification(complaintData).catch(err => console.error('Email Notify Error:', err.message));
         sendWhatsAppNotification(complaintData).catch(err => console.error('WhatsApp Notify Error:', err.message));
 
         res.status(201).json({
             message: 'Complaint registered successfully',
-            ticket_id: ticketId
+            ticket_id: ticketId,
+            complaint_no
         });
     } catch (err) {
         console.error('Submit complaint error:', err);
         res.status(500).json({ error: 'Failed to submit complaint' });
+    }
+});
+
+// --- BSNL CIRCLE/OA ROUTES ---
+app.get('/api/bsnl/circles', authenticateToken, async (req, res) => {
+    try {
+        const [circles] = await pool.query('SELECT * FROM bsnl_circles ORDER BY name ASC');
+        for (let circle of circles) {
+            const [oas] = await pool.query('SELECT * FROM bsnl_oas WHERE circle_id = ? ORDER BY name ASC', [circle.id]);
+            circle.oas = oas;
+        }
+        res.json(circles);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch BSNL data' });
+    }
+});
+
+app.post('/api/bsnl/circles', authenticateToken, isAdmin, async (req, res) => {
+    const { id, name, code, vendor_code } = req.body;
+    try {
+        if (id) {
+            await pool.query('UPDATE bsnl_circles SET name=?, code=?, vendor_code=? WHERE id=?', [name, code, vendor_code, id]);
+            res.json({ message: 'Circle updated' });
+        } else {
+            const [result] = await pool.query('INSERT INTO bsnl_circles (name, code, vendor_code) VALUES (?, ?, ?)', [name, code, vendor_code]);
+            res.status(201).json({ id: result.insertId, message: 'Circle added' });
+        }
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to save circle' });
+    }
+});
+
+app.post('/api/bsnl/oas', authenticateToken, isAdmin, async (req, res) => {
+    const { id, circle_id, name, code } = req.body;
+    try {
+        if (id) {
+            await pool.query('UPDATE bsnl_oas SET circle_id=?, name=?, code=? WHERE id=?', [circle_id, name, code, id]);
+            res.json({ message: 'OA updated' });
+        } else {
+            const [result] = await pool.query('INSERT INTO bsnl_oas (circle_id, name, code) VALUES (?, ?, ?)', [circle_id, name, code]);
+            res.status(201).json({ id: result.insertId, message: 'OA added' });
+        }
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to save OA' });
+    }
+});
+
+app.delete('/api/bsnl/circles/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        // Check if in use
+        const [inUse] = await pool.query('SELECT id FROM customers WHERE circle = (SELECT name FROM bsnl_circles WHERE id = ?) LIMIT 1', [req.params.id]);
+        if (inUse.length > 0) return res.status(400).json({ error: 'Circle in use by customers' });
+        
+        await pool.query('DELETE FROM bsnl_circles WHERE id = ?', [req.params.id]);
+        res.json({ message: 'Circle deleted' });
+    } catch (err) {
+        res.status(500).json({ error: 'Delete failed' });
+    }
+});
+
+app.delete('/api/bsnl/oas/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const [inUse] = await pool.query('SELECT id FROM customers WHERE oa_name = (SELECT name FROM bsnl_oas WHERE id = ?) LIMIT 1', [req.params.id]);
+        if (inUse.length > 0) return res.status(400).json({ error: 'OA in use by customers' });
+
+        await pool.query('DELETE FROM bsnl_oas WHERE id = ?', [req.params.id]);
+        res.json({ message: 'OA deleted' });
+    } catch (err) {
+        res.status(500).json({ error: 'Delete failed' });
     }
 });
 
@@ -738,26 +967,32 @@ app.post('/api/customers', authenticateToken, async (req, res) => {
     try {
         await connection.beginTransaction();
 
+        // 0. Auto-Generate Customer Code if not provided (Edit mode usually provides it)
+        if (!data.customer_code) {
+            const [circleData] = await connection.query('SELECT code FROM bsnl_circles WHERE name = ?', [data.circle]);
+            const [oaData] = await connection.query('SELECT id, code FROM bsnl_oas WHERE name = ? AND circle_id = (SELECT id FROM bsnl_circles WHERE name = ?)', [data.oa_name, data.circle]);
+            
+            if (circleData.length > 0 && oaData.length > 0) {
+                const cCode = circleData[0].code;
+                const oCode = oaData[0].code;
+                const prefix = `${cCode}${oCode}`;
+                
+                const [countRows] = await connection.query('SELECT COUNT(*) as count FROM customers WHERE customer_code LIKE ?', [`${prefix}%`]);
+                const nextSeq = String(countRows[0].count + 1).padStart(3, '0');
+                data.customer_code = `${prefix}${nextSeq}`;
+            } else {
+                // Fallback or error if circle/oa not found in new tables
+                throw new Error('Circle or OA code not found for auto-generation');
+            }
+        }
+
         // --- DUPLICATE VALIDATION ---
         if (data.customer_name) {
             const [existingCust] = await connection.query('SELECT id FROM customers WHERE LOWER(customer_name) = LOWER(?)', [data.customer_name.trim()]);
             if (existingCust.length > 0) {
                 await connection.rollback();
                 connection.release();
-                return res.status(400).json({ error: 'A customer with this name already exists in the database. Please use a different name.' });
-            }
-        }
-
-        if (data.lines && Array.isArray(data.lines)) {
-            const numbers = data.lines.filter(l => l.telephone_number).map(l => l.telephone_number);
-            if (numbers.length > 0) {
-                const [existingLines] = await connection.query('SELECT telephone_number FROM customer_lines WHERE telephone_number IN (?)', [numbers]);
-                if (existingLines.length > 0) {
-                    await connection.rollback();
-                    connection.release();
-                    const dups = existingLines.map(l => l.telephone_number).join(', ');
-                    return res.status(400).json({ error: `The following telephone numbers already exist in the database: ${dups}` });
-                }
+                return res.status(400).json({ error: 'A customer with this name already exists in the database.' });
             }
         }
         // --- END DUPLICATE VALIDATION ---
@@ -775,7 +1010,7 @@ app.post('/api/customers', authenticateToken, async (req, res) => {
                 revenue_level, epabx_model, product_start_date
             ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             [
-                data.circle, data.ssa, data.oa_name, data.customer_code, data.customer_name, data.order_date || null, data.contact_person, data.mobile_no, data.email_id,
+                data.circle, data.ssa || '', data.oa_name, data.customer_code, data.customer_name, data.order_date || null, data.contact_person, data.mobile_no, data.email_id,
                 data.analog_line || 0, data.digital_line || 0, data.vas_line || 0, data.ip_line || 0,
                 data.analog_rent || 0, data.digital_rent || 0, data.vas_rent || 0, data.ip_rent || 0,
                 data.rg_port || 0, data.rg_rent || 0, data.plan_charge || 0, data.total_line || 0,
@@ -808,9 +1043,11 @@ app.post('/api/customers', authenticateToken, async (req, res) => {
             ]
         );
 
-        // 3. Insert Multiple Telephone Lines
+        // 3. Insert Multiple Telephone Lines with Auto-Code
         if (data.lines && Array.isArray(data.lines)) {
+            let lineSeq = 1;
             for (const line of data.lines) {
+                const lineCode = `${data.customer_code}${String(lineSeq).padStart(3, '0')}`;
                 await connection.query(
                     `INSERT INTO customer_lines (
                         customer_id, telephone_number, line_type, sip_no, start_date,
@@ -819,20 +1056,21 @@ app.post('/api/customers', authenticateToken, async (req, res) => {
                     ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
                     [
                         customerId, line.telephone_number, line.line_type, line.sip_no, line.start_date || null,
-                        line.telephone_code, line.billing_account, line.crm_customer_id, line.submit_at_fms || 'NO',
+                        lineCode, line.billing_account, line.crm_customer_id, line.submit_at_fms || 'NO',
                         line.fms_submit_date || null, line.is_closed || 'NO', line.closed_date || null, line.telephone_code_2
                     ]
                 );
+                lineSeq++;
             }
         }
 
         await connection.commit();
-        res.status(201).json({ id: customerId, message: 'Customer and lines added successfully' });
+        res.status(201).json({ id: customerId, customer_code: data.customer_code, message: 'Customer added successfully' });
     } catch (err) {
         await connection.rollback();
         console.error('Create customer error:', err);
         res.status(500).json({
-            error: err.code === 'ER_DUP_ENTRY' ? 'Customer Code already exists' : 'Failed to add customer',
+            error: err.code === 'ER_DUP_ENTRY' ? 'Duplicate entry found' : 'Failed to add customer',
             details: err.message
         });
     } finally {

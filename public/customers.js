@@ -1,55 +1,44 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const bsnlData = {
-        "Andaman and Nicobar": ["Port Blair"],
-        "Andhra Pradesh": ["Anantapur", "Chittoor", "Cuddapah", "East Godavari", "Guntur", "Krishna", "Kurnool", "Nellore", "Prakasam", "Srikakulam", "Visakhapatnam", "Vizianagaram", "West Godavari"],
-        "Assam": ["Bongaigaon", "Cachar", "Dibrugarh", "Jorhat", "Kamrup", "Karbi Anglong", "Lakhimpur", "Nagaon", "Nalbari", "Sibsagar", "Tezpur"],
-        "Bihar": ["Ara", "Aurangabad", "Begusarai", "Bhagalpur", "Chapra", "Darbhanga", "Gaya", "Hajipur", "Katihar", "Khagaria", "Munger", "Motihari", "Muzaffarpur", "Patna", "Purnea", "Saharsa", "Samastipur", "Sasaram"],
-        "Chhattisgarh": ["Bastar", "Bilaspur", "Durg", "Raigarh", "Raipur", "Surguja"],
-        "Chennai Telephones": ["Chennai"],
-        "Gujarat": ["Ahmedabad", "Amreli", "Bharuch", "Bhavnagar", "Bhuj", "Godhra", "Himmatnagar", "Jamnagar", "Junagadh", "Kheda", "Mehsana", "Nadiad", "Palanpur", "Rajkot", "Surat", "Surendranagar", "Vadodara", "Valsad"],
-        "Haryana": ["Ambala", "Faridabad", "Gurgaon", "Hissar", "Karnal", "Kurukshetra", "Panipat", "Rohtak", "Sirsa", "Sonepat"],
-        "Himachal Pradesh": ["Dharamshala", "Hamirpur", "Kullu", "Mandi", "Shimla", "Solan"],
-        "Jammu and Kashmir": ["Anantnag", "Baramulla", "Jammu", "Kathua", "Leh", "Rajouri", "Srinagar", "Udhampur"],
-        "Jharkhand": ["Bokaro", "Dhanbad", "Dumka", "Hazaribagh", "Jamshedpur", "Ranchi"],
-        "Karnataka": ["Bangalore", "Belagavi", "Bellary", "Bidar", "Bijapur", "Chikmagalur", "Dakshina Kannada", "Davanagere", "Dharwad", "Gadag", "Gulbarga", "Hassan", "Karwar", "Kolar", "Koppal", "Mandya", "Mysore", "Raichur", "Shimoga", "Tumkur", "Udupi"],
-        "Kerala": ["Alappuzha", "Ernakulam", "Idukki", "Kannur", "Kasaragod", "Kollam", "Kottayam", "Kozhikode", "Malappuram", "Palakkad", "Pathanamthitta", "Thiruvananthapuram", "Thrissur", "Wayanad"],
-        "Kolkata Telephones": ["Kolkata"],
-        "Madhya Pradesh": ["Balaghat", "Betul", "Bhind", "Bhopal", "Chhatarpur", "Chhindwara", "Damoh", "Dewas", "Dhar", "Guna", "Gwalior", "Hoshangabad", "Indore", "Jabalpur", "Khandwa", "Khargone", "Mandsaur", "Morena", "Narsinghpur", "Neemuch", "Panna", "Raisen", "Rajgarh", "Ratlam", "Rewa", "Sagar", "Satna", "Sehore", "Seoni", "Shahdol", "Shajapur", "Shivpuri", "Sidhi", "Tikamgarh", "Ujjain", "Umaria", "Vidisha"],
-        "Maharashtra": ["Ahmednagar", "Akola", "Amravati", "Aurangabad", "Beed", "Bhandara", "Buldhana", "Chandrapur", "Dhule", "Gadchiroli", "Gondia", "Hingoli", "Jalgaon", "Jalna", "Kalyan", "Kolhapur", "Latur", "Nagpur", "Nanded", "Nandurbar", "Nashik", "Osmanabad", "Parbhani", "Pune", "Raigad", "Ratnagiri", "Sangli", "Satara", "Sindhudurg", "Solapur", "Thane", "Wardha", "Washim", "Yavatmal"],
-        "North East-I": ["Meghalaya", "Mizoram", "Tripura"],
-        "North East-II": ["Arunachal Pradesh", "Manipur", "Nagaland"],
-        "Odisha": ["Balasore", "Berhampur", "Bhubaneswar", "Cuttack", "Dhenkanal", "Keonjhar", "Koraput", "Phulbani", "Rourkela", "Sambalpur", "Sundargarh"],
-        "Punjab": ["Amritsar", "Bathinda", "Chandigarh", "Ferozepur", "Hoshiarpur", "Jalandhar", "Ludhiana", "Pathankot", "Patiala", "Rupnagar", "Sangrur"],
-        "Rajasthan": ["Ajmer", "Alwar", "Banswara", "Barmer", "Bharatpur", "Bhilwara", "Bikaner", "Bundi", "Chittorgarh", "Churu", "Dausa", "Dholpur", "Dungarpur", "Hanumangarh", "Jaipur", "Jaisalmer", "Jalore", "Jhalawar", "Jhunjhunu", "Jodhpur", "Karauli", "Kota", "Nagaur", "Pali", "Pratapgarh", "Rajsamand", "Sawai Madhopur", "Sikar", "Sirohi", "Sri Ganganagar", "Tonk", "Udaipur"],
-        "Tamil Nadu": ["Chennai", "Coimbatore", "Cuddalore", "Dharmapuri", "Dindigul", "Erode", "Kanchipuram", "Kanyakumari", "Karur", "Krishnagiri", "Madurai", "Nagapattinam", "Namakkal", "Nilgiris", "Perambalur", "Pudukkottai", "Ramanathapuram", "Salem", "Sivaganga", "Thanjavur", "Theni", "Thoothukudi", "Tiruchirappalli", "Tirunelveli", "Tirupathur", "Tiruvallur", "Tiruvannamalai", "Tiruvarur", "Vellore", "Viluppuram", "Virudhunagar"],
-        "Telangana": ["Adilabad", "Hyderabad", "Karimnagar", "Khammam", "Mahabubnagar", "Medak", "Nalgonda", "Nizamabad", "Rangareddy", "Warangal"],
-        "Uttar Pradesh (East)": ["Allahabad", "Azamgarh", "Bahraich", "Ballia", "Banda", "Barabanki", "Basti", "Deoria", "Faizabad", "Farrukhabad", "Fatehpur", "Ghazipur", "Gonda", "Gorakhpur", "Hardoi", "Jaunpur", "Kanpur", "Lakhimpur", "Lucknow", "Mau", "Mirzapur", "Orai", "Pratapgarh", "Raebareli", "Shahjahanpur", "Sitapur", "Sultanpur", "Unnao", "Varanasi"],
-        "Uttar Pradesh (West)": ["Agra", "Aligarh", "Bareilly", "Bijnor", "Budaun", "Bulandshahr", "Etah", "Etawah", "Ghaziabad", "Hapur", "Mathura", "Meerut", "Moradabad", "Muzaffarnagar", "Noida", "Pilibhit", "Rampur", "Saharanpur"],
-        "Uttarakhand": ["Almora", "Dehradun", "Haldwani", "Haridwar", "Nainital", "Pauri", "Srinagar (Garhwal)", "Tehri"],
-        "West Bengal": ["Asansol", "Bankura", "Birbhum", "Burdwan", "Cooch Behar", "Darjeeling", "Hooghly", "Howrah", "Jalpaiguri", "Kalyani", "Kharagpur", "Krishnanagar", "Malda", "Murshidabad", "Purulia", "Raiganj", "Suri"]
-    };
+    let bsnlCircles = [];
 
-    const selCircle = document.getElementById('custCircle');
-    const selOA = document.getElementById('custOa');
+    async function fetchBsnlData() {
+        try {
+            const res = await window.apiFetch('/api/bsnl/circles');
+            if (res.ok) {
+                bsnlCircles = await res.json();
+                populateCircles();
+            }
+        } catch (err) {
+            console.error('Failed to fetch BSNL circles:', err);
+        }
+    }
+
+    function populateCircles() {
+        if (selCircle) {
+            if (bsnlCircles.length === 0) {
+                selCircle.innerHTML = '<option value="">No Circles found - Add in Setup</option>';
+            } else {
+                selCircle.innerHTML = '<option value="">Select Circle...</option>';
+                bsnlCircles.forEach(circle => {
+                    const opt = document.createElement('option');
+                    opt.value = circle.name;
+                    opt.textContent = circle.name;
+                    selCircle.appendChild(opt);
+                });
+            }
+        }
+    }
 
     if (selCircle) {
-        const sortedCircles = Object.keys(bsnlData).sort();
-        sortedCircles.forEach(circle => {
-            const opt = document.createElement('option');
-            opt.value = circle;
-            opt.textContent = circle;
-            selCircle.appendChild(opt);
-        });
-
         selCircle.addEventListener('change', (e) => {
-            const circle = e.target.value;
-            const oas = bsnlData[circle] || [];
+            const circleName = e.target.value;
+            const circle = bsnlCircles.find(c => c.name === circleName);
             selOA.innerHTML = '<option value="">Select OA...</option>';
-            if (oas.length > 0) {
-                oas.sort().forEach(oa => {
+            if (circle && circle.oas && circle.oas.length > 0) {
+                circle.oas.sort((a,b) => a.name.localeCompare(b.name)).forEach(oa => {
                     const opt = document.createElement('option');
-                    opt.value = oa;
-                    opt.textContent = oa;
+                    opt.value = oa.name;
+                    opt.textContent = oa.name;
                     selOA.appendChild(opt);
                 });
                 selOA.disabled = false;
@@ -58,6 +47,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    fetchBsnlData();
+
+    const selCircle = document.getElementById('custCircle');
+    const selOA = document.getElementById('custOa');
 
     // --- Dynamic Telephone Lines Logic ---
     const linesContainer = document.getElementById('linesContainer');
@@ -74,10 +68,10 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             newSection.querySelectorAll('select').forEach(s => s.selectedIndex = 0);
 
-            // Replace the ADD button with a REMOVE button in clones
+            // Replace the ADD and SAVE buttons with a REMOVE button in clones
             const btnContainer = newSection.querySelector('#addNewLineBtn').parentElement;
             btnContainer.innerHTML = `
-                <button type="button" class="remove-line-btn" style="background:#ef4444; color:white; border:none; padding:10px 15px; border-radius:8px; font-weight:700; cursor:pointer; width:100%;">
+                <button type="button" class="remove-line-btn" style="background:#ef4444; color:white; border:none; padding:10px 15px; border-radius:8px; font-weight:700; cursor:pointer; width:100%; transition:0.3s;">
                     REMOVE LINE
                 </button>`;
 
@@ -134,7 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
             section.querySelector('h3').textContent = `Telephone Line #${idx + 1}`;
 
             // Populate fields
-            section.querySelector('.telStdCode').value = line.telephone_code || '';
+            section.querySelector('.telStdCode').value = line.telephone_code_std || ''; // Note: mapping might need adjustment if DB schema changed
             section.querySelector('.telNumber').value = line.telephone_number || '';
             section.querySelector('.lineType').value = line.line_type || '';
             section.querySelector('.sipNo').value = line.sip_no || '';
@@ -145,17 +139,17 @@ document.addEventListener('DOMContentLoaded', () => {
             section.querySelector('.fmsDate').value = line.fms_submit_date ? line.fms_submit_date.split('T')[0] : '';
             section.querySelector('.isClosed').value = line.is_closed || 'NO';
             section.querySelector('.closedDate').value = line.closed_date ? line.closed_date.split('T')[0] : '';
+            
+            const telCodeInput = section.querySelector('.telCode') || section.querySelector('.telCode-generated'); 
+            if (telCodeInput) {
+                telCodeInput.value = line.telephone_code || 'System Generated';
+            }
 
             // Buttons logic
             const btnContainer = section.querySelector('#addNewLineBtn').parentElement;
-            if (idx === 0) {
-                // Keep the ADD button for the first row only, or handle differently
-                // Actually, let's make ALL existing rows have REMOVE, and add one empty at the end?
-                // Or just the first one has ADD, others have REMOVE.
-                // Let's stick to the user's current pattern: 1st has ADD, clones have REMOVE.
-            } else {
+            if (idx !== 0) {
                 btnContainer.innerHTML = `
-                    <button type="button" class="remove-line-btn" style="background:#ef4444; color:white; border:none; padding:10px 15px; border-radius:8px; font-weight:700; cursor:pointer; width:100%;">
+                    <button type="button" class="remove-line-btn" style="background:#ef4444; color:white; border:none; padding:10px 15px; border-radius:8px; font-weight:700; cursor:pointer; width:100%; transition:0.3s;">
                         REMOVE LINE
                     </button>`;
             }

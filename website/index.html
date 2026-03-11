@@ -484,6 +484,7 @@
                     <a href="#bsnl">BSNL Scheme</a>
                     <a href="#products">Products</a>
                     <a href="support.html">Support</a>
+                    <a href="officetask/">CRM / Login</a>
                 </div>
                 <a href="#contact" class="btn btn-primary">Contact Us</a>
             </nav>
@@ -782,6 +783,10 @@
         // Try to load real logo
         const logoImg = document.getElementById('realLogo');
         const textLogo = document.getElementById('textLogo');
+        logoImg.onerror = () => {
+            logoImg.style.display = 'none';
+            textLogo.style.display = 'block';
+        };
         logoImg.onload = () => {
             logoImg.style.display = 'block';
             textLogo.style.display = 'none';

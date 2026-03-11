@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Engineers Master - Coral Infratel</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="auth.js"></script>
+    <style>
+        .page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:28px; flex-wrap:wrap; gap:12px; }
+        .page-title { font-size:1.6rem; font-weight:800; color:#0f172a; margin:0; }
+        .page-sub { color:#64748b; font-size:0.9rem; margin:4px 0 0; }
+        .header-actions { display:flex; gap:10px; flex-wrap:wrap; }
+
+        .btn-primary { background:#002d72; color:#fff; border:none; padding:10px 22px; border-radius:10px; font-weight:700; font-size:0.88rem; cursor:pointer; transition:0.2s; display:inline-flex; align-items:center; gap:7px; }
+        .btn-primary:hover { background:#1e40af; transform:translateY(-1px); }
+        .btn-success { background:#059669; color:#fff; border:none; padding:10px 20px; border-radius:10px; font-weight:700; font-size:0.88rem; cursor:pointer; display:inline-flex; align-items:center; gap:7px; }
+        .btn-success:hover { background:#047857; }
+        .btn-danger { background:#dc2626; color:#fff; border:none; padding:10px 20px; border-radius:10px; font-weight:700; font-size:0.88rem; cursor:pointer; display:inline-flex; align-items:center; gap:7px; }
+        .btn-danger:hover { background:#b91c1c; }
+
+        /* Stats */
+        .stats-row { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:22px; }
+        .stat-card { background:#fff; border-radius:12px; padding:18px 22px; box-shadow:0 2px 12px rgba(0,0,0,0.04); border:1px solid #e2e8f0; display:flex; align-items:center; gap:14px; }
+        .stat-icon { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.2rem; flex-shrink:0; }
+        .stat-icon-blue { background:#eff6ff; }
+        .stat-icon-green { background:#ecfdf5; }
+        .stat-icon-amber { background:#fffbeb; }
+        .stat-text label { font-size:0.72rem; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; display:block; }
+        .stat-text .val { font-size:1.5rem; font-weight:800; color:#0f172a; line-height:1.2; margin-top:2px; }
+
+        /* Table Card */
+        .table-card { background:#fff; border-radius:16px; box-shadow:0 4px 20px rgba(0,0,0,0.05); border:1px solid #e2e8f0; overflow:hidden; }
+        .table-toolbar { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid #f1f5f9; gap:12px; flex-wrap:wrap; }
+        .search-wrap { position:relative; }
+        .search-wrap svg { position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#94a3b8; }
+        .search-wrap input { padding:8px 12px 8px 34px; border:1.5px solid #e2e8f0; border-radius:9px; font-family:inherit; font-size:0.85rem; width:240px; color:#334155; }
+        .search-wrap input:focus { border-color:#002d72; outline:none; }
+
+        table { width:100%; border-collapse:collapse; }
+        thead { background:#f8fafc; }
+        th { padding:12px 18px; text-align:left; font-size:0.72rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.8px; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
+        td { padding:14px 18px; border-bottom:1px solid #f8fafc; font-size:0.88rem; color:#334155; vertical-align:middle; }
+        tr:hover td { background:#fafbff; }
+        .no-data { text-align:center; padding:80px; color:#94a3b8; }
+
+        .avatar { width:38px; height:38px; border-radius:50%; background:linear-gradient(135deg,#002d72,#1e40af); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.9rem; flex-shrink:0; }
+        .eng-name { font-weight:700; color:#0f172a; }
+        .eng-user { font-size:0.78rem; color:#94a3b8; margin-top:2px; }
+        .mobile-val { font-family:monospace; color:#475569; }
+        .email-val { color:#3b82f6; font-size:0.85rem; }
+        .circle-badge { background:#eff6ff; color:#1d4ed8; padding:4px 10px; border-radius:8px; font-size:0.75rem; font-weight:600; display:inline-block; }
+        .online-dot { width:8px; height:8px; border-radius:50%; background:#10b981; display:inline-block; margin-right:5px; }
+
+        .action-group { display:flex; gap:7px; }
+        .btn-edit { background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:7px 14px; border-radius:8px; font-size:0.8rem; font-weight:700; cursor:pointer; transition:0.2s; display:inline-flex; align-items:center; gap:5px; }
+        .btn-edit:hover { background:#dbeafe; }
+        .btn-del { background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; padding:7px 12px; border-radius:8px; font-size:0.8rem; font-weight:700; cursor:pointer; transition:0.2s; display:inline-flex; align-items:center; gap:5px; }
+        .btn-del:hover { background:#fecaca; }
+
+        /* Modal */
+        .modal-overlay { position:fixed; inset:0; background:rgba(15,23,42,0.5); z-index:1000; display:flex; align-items:center; justify-content:center; opacity:0; visibility:hidden; transition:0.2s; padding:20px; }
+        .modal-overlay.open { opacity:1; visibility:visible; }
+        .modal { background:#fff; border-radius:20px; width:100%; max-width:500px; box-shadow:0 20px 60px rgba(0,0,0,0.2); transform:scale(0.95); transition:transform 0.25s; overflow:hidden; }
+        .modal-overlay.open .modal { transform:scale(1); }
+        .modal-header { background:linear-gradient(135deg,#002d72,#1e40af); color:#fff; padding:22px 28px; display:flex; align-items:center; justify-content:space-between; }
+        .modal-header h3 { margin:0; font-size:1.1rem; font-weight:800; }
+        .modal-close { background:rgba(255,255,255,0.15); border:none; color:#fff; width:30px; height:30px; border-radius:50%; font-size:1rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:0.2s; }
+        .modal-close:hover { background:rgba(255,255,255,0.25); }
+        .modal-body { padding:24px 28px; }
+        .form-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+        .form-group { margin-bottom:16px; }
+        .form-group label { display:block; margin-bottom:6px; font-size:0.82rem; font-weight:600; color:#475569; }
+        .form-group input, .form-group select { width:100%; padding:10px 12px; border:1.5px solid #e2e8f0; border-radius:10px; font-family:inherit; font-size:0.88rem; color:#334155; box-sizing:border-box; transition:border-color 0.2s; }
+        .form-group input:focus, .form-group select:focus { border-color:#002d72; outline:none; background:#fff; }
+        .form-hint { font-size:0.75rem; color:#94a3b8; margin-top:4px; }
+        .modal-footer { padding:16px 28px; border-top:1px solid #f1f5f9; display:flex; gap:10px; justify-content:flex-end; }
+        .btn-save { background:#002d72; color:#fff; border:none; padding:11px 28px; border-radius:10px; font-weight:700; font-size:0.9rem; cursor:pointer; transition:0.2s; }
+        .btn-save:hover { background:#1e40af; }
+        .btn-cancel { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; padding:11px 20px; border-radius:10px; font-weight:600; font-size:0.9rem; cursor:pointer; }
+
+        /* Confirm Modal */
+        .confirm-modal { max-width:380px; }
+        .confirm-modal .modal-body { text-align:center; padding:32px 28px; }
+        .confirm-icon { font-size:2.5rem; margin-bottom:12px; }
+        .confirm-modal h4 { font-size:1.1rem; font-weight:700; margin:0 0 8px; }
+        .confirm-modal p { color:#64748b; font-size:0.9rem; margin:0; }
+
+        .toast { position:fixed; bottom:24px; right:24px; padding:14px 20px; border-radius:12px; font-weight:600; font-size:0.88rem; z-index:2000; transform:translateY(20px); opacity:0; transition:0.3s; }
+        .toast.show { transform:translateY(0); opacity:1; }
+        .toast-success { background:#002d72; color:#fff; }
+        .toast-error { background:#dc2626; color:#fff; }
+    </style>
+</head>
+<body>
+    <header class="top-header">
+        <div class="header-brand">
+            <span style="color:#002d72;">Coral</span> <span style="color:#f97316;">Infratel</span>
+        </div>
+        <div class="user-meta">
+            <span id="userInfoDisplay" style="font-weight:600;"></span>
+            <button onclick="window.logout()" class="logout-btn">Logout</button>
+        </div>
+    </header>
+
+    <div class="app-body">
+        <aside class="tile-sidebar" id="sidebar"></aside>
+
+        <main class="content-area" style="padding:28px;">
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">Engineers Master</h1>
+                    <p class="page-sub">Manage field engineers and assign complaint territories</p>
+                </div>
+                <div class="header-actions">
+                    <button class="btn-success" onclick="downloadCSV()">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Export
+                    </button>
+                    <button class="btn-primary" onclick="openAdd()">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        Add Engineer
+                    </button>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon-blue">👷</div>
+                    <div class="stat-text">
+                        <label>Total Engineers</label>
+                        <div class="val" id="sTot">0</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon-green">✅</div>
+                    <div class="stat-text">
+                        <label>With Email</label>
+                        <div class="val" id="sEmail">0</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon-amber">🗺️</div>
+                    <div class="stat-text">
+                        <label>Circles Covered</label>
+                        <div class="val" id="sCircles">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Table -->
+            <div class="table-card">
+                <div class="table-toolbar">
+                    <span style="font-size:0.85rem; color:#64748b; font-weight:500;" id="tableInfo">Loading...</span>
+                    <div class="search-wrap">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                        <input type="text" id="searchBox" placeholder="Search engineer..." oninput="renderTable()">
+                    </div>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Engineer</th>
+                                <th>Mobile No</th>
+                                <th>Email</th>
+                                <th>Assigned Circle</th>
+                                <th>Assigned OA</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="engBody">
+                            <tr><td colspan="7" class="no-data">Loading engineers...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add / Edit Modal -->
+    <div class="modal-overlay" id="formModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modalTitle">Add Engineer</h3>
+                <button class="modal-close" onclick="closeModal('formModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editId">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Full Name *</label>
+                        <input type="text" id="fName" placeholder="e.g. Ramesh Kumar">
+                    </div>
+                    <div class="form-group">
+                        <label>Username *</label>
+                        <input type="text" id="fUsername" placeholder="e.g. ramesh01">
+                        <div class="form-hint">Used for login</div>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Mobile No *</label>
+                        <input type="tel" id="fMobile" placeholder="10-digit mobile">
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="fEmail" placeholder="engineer@coralinfratel.com">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Assigned Circle</label>
+                        <select id="fCircle" onchange="loadOAsModal()">
+                            <option value="">--Select Circle--</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Assigned OA</label>
+                        <select id="fOA">
+                            <option value="">--Select OA--</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group" id="pwdGroup">
+                    <label>Password *</label>
+                    <input type="password" id="fPwd" placeholder="Set login password">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" onclick="closeModal('formModal')">Cancel</button>
+                <button class="btn-save" onclick="saveEngineer()">Save Engineer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Delete Modal -->
+    <div class="modal-overlay" id="confirmModal">
+        <div class="modal confirm-modal">
+            <div class="modal-body">
+                <div class="confirm-icon">🗑️</div>
+                <h4>Delete Engineer?</h4>
+                <p id="confirmMsg">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer" style="justify-content:center; gap:14px;">
+                <button class="btn-cancel" onclick="closeModal('confirmModal')">Cancel</button>
+                <button class="btn-save" style="background:#dc2626;" onclick="confirmDelete()">Yes, Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+    let engineers = [];
+    let deleteId = null;
+    let circleData = [];
+    const SIDEBAR_ITEMS = [
+        { icon: '🏠', label: 'Dashboard', href: 'dashboard.html' },
+        { icon: '🎫', label: 'Complaints', href: 'complaints_manage.html' },
+        { icon: '📊', label: 'Complaints Report', href: 'complaints_report.html', adminOnly: true },
+        { icon: '👷', label: 'Engineers Master', href: 'engineers_master.html', active: true, adminOnly: true },
+    ];
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        const user = JSON.parse(localStorage.getItem('crm_user'));
+        if (!user) { window.location.href = 'login.html'; return; }
+        if (user.role !== 'admin') { window.location.href = 'dashboard.html'; return; }
+        document.getElementById('userInfoDisplay').textContent = `${user.name || user.username} (Admin)`;
+        buildSidebar(user);
+        await loadCircles();
+        await loadEngineers();
+    });
+
+    function buildSidebar(user) {
+        const sidebar = document.getElementById('sidebar');
+        sidebar.innerHTML = `<div class="sidebar-header">MENU</div>`;
+        SIDEBAR_ITEMS.forEach(item => {
+            if (item.adminOnly && user.role !== 'admin') return;
+            const a = document.createElement('a');
+            a.href = item.href;
+            a.className = 'module-tile' + (item.active ? ' active' : '');
+            a.innerHTML = `<i>${item.icon}</i><div class="tile-content"><h4>${item.label}</h4></div>`;
+            sidebar.appendChild(a);
+        });
+    }
+
+    async function loadCircles() {
+        try {
+            const res = await window.apiFetch('/api/bsnl/circles');
+            if (res.ok) {
+                circleData = await res.json();
+                const sel = document.getElementById('fCircle');
+                circleData.forEach(c => {
+                    const o = document.createElement('option');
+                    o.value = c.name; o.textContent = c.name;
+                    sel.appendChild(o);
+                });
+            }
+        } catch(e) {}
+    }
+
+    function loadOAsModal() {
+        const val = document.getElementById('fCircle').value;
+        const sel = document.getElementById('fOA');
+        sel.innerHTML = '<option value="">--All OA--</option>';
+        const circle = circleData.find(c => c.name === val);
+        if (circle && circle.oas) {
+            circle.oas.forEach(oa => {
+                const o = document.createElement('option');
+                o.value = oa.name; o.textContent = oa.name;
+                sel.appendChild(o);
+            });
+        }
+    }
+
+    async function loadEngineers() {
+        try {
+            const res = await window.apiFetch('/api/users');
+            if (res.ok) {
+                const all = await res.json();
+                engineers = all.filter(u => u.role !== 'admin');
+                updateStats();
+                renderTable();
+            }
+        } catch(e) { console.error(e); }
+    }
+
+    function updateStats() {
+        document.getElementById('sTot').textContent = engineers.length;
+        document.getElementById('sEmail').textContent = engineers.filter(e=>e.email).length;
+        const circles = new Set(engineers.filter(e=>e.allowed_circle).map(e=>e.allowed_circle));
+        document.getElementById('sCircles').textContent = circles.size;
+    }
+
+    function renderTable() {
+        const q = document.getElementById('searchBox').value.toLowerCase();
+        const data = engineers.filter(e =>
+            (e.name||'').toLowerCase().includes(q) ||
+            (e.username||'').toLowerCase().includes(q) ||
+            (e.mobile||'').includes(q)
+        );
+        document.getElementById('tableInfo').textContent = `${data.length} of ${engineers.length} engineers`;
+        if (!data.length) {
+            document.getElementById('engBody').innerHTML = '<tr><td colspan="7" class="no-data">No engineers found.</td></tr>';
+            return;
+        }
+        document.getElementById('engBody').innerHTML = data.map((e, i) => {
+            const initials = (e.name||e.username||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+            return `<tr>
+                <td style="color:#94a3b8; font-weight:600; font-size:0.82rem;">${i+1}</td>
+                <td>
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div class="avatar">${initials}</div>
+                        <div>
+                            <div class="eng-name">${e.name || '-'}</div>
+                            <div class="eng-user">@${e.username}</div>
+                        </div>
+                    </div>
+                </td>
+                <td class="mobile-val">${e.mobile || '<span style="color:#cbd5e1;">—</span>'}</td>
+                <td class="email-val">${e.email || '<span style="color:#cbd5e1; font-size:0.82rem; font-style:italic;">Not set</span>'}</td>
+                <td>${e.allowed_circle ? `<span class="circle-badge">${e.allowed_circle}</span>` : '<span style="color:#cbd5e1;">—</span>'}</td>
+                <td>${e.allowed_oa ? `<span style="font-size:0.83rem; color:#475569; font-weight:500;">${e.allowed_oa}</span>` : '<span style="color:#cbd5e1;">—</span>'}</td>
+                <td>
+                    <div class="action-group">
+                        <button class="btn-edit" onclick="openEdit(${e.id})">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            Edit
+                        </button>
+                        <button class="btn-del" onclick="askDelete(${e.id}, '${(e.name||e.username).replace(/'/g,'')}')">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                        </button>
+                    </div>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    function openAdd() {
+        document.getElementById('modalTitle').textContent = 'Add Engineer';
+        document.getElementById('editId').value = '';
+        document.getElementById('fName').value = '';
+        document.getElementById('fUsername').value = '';
+        document.getElementById('fMobile').value = '';
+        document.getElementById('fEmail').value = '';
+        document.getElementById('fCircle').value = '';
+        document.getElementById('fOA').innerHTML = '<option value="">--All OA--</option>';
+        document.getElementById('fPwd').value = '';
+        document.getElementById('fUsername').disabled = false;
+        document.getElementById('pwdGroup').style.display = 'block';
+        document.getElementById('formModal').classList.add('open');
+    }
+
+    function openEdit(id) {
+        const e = engineers.find(x => x.id === id);
+        if (!e) return;
+        document.getElementById('modalTitle').textContent = 'Edit Engineer';
+        document.getElementById('editId').value = id;
+        document.getElementById('fName').value = e.name || '';
+        document.getElementById('fUsername').value = e.username || '';
+        document.getElementById('fUsername').disabled = true;
+        document.getElementById('fMobile').value = e.mobile || '';
+        document.getElementById('fEmail').value = e.email || '';
+        document.getElementById('fCircle').value = e.allowed_circle || '';
+        loadOAsModal();
+        document.getElementById('fOA').value = e.allowed_oa || '';
+        document.getElementById('fPwd').value = '';
+        document.getElementById('pwdGroup').style.display = 'none';
+        document.getElementById('formModal').classList.add('open');
+    }
+
+    async function saveEngineer() {
+        const id = document.getElementById('editId').value;
+        const payload = {
+            name: document.getElementById('fName').value.trim(),
+            mobile: document.getElementById('fMobile').value.trim(),
+            email: document.getElementById('fEmail').value.trim(),
+            allowed_circle: document.getElementById('fCircle').value,
+            allowed_oa: document.getElementById('fOA').value,
+            role: 'user'
+        };
+        if (!payload.name) { showToast('Name is required.', 'error'); return; }
+        try {
+            let res;
+            if (id) {
+                res = await window.apiFetch(`/api/users/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+            } else {
+                const username = document.getElementById('fUsername').value.trim();
+                const password = document.getElementById('fPwd').value;
+                if (!username || !password) { showToast('Username and password are required.', 'error'); return; }
+                res = await window.apiFetch('/api/users', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({...payload, username, password}) });
+            }
+            if (res.ok) {
+                showToast(id ? 'Engineer updated!' : 'Engineer added!', 'success');
+                closeModal('formModal');
+                await loadEngineers();
+            } else {
+                const err = await res.json();
+                showToast(err.error || 'Save failed.', 'error');
+            }
+        } catch(e) { showToast('Network error.', 'error'); }
+    }
+
+    function askDelete(id, name) {
+        deleteId = id;
+        document.getElementById('confirmMsg').textContent = `Remove "${name}" from the engineers list?`;
+        document.getElementById('confirmModal').classList.add('open');
+    }
+
+    async function confirmDelete() {
+        if (!deleteId) return;
+        try {
+            const res = await window.apiFetch(`/api/users/${deleteId}`, { method:'DELETE' });
+            if (res.ok) {
+                showToast('Engineer deleted.', 'success');
+                closeModal('confirmModal');
+                await loadEngineers();
+            } else {
+                showToast('Delete failed.', 'error');
+            }
+        } catch(e) { showToast('Network error.', 'error'); }
+        deleteId = null;
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).classList.remove('open');
+    }
+
+    function downloadCSV() {
+        if (!engineers.length) return;
+        const headers = ['ID','Name','Username','Mobile','Email','Circle','OA'];
+        const rows = engineers.map(e => [e.id, e.name||'', e.username||'', e.mobile||'', e.email||'', e.allowed_circle||'', e.allowed_oa||'']);
+        const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+        const blob = new Blob(['\uFEFF'+csv], { type:'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'engineers_master.csv'; a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    function showToast(msg, type) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.className = `toast toast-${type} show`;
+        setTimeout(() => t.classList.remove('show'), 3000);
+    }
+    </script>
+</body>
+</html>

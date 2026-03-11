@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complaints Report - Coral Infratel</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="auth.js"></script>
+    <style>
+        .page-title { font-size:1.6rem; font-weight:800; color:#0f172a; margin:0; }
+        .page-sub { color:#64748b; font-size:0.9rem; margin:4px 0 0; }
+
+        /* Filter Card */
+        .filter-card { background:#fff; border-radius:16px; padding:20px 24px; margin-bottom:22px; box-shadow:0 4px 20px rgba(0,0,0,0.05); border:1px solid #e2e8f0; }
+        .filter-card h3 { margin:0 0 16px; font-size:0.78rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.8px; }
+        .filter-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:12px; }
+        .filter-grid .full { grid-column:1/-1; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+        .filter-grid input, .filter-grid select { padding:9px 12px; border:1.5px solid #e2e8f0; border-radius:9px; font-family:inherit; font-size:0.85rem; color:#334155; width:100%; box-sizing:border-box; background:#f8fafc; transition:border-color 0.2s; }
+        .filter-grid input:focus, .filter-grid select:focus { border-color:#002d72; outline:none; background:#fff; }
+        .filter-grid label { display:block; font-size:0.75rem; font-weight:600; color:#64748b; margin-bottom:5px; }
+
+        .btn-search { background:#002d72; color:#fff; border:none; padding:10px 24px; border-radius:9px; font-weight:700; font-size:0.85rem; cursor:pointer; transition:0.2s; display:inline-flex; align-items:center; gap:6px; }
+        .btn-search:hover { background:#1e40af; transform:translateY(-1px); }
+        .btn-download { background:#059669; color:#fff; border:none; padding:10px 20px; border-radius:9px; font-weight:700; font-size:0.85rem; cursor:pointer; transition:0.2s; display:inline-flex; align-items:center; gap:6px; }
+        .btn-download:hover { background:#047857; }
+
+        /* Stats Row */
+        .stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:22px; }
+        .stat-card { background:#fff; border-radius:12px; padding:16px 20px; box-shadow:0 2px 12px rgba(0,0,0,0.04); border:1px solid #e2e8f0; }
+        .stat-label { font-size:0.75rem; font-weight:600; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; }
+        .stat-val { font-size:1.8rem; font-weight:800; color:#0f172a; margin:4px 0 0; line-height:1; }
+        .stat-pending .stat-val { color:#dc2626; }
+        .stat-progress .stat-val { color:#1d4ed8; }
+        .stat-resolved .stat-val { color:#16a34a; }
+        .stat-total .stat-val { color:#002d72; }
+
+        /* Table */
+        .table-card { background:#fff; border-radius:16px; box-shadow:0 4px 20px rgba(0,0,0,0.05); border:1px solid #e2e8f0; overflow:hidden; }
+        .table-toolbar { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid #f1f5f9; }
+        .table-info { font-size:0.85rem; color:#64748b; font-weight:500; }
+
+        table { width:100%; border-collapse:collapse; font-size:0.83rem; }
+        thead { background:linear-gradient(135deg,#002d72,#1e40af); }
+        th { padding:11px 14px; text-align:left; font-size:0.7rem; font-weight:700; color:rgba(255,255,255,0.85); text-transform:uppercase; letter-spacing:0.6px; white-space:nowrap; }
+        td { padding:12px 14px; border-bottom:1px solid #f8fafc; color:#334155; vertical-align:top; }
+        tr:nth-child(even) td { background:#fafbff; }
+        tr:hover td { background:#eff6ff; }
+        .complaint-no { font-weight:700; color:#002d72; font-size:0.78rem; letter-spacing:0.3px; }
+        .priority-badge { padding:3px 8px; border-radius:12px; font-size:0.68rem; font-weight:700; display:inline-block; }
+        .priority-low { background:#fef9c3; color:#854d0e; }
+        .priority-medium { background:#fed7aa; color:#9a3412; }
+        .priority-high { background:#fee2e2; color:#dc2626; }
+        .status-badge { padding:3px 9px; border-radius:12px; font-size:0.68rem; font-weight:700; display:inline-block; }
+        .status-pending { background:#fee2e2; color:#dc2626; }
+        .status-progress { background:#dbeafe; color:#1d4ed8; }
+        .status-resolved { background:#dcfce7; color:#16a34a; }
+        .msg-cell { max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#64748b; }
+
+        .pagination { display:flex; gap:6px; align-items:center; padding:14px 20px; border-top:1px solid #f1f5f9; }
+        .page-btn { padding:6px 12px; border:1px solid #e2e8f0; border-radius:7px; background:#fff; font-size:0.82rem; font-weight:600; cursor:pointer; color:#475569; }
+        .page-btn:hover, .page-btn.active { background:#002d72; color:#fff; border-color:#002d72; }
+        .page-info { font-size:0.82rem; color:#94a3b8; margin-left:6px; }
+
+        .no-data { text-align:center; padding:60px 20px; color:#94a3b8; }
+    </style>
+</head>
+<body>
+    <header class="top-header">
+        <div class="header-brand">
+            <span style="color:#002d72;">Coral</span> <span style="color:#f97316;">Infratel</span>
+        </div>
+        <div class="user-meta">
+            <span id="userInfoDisplay" style="font-weight:600;"></span>
+            <button onclick="window.logout()" class="logout-btn">Logout</button>
+        </div>
+    </header>
+
+    <div class="app-body">
+        <aside class="tile-sidebar" id="sidebar"></aside>
+
+        <main class="content-area" style="padding:28px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:22px;">
+                <div>
+                    <h1 class="page-title">Complaints Report</h1>
+                    <p class="page-sub">Detailed complaint analysis with filters and export</p>
+                </div>
+                <button class="btn-download" onclick="downloadCSV()">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Download Excel
+                </button>
+            </div>
+
+            <!-- Filters -->
+            <div class="filter-card">
+                <h3>Filter Options</h3>
+                <div class="filter-grid">
+                    <div>
+                        <label>Circle</label>
+                        <select id="fCircle" onchange="loadOAs()">
+                            <option value="">--All Circle--</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>OA</label>
+                        <select id="fOA">
+                            <option value="">--All OA--</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Status</label>
+                        <select id="fStatus">
+                            <option value="">--All--</option>
+                            <option>Pending</option>
+                            <option>In Progress</option>
+                            <option>Resolved</option>
+                            <option>Cancelled</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Engineer</label>
+                        <select id="fEngineer">
+                            <option value="">--All--</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Row Count</label>
+                        <select id="fLimit">
+                            <option value="20">20</option>
+                            <option value="40" selected>40</option>
+                            <option value="100">100</option>
+                            <option value="500">All</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Start Date</label>
+                        <input type="date" id="fStart">
+                    </div>
+                    <div>
+                        <label>End Date</label>
+                        <input type="date" id="fEnd">
+                    </div>
+                    <div>
+                        <label>Search</label>
+                        <input type="text" id="fSearch" placeholder="Customer / Complaint No">
+                    </div>
+                    <div class="full">
+                        <button class="btn-search" onclick="loadReport(0)">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                            Search
+                        </button>
+                        <button style="background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; padding:10px 18px; border-radius:9px; font-weight:600; font-size:0.85rem; cursor:pointer;" onclick="resetReport()">Reset</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Row -->
+            <div class="stats-row" id="statsRow">
+                <div class="stat-card stat-total"><div class="stat-label">Total</div><div class="stat-val" id="sTot">-</div></div>
+                <div class="stat-card stat-pending"><div class="stat-label">Pending</div><div class="stat-val" id="sPend">-</div></div>
+                <div class="stat-card stat-progress"><div class="stat-label">In Progress</div><div class="stat-val" id="sProg">-</div></div>
+                <div class="stat-card stat-resolved"><div class="stat-label">Resolved</div><div class="stat-val" id="sRes">-</div></div>
+            </div>
+
+            <!-- Table -->
+            <div class="table-card">
+                <div class="table-toolbar">
+                    <span class="table-info" id="tableInfo">-</span>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Complaint Date</th>
+                                <th>Complaint No</th>
+                                <th>Customer Name</th>
+                                <th>Circle</th>
+                                <th>OA</th>
+                                <th>Telephone No</th>
+                                <th>Complainee Name</th>
+                                <th>Complainee M.No.</th>
+                                <th>Complaint Msg</th>
+                                <th>Email</th>
+                                <th>Priority</th>
+                                <th>Status</th>
+                                <th>Engineer</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reportBody">
+                            <tr><td colspan="13" class="no-data">Apply filters and click Search.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination" id="pagination"></div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+    let reportData = [];
+    let reportTotal = 0;
+    let currentOffset = 0;
+    const SIDEBAR_ITEMS = [
+        { icon: '🏠', label: 'Dashboard', href: 'dashboard.html' },
+        { icon: '🎫', label: 'Complaints', href: 'complaints_manage.html' },
+        { icon: '📊', label: 'Complaints Report', href: 'complaints_report.html', active: true, adminOnly: true },
+        { icon: '👷', label: 'Engineers Master', href: 'engineers_master.html', adminOnly: true },
+    ];
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        const user = JSON.parse(localStorage.getItem('crm_user'));
+        if (!user) { window.location.href = 'login.html'; return; }
+        if (user.role !== 'admin') { window.location.href = 'complaints_manage.html'; return; }
+        document.getElementById('userInfoDisplay').textContent = `${user.name || user.username} (Admin)`;
+        buildSidebar(user);
+        await loadMeta();
+        // Set default date range: current month
+        const now = new Date();
+        const y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0');
+        document.getElementById('fStart').value = `${y}-${m}-01`;
+        document.getElementById('fEnd').value = `${y}-${m}-${String(new Date(y,now.getMonth()+1,0).getDate()).padStart(2,'0')}`;
+        await loadReport(0);
+    });
+
+    function buildSidebar(user) {
+        const sidebar = document.getElementById('sidebar');
+        sidebar.innerHTML = `<div class="sidebar-header">MENU</div>`;
+        SIDEBAR_ITEMS.forEach(item => {
+            if (item.adminOnly && user.role !== 'admin') return;
+            const a = document.createElement('a');
+            a.href = item.href;
+            a.className = 'module-tile' + (item.active ? ' active' : '');
+            a.innerHTML = `<i>${item.icon}</i><div class="tile-content"><h4>${item.label}</h4></div>`;
+            sidebar.appendChild(a);
+        });
+    }
+
+    async function loadMeta() {
+        try {
+            // Load circles
+            const res = await window.apiFetch('/api/bsnl/circles');
+            if (res.ok) {
+                const circles = await res.json();
+                const sel = document.getElementById('fCircle');
+                circles.forEach(c => {
+                    const o = document.createElement('option');
+                    o.value = c.name; o.textContent = c.name;
+                    o.dataset.oas = JSON.stringify(c.oas || []);
+                    sel.appendChild(o);
+                });
+            }
+        } catch(e) {}
+        try {
+            // Load engineers
+            const res = await window.apiFetch('/api/users');
+            if (res.ok) {
+                const users = await res.json();
+                const sel = document.getElementById('fEngineer');
+                users.filter(u => u.role !== 'admin').forEach(u => {
+                    const o = document.createElement('option');
+                    o.value = u.name || u.username;
+                    o.textContent = u.name || u.username;
+                    sel.appendChild(o);
+                });
+            }
+        } catch(e) {}
+    }
+
+    function loadOAs() {
+        const sel = document.getElementById('fCircle');
+        const opt = sel.options[sel.selectedIndex];
+        const oaSel = document.getElementById('fOA');
+        oaSel.innerHTML = '<option value="">--All OA--</option>';
+        if (opt && opt.dataset.oas) {
+            JSON.parse(opt.dataset.oas).forEach(oa => {
+                const o = document.createElement('option');
+                o.value = oa.name; o.textContent = oa.name;
+                oaSel.appendChild(o);
+            });
+        }
+    }
+
+    async function loadReport(offset) {
+        currentOffset = offset;
+        const params = new URLSearchParams({
+            circle: document.getElementById('fCircle').value,
+            oa: document.getElementById('fOA').value,
+            status: document.getElementById('fStatus').value,
+            engineer: document.getElementById('fEngineer').value,
+            search: document.getElementById('fSearch').value,
+            start: document.getElementById('fStart').value,
+            end: document.getElementById('fEnd').value,
+            limit: document.getElementById('fLimit').value,
+            offset
+        });
+        try {
+            const res = await window.apiFetch(`/api/complaints/report?${params}`);
+            if (res.ok) {
+                const data = await res.json();
+                reportData = data.rows;
+                reportTotal = data.total;
+                renderReport();
+                updateStats();
+                renderPagination();
+            }
+        } catch(e) { console.error(e); }
+    }
+
+    function renderReport() {
+        const limit = parseInt(document.getElementById('fLimit').value);
+        document.getElementById('tableInfo').textContent = `Showing ${currentOffset+1}–${Math.min(currentOffset+reportData.length, reportTotal)} of ${reportTotal} records`;
+        if (!reportData.length) {
+            document.getElementById('reportBody').innerHTML = '<tr><td colspan="13" class="no-data">No complaints found for selected filters.</td></tr>';
+            return;
+        }
+        document.getElementById('reportBody').innerHTML = reportData.map(c => {
+            const pClass = c.priority === 'High' ? 'priority-high' : c.priority === 'Medium' ? 'priority-medium' : 'priority-low';
+            const sClass = c.status === 'Resolved' ? 'status-resolved' : c.status === 'In Progress' ? 'status-progress' : 'status-pending';
+            const dt = new Date(c.created_at);
+            const dateStr = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+            return `<tr>
+                <td style="white-space:nowrap; color:#64748b; font-size:0.8rem;">${dateStr}</td>
+                <td><span class="complaint-no">${c.complaint_no||'-'}</span></td>
+                <td style="font-weight:600;">${c.customer_name||'-'}</td>
+                <td>${c.circle||'-'}</td>
+                <td>${c.oa_name||'-'}</td>
+                <td style="font-family:monospace;">${c.std_code?c.std_code+'-':''}${c.telephone_number||'-'}</td>
+                <td>${c.complainee_name||'-'}</td>
+                <td style="font-family:monospace;">${c.mobile||'-'}</td>
+                <td class="msg-cell" title="${(c.description||'').replace(/"/g,'&quot;')}">${c.description||'-'}</td>
+                <td style="font-size:0.78rem; color:#64748b;">${c.email||'-'}</td>
+                <td><span class="priority-badge ${pClass}">${c.priority||'Low'}</span></td>
+                <td><span class="status-badge ${sClass}">${c.status||'Pending'}</span></td>
+                <td style="font-weight:600; color:#002d72;">${c.engineer_name||'-'}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    function updateStats() {
+        document.getElementById('sTot').textContent = reportTotal;
+        document.getElementById('sPend').textContent = reportData.filter(c=>c.status==='Pending').length;
+        document.getElementById('sProg').textContent = reportData.filter(c=>c.status==='In Progress').length;
+        document.getElementById('sRes').textContent = reportData.filter(c=>c.status==='Resolved').length;
+    }
+
+    function renderPagination() {
+        const limit = parseInt(document.getElementById('fLimit').value);
+        const pages = Math.ceil(reportTotal / limit);
+        const cur = Math.floor(currentOffset / limit);
+        const pg = document.getElementById('pagination');
+        if (pages <= 1) { pg.innerHTML = ''; return; }
+        let html = '';
+        if (cur > 0) html += `<button class="page-btn" onclick="loadReport(${(cur-1)*limit})">‹ Prev</button>`;
+        for (let i = Math.max(0,cur-2); i < Math.min(pages,cur+3); i++) {
+            html += `<button class="page-btn${i===cur?' active':''}" onclick="loadReport(${i*limit})">${i+1}</button>`;
+        }
+        if (cur < pages-1) html += `<button class="page-btn" onclick="loadReport(${(cur+1)*limit})">Next ›</button>`;
+        html += `<span class="page-info">Page ${cur+1} of ${pages}</span>`;
+        pg.innerHTML = html;
+    }
+
+    function resetReport() {
+        document.getElementById('fCircle').value = '';
+        document.getElementById('fOA').innerHTML = '<option value="">--All OA--</option>';
+        document.getElementById('fStatus').value = '';
+        document.getElementById('fEngineer').value = '';
+        document.getElementById('fSearch').value = '';
+        document.getElementById('fStart').value = '';
+        document.getElementById('fEnd').value = '';
+        loadReport(0);
+    }
+
+    function downloadCSV() {
+        if (!reportData.length) { alert('No data to download.'); return; }
+        const headers = ['Complaint Date','Complaint No','Customer Name','Circle','OA','Telephone No','Complainee Name','Complainee Mobile','Complaint Message','Email','Priority','Status','Engineer'];
+        const rows = reportData.map(c => [
+            new Date(c.created_at).toLocaleString(),
+            c.complaint_no||'',
+            c.customer_name||'',
+            c.circle||'',
+            c.oa_name||'',
+            (c.std_code?c.std_code+'-':'')+(c.telephone_number||''),
+            c.complainee_name||'',
+            c.mobile||'',
+            (c.description||'').replace(/,/g,';'),
+            c.email||'',
+            c.priority||'Low',
+            c.status||'Pending',
+            c.engineer_name||''
+        ]);
+        const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+        const blob = new Blob(['\uFEFF'+csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `complaints_report_${new Date().toISOString().slice(0,10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+    </script>
+</body>
+</html>

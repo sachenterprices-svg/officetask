@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BSNL Circle/OA Setup - Coral Infratel</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="auth.js"></script>
+    <style>
+        .page-title{font-size:1.6rem;font-weight:800;color:#0f172a;margin:0}
+        .page-sub{color:#64748b;font-size:.9rem;margin:4px 0 0}
+        .setup-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+        .panel{background:#fff;border-radius:16px;padding:24px;box-shadow:0 4px 20px rgba(0,0,0,.05);border:1px solid #e2e8f0}
+        .panel-title{font-size:1rem;font-weight:800;color:#002d72;margin:0 0 18px;padding-bottom:12px;border-bottom:2px solid #f1f5f9;display:flex;align-items:center;gap:8px}
+        .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+        .form-group{margin-bottom:14px}
+        .form-group label{display:block;margin-bottom:5px;font-size:.8rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.4px}
+        .form-group input,.form-group select{width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-family:inherit;font-size:.88rem;color:#334155;box-sizing:border-box;background:#f8fafc;transition:border-color .2s}
+        .form-group input:focus,.form-group select:focus{border-color:#002d72;outline:none;background:#fff}
+        .form-actions{display:flex;gap:8px;margin-top:4px}
+        .btn-save{background:#002d72;color:#fff;border:none;padding:10px 22px;border-radius:9px;font-weight:700;font-size:.85rem;cursor:pointer;transition:.2s}
+        .btn-save:hover{background:#1e40af}
+        .btn-reset{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;padding:10px 16px;border-radius:9px;font-weight:600;font-size:.85rem;cursor:pointer}
+        .data-table{width:100%;border-collapse:collapse;margin-top:18px;font-size:.84rem}
+        .data-table thead{background:#f8fafc}
+        .data-table th{padding:10px 12px;text-align:left;font-size:.7rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid #e2e8f0}
+        .data-table td{padding:10px 12px;border-bottom:1px solid #f8fafc;color:#334155;vertical-align:middle}
+        .data-table tr:hover td{background:#fafbff}
+        .code-badge{background:#eff6ff;color:#1d4ed8;padding:3px 8px;border-radius:6px;font-size:.75rem;font-weight:700;font-family:monospace}
+        .circle-tag{background:#f0fdf4;color:#15803d;padding:3px 8px;border-radius:6px;font-size:.72rem;font-weight:600}
+        .action-btns{display:flex;gap:6px}
+        .btn-edit-sm{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;padding:5px 10px;border-radius:6px;font-size:.75rem;font-weight:700;cursor:pointer}
+        .btn-edit-sm:hover{background:#dbeafe}
+        .btn-del-sm{background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;padding:5px 8px;border-radius:6px;font-size:.75rem;font-weight:700;cursor:pointer}
+        .btn-del-sm:hover{background:#fecaca}
+        .empty-row td{text-align:center;padding:40px;color:#94a3b8;font-style:italic}
+        .stats-chips{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+        .chip{background:#f8fafc;border:1px solid #e2e8f0;border-radius:20px;padding:6px 16px;font-size:.82rem;font-weight:600;color:#475569;display:flex;align-items:center;gap:8px}
+        .chip-count{background:#002d72;color:#fff;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:800}
+        .toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-weight:600;font-size:.88rem;z-index:2000;transform:translateY(20px);opacity:0;transition:.3s}
+        .toast.show{transform:translateY(0);opacity:1}
+        .toast-success{background:#002d72;color:#fff}
+        .toast-error{background:#dc2626;color:#fff}
+        @media(max-width:900px){.setup-grid{grid-template-columns:1fr}}
+    </style>
+</head>
+<body>
+    <header class="top-header">
+        <div class="header-brand"><span style="color:#002d72;">Coral</span> <span style="color:#f97316;">Infratel</span></div>
+        <div class="user-meta">
+            <span id="userInfoDisplay" style="font-weight:600;"></span>
+            <button onclick="window.logout()" class="logout-btn">Logout</button>
+        </div>
+    </header>
+    <div class="app-body">
+        <aside class="tile-sidebar" id="sidebar">
+            <div class="sidebar-header">MENU</div>
+            <a href="dashboard.html" class="module-tile"><i>🏠</i><div class="tile-content"><h4>Dashboard</h4></div></a>
+            <a href="complaints_manage.html" class="module-tile"><i>🎫</i><div class="tile-content"><h4>Complaints</h4></div></a>
+            <a href="complaints_report.html" class="module-tile admin-only"><i>📊</i><div class="tile-content"><h4>Complaints Report</h4></div></a>
+            <a href="engineers_master.html" class="module-tile admin-only"><i>👷</i><div class="tile-content"><h4>Engineers Master</h4></div></a>
+            <a href="bsnl_setup.html" class="module-tile active admin-only"><i>🗺️</i><div class="tile-content"><h4>Circle / OA Setup</h4></div></a>
+        </aside>
+        <main class="content-area" style="padding:28px;">
+            <div style="margin-bottom:20px;">
+                <h1 class="page-title">BSNL Circle &amp; OA Setup</h1>
+                <p class="page-sub">Complaint number generation ke liye Circle aur OA codes manage karein</p>
+            </div>
+            <div class="stats-chips">
+                <div class="chip">Total Circles <span class="chip-count" id="circleCount">0</span></div>
+                <div class="chip">Total OAs <span class="chip-count" id="oaCount">0</span></div>
+            </div>
+            <div class="setup-grid">
+                <div class="panel">
+                    <div class="panel-title">1. Circles (Circle)</div>
+                    <form id="circleForm">
+                        <input type="hidden" id="circleId">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Circle Name</label>
+                                <input type="text" id="circleName" placeholder="e.g. Haryana" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Circle Code (2 Letters)</label>
+                                <input type="text" id="circleCode" maxlength="2" placeholder="HR" style="text-transform:uppercase;" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Vendor Code (Optional)</label>
+                            <input type="text" id="circleVendor" placeholder="e.g. BSNL-HR">
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-save" id="saveCircleBtn">Save Circle</button>
+                            <button type="button" class="btn-reset" id="resetCircleBtn">Reset</button>
+                        </div>
+                    </form>
+                    <table class="data-table">
+                        <thead><tr><th>Code</th><th>Circle Name</th><th>Vendor</th><th>Actions</th></tr></thead>
+                        <tbody id="circleList"><tr class="empty-row"><td colspan="4">Loading...</td></tr></tbody>
+                    </table>
+                </div>
+                <div class="panel">
+                    <div class="panel-title">2. OA Names (OA)</div>
+                    <form id="oaForm">
+                        <input type="hidden" id="oaId">
+                        <div class="form-group">
+                            <label>Parent Circle</label>
+                            <select id="parentCircle" required>
+                                <option value="">-- Select Circle --</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>OA Name</label>
+                                <input type="text" id="oaName" placeholder="e.g. Rohtak" required>
+                            </div>
+                            <div class="form-group">
+                                <label>OA Code (3 Letters)</label>
+                                <input type="text" id="oaCode" maxlength="3" placeholder="RTK" style="text-transform:uppercase;" required>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-save" id="saveOaBtn">Save OA</button>
+                            <button type="button" class="btn-reset" id="resetOaBtn">Reset</button>
+                        </div>
+                    </form>
+                    <table class="data-table">
+                        <thead><tr><th>Circle</th><th>OA Code</th><th>OA Name</th><th>Actions</th></tr></thead>
+                        <tbody id="oaList"><tr class="empty-row"><td colspan="4">Loading...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+    <div class="toast" id="toast"></div>
+    <script>
+    var circles = [];
+    document.addEventListener('DOMContentLoaded', function() {
+        var user = JSON.parse(localStorage.getItem('crm_user'));
+        if (!user) { window.location.href = 'login.html'; return; }
+        if (user.role !== 'admin') { window.location.href = 'dashboard.html'; return; }
+        document.getElementById('userInfoDisplay').textContent = (user.name || user.username) + ' (Admin)';
+        loadData();
+    });
+    async function loadData() {
+        try {
+            var res = await window.apiFetch('/api/bsnl/circles');
+            if (res.ok) {
+                circles = await res.json();
+                renderCircles();
+                renderOAs();
+                updateCircleDropdown();
+                document.getElementById('circleCount').textContent = circles.length;
+                var oaTotal = circles.reduce(function(s,c){ return s + (c.oas||[]).length; }, 0);
+                document.getElementById('oaCount').textContent = oaTotal;
+            } else {
+                showToast('Data load failed', 'error');
+            }
+        } catch(e) {
+            showToast('Server error', 'error');
+        }
+    }
+    function renderCircles() {
+        var list = document.getElementById('circleList');
+        if (!circles.length) {
+            list.innerHTML = '<tr class="empty-row"><td colspan="4">No circles added yet.</td></tr>';
+            return;
+        }
+        list.innerHTML = circles.map(function(c) {
+            return '<tr><td><span class="code-badge">' + c.code + '</span></td>'
+                + '<td style="font-weight:600;">' + c.name + '</td>'
+                + '<td style="color:#94a3b8;font-size:.8rem;">' + (c.vendor_code || '-') + '</td>'
+                + '<td><div class="action-btns">'
+                + '<button class="btn-edit-sm" onclick="editCircle(' + c.id + ')">Edit</button>'
+                + '<button class="btn-del-sm" onclick="deleteCircle(' + c.id + ')">Del</button>'
+                + '</div></td></tr>';
+        }).join('');
+    }
+    function renderOAs() {
+        var list = document.getElementById('oaList');
+        var allOas = [];
+        circles.forEach(function(c) {
+            (c.oas||[]).forEach(function(oa) {
+                allOas.push({id:oa.id, code:oa.code, name:oa.name, circleName:c.name, circleId:c.id});
+            });
+        });
+        if (!allOas.length) {
+            list.innerHTML = '<tr class="empty-row"><td colspan="4">No OAs added yet.</td></tr>';
+            return;
+        }
+        list.innerHTML = allOas.map(function(oa) {
+            return '<tr><td><span class="circle-tag">' + oa.circleName + '</span></td>'
+                + '<td><span class="code-badge">' + oa.code + '</span></td>'
+                + '<td style="font-weight:600;">' + oa.name + '</td>'
+                + '<td><div class="action-btns">'
+                + '<button class="btn-edit-sm" onclick="editOa(' + oa.circleId + ',' + oa.id + ')">Edit</button>'
+                + '<button class="btn-del-sm" onclick="deleteOa(' + oa.id + ')">Del</button>'
+                + '</div></td></tr>';
+        }).join('');
+    }
+    function updateCircleDropdown() {
+        var sel = document.getElementById('parentCircle');
+        var cur = sel.value;
+        sel.innerHTML = '<option value="">-- Select Circle --</option>';
+        circles.forEach(function(c) {
+            var o = document.createElement('option');
+            o.value = c.id; o.textContent = c.name;
+            sel.appendChild(o);
+        });
+        if (cur) sel.value = cur;
+    }
+    document.getElementById('circleForm').onsubmit = async function(e) {
+        e.preventDefault();
+        var cid = document.getElementById('circleId').value;
+        var payload = {
+            name: document.getElementById('circleName').value.trim(),
+            code: document.getElementById('circleCode').value.trim().toUpperCase(),
+            vendor_code: document.getElementById('circleVendor').value.trim()
+        };
+        if (cid) payload.id = cid;
+        try {
+            var res = await window.apiFetch('/api/bsnl/circles', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+            if (res.ok) { showToast(cid ? 'Circle updated!' : 'Circle added!', 'success'); resetCircleForm(); await loadData(); }
+            else { var err = await res.json(); showToast(err.error || 'Save failed', 'error'); }
+        } catch(e) { showToast('Network error', 'error'); }
+    };
+    function editCircle(id) {
+        var c = circles.find(function(x){ return x.id === id; });
+        if (!c) return;
+        document.getElementById('circleId').value = c.id;
+        document.getElementById('circleName').value = c.name;
+        document.getElementById('circleCode').value = c.code;
+        document.getElementById('circleVendor').value = c.vendor_code || '';
+        document.getElementById('saveCircleBtn').textContent = 'Update Circle';
+        document.getElementById('circleName').focus();
+    }
+    async function deleteCircle(id) {
+        if (!confirm('Delete this circle? All associated OAs will also be deleted.')) return;
+        try {
+            var res = await window.apiFetch('/api/bsnl/circles/' + id, {method:'DELETE'});
+            if (res.ok) { showToast('Circle deleted', 'success'); await loadData(); }
+            else { var err = await res.json(); showToast(err.error || 'Delete failed', 'error'); }
+        } catch(e) { showToast('Error', 'error'); }
+    }
+    function resetCircleForm() {
+        document.getElementById('circleForm').reset();
+        document.getElementById('circleId').value = '';
+        document.getElementById('saveCircleBtn').textContent = 'Save Circle';
+    }
+    document.getElementById('oaForm').onsubmit = async function(e) {
+        e.preventDefault();
+        var oid = document.getElementById('oaId').value;
+        var payload = {
+            circle_id: document.getElementById('parentCircle').value,
+            name: document.getElementById('oaName').value.trim(),
+            code: document.getElementById('oaCode').value.trim().toUpperCase()
+        };
+        if (oid) payload.id = oid;
+        try {
+            var res = await window.apiFetch('/api/bsnl/oas', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+            if (res.ok) { showToast(oid ? 'OA updated!' : 'OA added!', 'success'); resetOaForm(); await loadData(); }
+            else { var err = await res.json(); showToast(err.error || 'Save failed', 'error'); }
+        } catch(e) { showToast('Network error', 'error'); }
+    };
+    function editOa(circleId, oaId) {
+        var circle = circles.find(function(c){ return c.id === circleId; });
+        if (!circle) return;
+        var oa = (circle.oas||[]).find(function(o){ return o.id === oaId; });
+        if (!oa) return;
+        document.getElementById('oaId').value = oa.id;
+        document.getElementById('parentCircle').value = circleId;
+        document.getElementById('oaName').value = oa.name;
+        document.getElementById('oaCode').value = oa.code;
+        document.getElementById('saveOaBtn').textContent = 'Update OA';
+        document.getElementById('oaName').focus();
+    }
+    async function deleteOa(id) {
+        if (!confirm('Delete this OA?')) return;
+        try {
+            var res = await window.apiFetch('/api/bsnl/oas/' + id, {method:'DELETE'});
+            if (res.ok) { showToast('OA deleted', 'success'); await loadData(); }
+            else { var err = await res.json(); showToast(err.error || 'Delete failed', 'error'); }
+        } catch(e) { showToast('Error', 'error'); }
+    }
+    function resetOaForm() {
+        document.getElementById('oaForm').reset();
+        document.getElementById('oaId').value = '';
+        document.getElementById('saveOaBtn').textContent = 'Save OA';
+    }
+    document.getElementById('resetCircleBtn').onclick = resetCircleForm;
+    document.getElementById('resetOaBtn').onclick = resetOaForm;
+    function showToast(msg, type) {
+        var t = document.getElementById('toast');
+        t.textContent = msg;
+        t.className = 'toast toast-' + type + ' show';
+        setTimeout(function(){ t.classList.remove('show'); }, 3000);
+    }
+    </script>
+</body>
+</html>

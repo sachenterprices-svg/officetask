@@ -8,17 +8,17 @@ const target = process.argv[2] || 'crm';
 
 const targets = {
     crm: {
-        remoteRoot: "/",
+        remoteRoot: process.env.FTP_REMOTE_ROOT_CRM || "/public_html/officetask/",
         localRoot: path.join(__dirname, "public"),
         include: ["*", "**/*"]
     },
     website: {
-        remoteRoot: "/web.coralinfratel.com/",
+        remoteRoot: process.env.FTP_REMOTE_ROOT_WEBSITE || "/public_html/web.coralinfratel.com/",
         localRoot: path.join(__dirname, "website"),
         include: ["*", "**/*"]
     },
     root: {
-        remoteRoot: "/",
+        remoteRoot: process.env.FTP_REMOTE_ROOT_CRM || "/public_html/officetask/",
         localRoot: __dirname,
         include: ["app.js", "package.json", ".env"]
     }
