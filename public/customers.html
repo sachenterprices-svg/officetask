@@ -451,7 +451,46 @@
                             </div>
                         </div>
                     </div>
-                    <div class="grid-4">
+
+                    <!-- Existing Orders History Table (read-only, shown in edit mode) -->
+                    <div id="existingOrdersSection" style="display:none; margin-bottom:20px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                            <h4 style="margin:0; color:#475569; font-size:0.85rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Order History</h4>
+                            <span id="ordersTotalBadge" style="background:#002d72; color:#fff; padding:4px 12px; border-radius:20px; font-size:0.75rem; font-weight:700;">0 Orders</span>
+                        </div>
+                        <div style="overflow-x:auto; border:1px solid #e2e8f0; border-radius:10px;">
+                            <table style="width:100%; border-collapse:collapse; font-size:0.78rem;">
+                                <thead>
+                                    <tr style="background:#f1f5f9;">
+                                        <th style="padding:8px 10px; text-align:left; font-weight:700; color:#64748b; font-size:0.68rem; text-transform:uppercase; white-space:nowrap;">#</th>
+                                        <th style="padding:8px 10px; text-align:left; font-weight:700; color:#64748b; font-size:0.68rem; text-transform:uppercase; white-space:nowrap;">Date</th>
+                                        <th style="padding:8px 10px; text-align:left; font-weight:700; color:#64748b; font-size:0.68rem; text-transform:uppercase; white-space:nowrap;">Plan</th>
+                                        <th style="padding:8px 10px; text-align:center; font-weight:700; color:#64748b; font-size:0.68rem; text-transform:uppercase;">Ch</th>
+                                        <th style="padding:8px 10px; text-align:center; font-weight:700; color:#64748b; font-size:0.68rem; text-transform:uppercase;">Ana</th>
+                                        <th style="padding:8px 10px; text-align:center; font-weight:700; color:#64748b; font-size:0.68rem; text-transform:uppercase;">Dig</th>
+                                        <th style="padding:8px 10px; text-align:center; font-weight:700; color:#64748b; font-size:0.68rem; text-transform:uppercase;">VAS</th>
+                                        <th style="padding:8px 10px; text-align:center; font-weight:700; color:#64748b; font-size:0.68rem; text-transform:uppercase;">IP</th>
+                                        <th style="padding:8px 10px; text-align:right; font-weight:700; color:#64748b; font-size:0.68rem; text-transform:uppercase; white-space:nowrap;">Monthly</th>
+                                        <th style="padding:8px 10px; text-align:right; font-weight:700; color:#64748b; font-size:0.68rem; text-transform:uppercase; white-space:nowrap;">Plan Chg</th>
+                                        <th style="padding:8px 10px; text-align:center; font-weight:700; color:#64748b; font-size:0.68rem; text-transform:uppercase;">R&G</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ordersTableBody"></tbody>
+                                <tfoot id="ordersTotalRow" style="background:#f0f7ff; font-weight:700; color:#002d72;"></tfoot>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Add New Product Button (shown only in edit mode when orders exist) -->
+                    <div id="addNewProductBtnWrap" style="display:none; margin-bottom:15px;">
+                        <button type="button" id="addNewProductBtn"
+                            style="background:#10b981; color:white; border:none; padding:12px 20px; border-radius:10px; font-weight:700; cursor:pointer; transition:0.3s; display:flex; align-items:center; gap:8px; font-size:0.9rem;">
+                            + ADD NEW PRODUCT / EXTENSION
+                        </button>
+                    </div>
+
+                    <!-- Product Form Fields -->
+                    <div id="productFields" class="grid-4">
                         <div class="form-row"><label>1. Product Plan</label><input type="text" id="prodPlan"
                                 class="product-field"></div>
                         <div class="form-row"><label>2. Monthly Rent</label><input type="number" id="monthlyRent"
@@ -502,9 +541,9 @@
 
                         <div class="form-row"><label>17. START DATE</label><input type="date" id="prodStartDate"
                                 class="product-field"></div>
-                        <div class="form-row"></div> <!-- Empty space -->
-                        <div class="form-row"></div> <!-- Empty space -->
-                        <div class="form-row"></div> <!-- Empty space -->
+                        <div class="form-row"></div>
+                        <div class="form-row"></div>
+                        <div class="form-row"></div>
                     </div>
                 </div>
                 <div id="linesContainer">

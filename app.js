@@ -1245,6 +1245,10 @@ app.get('/api/customers/search/v2', authenticateToken, async (req, res) => {
         const [lines] = await pool.query('SELECT * FROM customer_lines WHERE customer_id = ?', [customer.id]);
         customer.lines = lines;
 
+        // Fetch product/order history for this customer
+        const [orders] = await pool.query('SELECT * FROM customer_orders WHERE customer_id = ? ORDER BY created_at ASC', [customer.id]);
+        customer.orders = orders;
+
         res.json(customer);
     } catch (err) {
         console.error(err);
