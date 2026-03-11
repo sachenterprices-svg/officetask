@@ -558,10 +558,25 @@ app.post('/api/login', async (req, res) => {
         const validPassword = await bcrypt.compare(password, user.password_hash);
         if (!validPassword) return res.status(401).json({ error: 'Invalid username or password' });
 
+        // Parse permissions from DB
+        let permissions = [];
+        if (user.permissions) {
+            try { permissions = typeof user.permissions === 'string' ? JSON.parse(user.permissions) : user.permissions; } catch (e) { permissions = []; }
+        }
+
         // Create JWT token
         const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '12h' });
 
-        res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+        res.json({ token, user: {
+            id: user.id,
+            username: user.username,
+            role: user.role,
+            name: user.name,
+            permissions: permissions,
+            allowed_circle: user.allowed_circle,
+            allowed_oa: user.allowed_oa,
+            backdate_rights: user.backdate_rights
+        }});
     } catch (error) {
         console.error('Login error:', error);
         res.status(500).json({ error: 'Server error during login', details: error.message });
