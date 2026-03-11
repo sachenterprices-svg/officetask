@@ -25,11 +25,7 @@
             transition: transform 0.3s;
         }
 
-        .module-tile.restricted {
-            opacity: 0.5;
-            cursor: not-allowed;
-            filter: grayscale(1);
-        }
+        /* Non-permitted modules are hidden via JS */
 
         /* --- MAIN CONTENT AREA --- */
         .main-content {
@@ -183,6 +179,12 @@
                     <h4>Complaints</h4>
                 </div>
             </a>
+            <a href="data_import.html" class="module-tile admin-only" id="navDataImport" target="_blank">
+                <i>🗄️</i>
+                <div class="tile-content">
+                    <h4>Data Import</h4>
+                </div>
+            </a>
         </aside>
 
         <main class="content-area">
@@ -235,11 +237,7 @@
             function enforcePermission(id, perm) {
                 const el = document.getElementById(id);
                 if (el && !window.hasModuleAccess(perm)) {
-                    el.classList.add('restricted');
-                    el.onclick = (e) => {
-                        e.preventDefault();
-                        alert('You do not have rights for this module.');
-                    };
+                    el.style.display = 'none'; // Completely hide non-permitted modules
                 }
             }
 

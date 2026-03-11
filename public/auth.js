@@ -115,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
     }
 
-    // Handle Module-Specific Sidebar Links
+    // Handle Module-Specific Sidebar Links — HIDE if no permission (not just disable)
     const sidebarChecks = [
         { id: 'navProposals', perm: 'proposals' },
         { id: 'navComplaints', perm: 'complaints' },
@@ -125,9 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
     sidebarChecks.forEach(check => {
         const el = document.getElementById(check.id);
         if (el && !window.hasModuleAccess(check.perm)) {
-            el.classList.add('restricted');
-            el.style.pointerEvents = 'none';
-            el.title = 'Access Restricted';
+            el.style.display = 'none';
         }
     });
 
