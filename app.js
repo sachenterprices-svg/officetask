@@ -822,12 +822,16 @@ app.put('/api/complaints/:id', authenticateToken, async (req, res) => {
 app.post('/api/complaints', async (req, res) => {
     const { customer_name, complainee_name, mobile, email, issue_type, description, std_code, telephone_number } = req.body;
     try {
-        // Lookup circle and OA from customers table
+        // Lookup circle and OA from customers table (try multiple formats)
         let circle = '', oa_name = '';
         try {
+            const fullNumber = `${std_code}-${telephone_number}`;
             const [custRows] = await pool.query(
-                'SELECT circle, oa_name FROM customers WHERE telephone_number=? AND telephone_code=? LIMIT 1',
-                [telephone_number, std_code]
+                `SELECT c.circle, c.oa_name FROM customers c
+                 WHERE (c.telephone_number=? AND c.telephone_code=?)
+                 OR c.id IN (SELECT customer_id FROM customer_lines WHERE telephone_number = ? OR telephone_number = ?)
+                 LIMIT 1`,
+                [telephone_number, std_code, fullNumber, `${std_code}${telephone_number}`]
             );
             if (custRows.length > 0) { circle = custRows[0].circle || ''; oa_name = custRows[0].oa_name || ''; }
         } catch (e) { /* ignore */ }
@@ -998,8 +1002,9 @@ app.get('/api/customers/search', async (req, res) => {
         }
 
         if (std_code && telephone_number) {
-            query += ' OR (telephone_code = ? AND telephone_number = ?) OR id IN (SELECT customer_id FROM customer_lines WHERE telephone_code = ? AND telephone_number = ?)';
-            params.push(std_code, telephone_number, std_code, telephone_number);
+            const fullNumber = `${std_code}-${telephone_number}`;
+            query += ' OR (telephone_code = ? AND telephone_number = ?) OR id IN (SELECT customer_id FROM customer_lines WHERE (telephone_code = ? AND telephone_number = ?) OR telephone_number = ? OR telephone_number = ?)';
+            params.push(std_code, telephone_number, std_code, telephone_number, fullNumber, `${std_code}${telephone_number}`);
         }
 
         const [rows] = await pool.query(query, params);
