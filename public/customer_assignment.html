@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Assignment - Coral Infratel</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="auth.js"></script>
+    <style>
+        /* ── Page-only styles ── */
+        .page-title  { font-size:1.5rem; font-weight:800; color:#0f172a; margin:0 0 3px; }
+        .page-sub    { color:#64748b; font-size:0.87rem; margin:0; }
+
+        /* ── Engineer bar ── */
+        .eng-bar {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 14px 20px;
+            margin-top: 22px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            flex-wrap: wrap;
+        }
+        .eng-bar label {
+            font-size: 0.78rem;
+            font-weight: 800;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            white-space: nowrap;
+        }
+        .eng-bar select {
+            flex: 1;
+            min-width: 220px;
+            max-width: 340px;
+            padding: 9px 13px;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 9px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.92rem;
+            font-weight: 600;
+            color: #002d72;
+            background: #f8fafc;
+            cursor: pointer;
+            transition: border-color .2s;
+        }
+        .eng-bar select:focus { outline: none; border-color: #002d72; box-shadow: 0 0 0 3px rgba(0,45,114,.1); background: #fff; }
+        .eng-badge {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            color: #1d4ed8;
+            font-size: 0.8rem;
+            font-weight: 700;
+            padding: 6px 14px;
+            border-radius: 20px;
+            white-space: nowrap;
+            margin-left: auto;
+        }
+
+        /* ── Panel wrapper ── */
+        .panels-wrapper {
+            display: grid;
+            grid-template-columns: 1fr 36px 1fr 36px 1fr;
+            align-items: start;
+            margin-top: 20px;
+            gap: 0;
+        }
+
+        /* ── Single panel ── */
+        .panel {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #fff;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+        }
+
+        /* Panel header — dark blue */
+        .p-head {
+            background: #002d72;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 11px 14px;
+        }
+        .p-head input[type="checkbox"] {
+            width: 15px; height: 15px;
+            cursor: pointer;
+            accent-color: #fff;
+            flex-shrink: 0;
+        }
+        .p-head .p-title {
+            font-size: 0.76rem;
+            font-weight: 800;
+            color: #fff;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            flex: 1;
+        }
+        .p-head .p-badge {
+            background: rgba(255,255,255,0.2);
+            color: #fff;
+            font-size: 0.7rem;
+            font-weight: 800;
+            padding: 2px 9px;
+            border-radius: 10px;
+            min-width: 24px;
+            text-align: center;
+        }
+
+        /* Search inside panel */
+        .p-search {
+            padding: 7px 10px;
+            border-bottom: 1px solid #f1f5f9;
+            background: #fafbfd;
+        }
+        .p-search input {
+            width: 100%;
+            padding: 6px 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.81rem;
+            color: #334155;
+            background: #fff;
+            box-sizing: border-box;
+            transition: border-color .2s;
+        }
+        .p-search input:focus { outline: none; border-color: #002d72; }
+        .p-search input::placeholder { color: #94a3b8; }
+
+        /* Scrollable list */
+        .p-list {
+            height: 340px;
+            overflow-y: auto;
+        }
+        .p-list::-webkit-scrollbar { width: 5px; }
+        .p-list::-webkit-scrollbar-track { background: #f8fafc; }
+        .p-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+        /* List row */
+        .p-row {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            padding: 9px 13px;
+            border-bottom: 1px solid #f8fafc;
+            cursor: pointer;
+            transition: background 0.12s;
+            user-select: none;
+        }
+        .p-row:last-child { border-bottom: none; }
+        .p-row:hover { background: #f0f7ff; }
+        .p-row.on  { background: #eff6ff; }
+        .p-row.eng { background: #f0fdf4; }  /* already has engineer */
+        .p-row input[type="checkbox"] {
+            width: 15px; height: 15px;
+            cursor: pointer;
+            accent-color: #002d72;
+            flex-shrink: 0;
+            pointer-events: none;
+        }
+        .p-row .rn { font-size: 0.87rem; color: #1e293b; flex: 1; line-height: 1.3; }
+        .p-row.on  .rn { color: #1e40af; font-weight: 600; }
+        .p-row.eng .rn { color: #15803d; }
+        .p-row .rm { font-size: 0.7rem; color: #94a3b8; white-space: nowrap; }
+        .p-row .re { font-size: 0.7rem; color: #7c3aed; font-weight: 600; white-space: nowrap; } /* eng tag */
+
+        /* Empty / loading */
+        .p-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            min-height: 130px;
+            gap: 8px;
+            color: #94a3b8;
+            font-size: 0.84rem;
+            text-align: center;
+            padding: 20px;
+        }
+        .p-empty .ei { font-size: 1.8rem; }
+
+        /* Loading dots */
+        .ld { display: flex; gap: 5px; }
+        .ld b {
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: #002d72;
+            display: block;
+            animation: ldp .7s infinite alternate;
+        }
+        .ld b:nth-child(2) { animation-delay: .22s; }
+        .ld b:nth-child(3) { animation-delay: .44s; }
+        @keyframes ldp { from{opacity:.2;transform:scale(.7)} to{opacity:1;transform:scale(1)} }
+
+        /* Arrow between panels */
+        .arr-col {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 52px;
+        }
+        .arr-col span { color: #94a3b8; font-size: 1.1rem; }
+
+        /* ── Action bar ── */
+        .act-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 20px;
+            padding-top: 18px;
+            border-top: 1px solid #f1f5f9;
+            flex-wrap: wrap;
+        }
+        .btn-submit {
+            background: #002d72; color: #fff;
+            border: none; padding: 11px 30px;
+            border-radius: 9px; font-family: 'Inter', sans-serif;
+            font-size: 0.9rem; font-weight: 700;
+            cursor: pointer; transition: .2s;
+            display: inline-flex; align-items: center; gap: 8px;
+        }
+        .btn-submit:hover { background: #1e40af; transform: translateY(-2px); box-shadow: 0 4px 14px rgba(0,45,114,.35); }
+        .btn-submit:disabled { background: #94a3b8; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn-reset {
+            background: #f1f5f9; color: #475569;
+            border: 1px solid #e2e8f0; padding: 11px 22px;
+            border-radius: 9px; font-family: 'Inter', sans-serif;
+            font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: .2s;
+        }
+        .btn-reset:hover { background: #e2e8f0; }
+        .act-msg {
+            padding: 10px 18px; border-radius: 8px;
+            font-size: 0.86rem; font-weight: 700; display: none;
+        }
+        .act-msg.ok  { display: block; background: #dcfce7; color: #166534; }
+        .act-msg.err { display: block; background: #fee2e2; color: #991b1b; }
+
+        /* ── Existing assignment table (bottom) ── */
+        .section-title {
+            font-size: 0.88rem; font-weight: 800; color: #475569;
+            text-transform: uppercase; letter-spacing: 0.8px;
+            margin: 32px 0 14px;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .section-title::after { content: ''; flex: 1; height: 1px; background: #e2e8f0; }
+        .filter-row {
+            display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+            margin-bottom: 14px;
+        }
+        .filter-row input, .filter-row select {
+            padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 8px;
+            font-size: 0.85rem; color: #334155; font-family: 'Inter', sans-serif;
+            background: #f8fafc;
+        }
+        .filter-row input { min-width: 200px; }
+        .btn-filter { background: #002d72; color: #fff; border: none; padding: 8px 18px; border-radius: 8px; font-weight: 700; font-size: 0.85rem; cursor: pointer; }
+        .btn-filter:hover { background: #1e40af; }
+        .btn-filter-rst { background: #64748b; color: #fff; border: none; padding: 8px 14px; border-radius: 8px; font-weight: 700; font-size: 0.85rem; cursor: pointer; }
+        .tbl-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; overflow: hidden; }
+        .tbl-info { padding: 12px 16px; font-size: 0.82rem; color: #64748b; font-weight: 500; border-bottom: 1px solid #f1f5f9; }
+        table { width: 100%; border-collapse: collapse; }
+        thead { background: #f8fafc; }
+        th { padding: 11px 14px; text-align: left; font-size: 0.7rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.8px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+        td { padding: 11px 14px; border-bottom: 1px solid #f8fafc; font-size: 0.86rem; color: #334155; vertical-align: middle; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: #fafbff; }
+        .c-name  { font-weight: 700; color: #0f172a; }
+        .c-tel   { font-family: monospace; color: #475569; font-size: 0.83rem; }
+        .c-badge { background: #dbeafe; color: #1d4ed8; padding: 3px 9px; border-radius: 10px; font-size: 0.73rem; font-weight: 700; }
+        .c-eng   { font-weight: 600; color: #002d72; }
+        .c-noeng { color: #94a3b8; font-style: italic; }
+        .tbl-nodata { text-align: center; padding: 50px; color: #94a3b8; }
+
+        /* Toast */
+        .toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: 10px; font-weight: 600; font-size: 0.86rem; z-index: 9999; opacity: 0; transform: translateY(10px); transition: .3s; pointer-events: none; }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .toast.ok   { background: #002d72; color: #fff; }
+        .toast.err  { background: #dc2626; color: #fff; }
+    </style>
+</head>
+<body>
+
+<header class="top-header">
+    <div class="header-brand">
+        <img src="assets/Coral Infratel logo.jpg" alt="Coral Infratel" height="46" style="display:block;object-fit:contain;">
+        <span style="color:#94a3b8;font-size:0.85rem;margin-left:12px;font-weight:500;">| WORKSPACE</span>
+    </div>
+    <div class="user-meta">
+        <span id="userInfoDisplay" style="font-weight:600;"></span>
+        <button onclick="window.logout()" class="logout-btn">Logout</button>
+    </div>
+</header>
+
+<div class="app-body">
+    <aside class="tile-sidebar" id="sidebar"></aside>
+
+    <main class="content-area" style="padding:28px;">
+
+        <!-- Page heading -->
+        <div style="margin-bottom:4px;">
+            <h1 class="page-title">👤 Customer — Engineer Assignment</h1>
+            <p class="page-sub">Select Circle → OA → Customer, then choose an Engineer and click Submit.</p>
+        </div>
+
+        <!-- ══ ASSIGNMENT PANEL ══════════════════════════════════════ -->
+        <div style="background:#fff;border-radius:16px;padding:24px 26px;box-shadow:0 4px 16px rgba(0,0,0,0.05);border:1px solid #e2e8f0;margin-top:16px;">
+
+            <!-- Engineer select -->
+            <div class="eng-bar">
+                <label>👷 Assign Engineer</label>
+                <select id="engSel" onchange="onEngChange()">
+                    <option value="">-- Select Engineer --</option>
+                </select>
+                <div class="eng-badge" id="engBadge" style="display:none;"></div>
+            </div>
+
+            <!-- Three panels -->
+            <div class="panels-wrapper">
+
+                <!-- Panel 1: Circle -->
+                <div class="panel">
+                    <div class="p-head">
+                        <input type="checkbox" id="allCircle" title="Select / Deselect All"
+                               onchange="selectAllRows('circle', this.checked)">
+                        <span class="p-title">Circle Name</span>
+                        <span class="p-badge" id="bdgCircle">0</span>
+                    </div>
+                    <div class="p-search">
+                        <input type="text" placeholder="Search circle..." id="srchCircle"
+                               oninput="filterPanel('circle', this.value)">
+                    </div>
+                    <div class="p-list" id="lstCircle">
+                        <div class="p-empty"><div class="ld"><b></b><b></b><b></b></div><span>Loading...</span></div>
+                    </div>
+                </div>
+
+                <!-- Arrow -->
+                <div class="arr-col"><span>▶</span></div>
+
+                <!-- Panel 2: OA -->
+                <div class="panel">
+                    <div class="p-head">
+                        <input type="checkbox" id="allOA" title="Select / Deselect All"
+                               onchange="selectAllRows('oa', this.checked)">
+                        <span class="p-title">OA Name</span>
+                        <span class="p-badge" id="bdgOA">0</span>
+                    </div>
+                    <div class="p-search">
+                        <input type="text" placeholder="Search OA..." id="srchOA"
+                               oninput="filterPanel('oa', this.value)">
+                    </div>
+                    <div class="p-list" id="lstOA">
+                        <div class="p-empty"><div class="ei">📍</div><span>Select a Circle first</span></div>
+                    </div>
+                </div>
+
+                <!-- Arrow -->
+                <div class="arr-col"><span>▶</span></div>
+
+                <!-- Panel 3: Customer -->
+                <div class="panel">
+                    <div class="p-head">
+                        <input type="checkbox" id="allCust" title="Select / Deselect All"
+                               onchange="selectAllRows('cust', this.checked)">
+                        <span class="p-title">Customer Name</span>
+                        <span class="p-badge" id="bdgCust">0</span>
+                    </div>
+                    <div class="p-search">
+                        <input type="text" placeholder="Search customer..." id="srchCust"
+                               oninput="filterPanel('cust', this.value)">
+                    </div>
+                    <div class="p-list" id="lstCust">
+                        <div class="p-empty"><div class="ei">🏢</div><span>Select an OA first</span></div>
+                    </div>
+                </div>
+
+            </div><!-- /panels-wrapper -->
+
+            <!-- Action bar -->
+            <div class="act-bar">
+                <button class="btn-submit" id="btnSave" onclick="saveAssignment()">
+                    ✔ Submit — Assign Customers
+                </button>
+                <button class="btn-reset" onclick="resetPanels()">✕ Reset</button>
+                <div class="act-msg" id="actMsg"></div>
+            </div>
+        </div>
+
+        <!-- ══ CURRENT ASSIGNMENTS TABLE ═══════════════════════════ -->
+        <div class="section-title">Current Assignments</div>
+
+        <div class="filter-row">
+            <input type="text" id="tblSearch" placeholder="Search customer / telephone...">
+            <select id="tblCircle"><option value="">-- All Circles --</option></select>
+            <select id="tblEng"><option value="">-- All Engineers --</option></select>
+            <button class="btn-filter" onclick="applyTableFilter()">🔍 Search</button>
+            <button class="btn-filter-rst" onclick="resetTableFilter()">Reset</button>
+        </div>
+
+        <div class="tbl-card">
+            <div class="tbl-info" id="tblInfo">Loading...</div>
+            <div style="overflow-x:auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Customer Name</th>
+                            <th>Telephone</th>
+                            <th>Circle</th>
+                            <th>OA</th>
+                            <th>Assigned Engineer</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tblBody">
+                        <tr><td colspan="6" class="tbl-nodata">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  DATA
+// ═══════════════════════════════════════════════════
+let allCustomers = [];  // loaded once from /api/customers
+let engineers    = [];  // loaded once from /api/users
+
+// Panel state: selected values
+const sel = { circle: new Set(), oa: new Set(), cust: new Set() };
+
+let debCircle = null, debOA = null;
+
+// ═══════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+    const user = JSON.parse(localStorage.getItem('crm_user'));
+    if (!user) { window.location.href = 'login.html'; return; }
+    document.getElementById('userInfoDisplay').textContent =
+        `${user.name || user.username} (${user.role === 'admin' ? 'Admin' : 'User'})`;
+    buildSidebar(user);
+    if (user.role !== 'admin') document.querySelectorAll('.admin-only').forEach(e => e.style.display='none');
+    await Promise.all([loadEngineers(), loadCustomers()]);
+});
+
+function buildSidebar(user) {
+    const sb = document.getElementById('sidebar');
+    const items = [
+        { href:'dashboard.html',           icon:'🏠', label:'Dashboard' },
+        { href:'complaints_manage.html',    icon:'🎫', label:'Complaints' },
+        { href:'complaints_report.html',    icon:'📊', label:'Complaints Report', admin:true },
+        { href:'customer_assignment.html',  icon:'👤', label:'Customer Assignment', active:true, admin:true },
+        { href:'engineer_area_assignment.html', icon:'🗺️', label:'Area Assignment', admin:true },
+        { href:'engineers_master.html',     icon:'👷', label:'Engineers Master', admin:true }
+    ];
+    sb.innerHTML = '<div class="sidebar-header">MENU</div>';
+    items.forEach(it => {
+        if (it.admin && user.role !== 'admin') return;
+        const a = document.createElement('a');
+        a.href = it.href;
+        a.className = 'module-tile' + (it.active ? ' active' : '');
+        a.innerHTML = `<i>${it.icon}</i><div class="tile-content"><h4>${it.label}</h4></div>`;
+        sb.appendChild(a);
+    });
+}
+
+async function loadEngineers() {
+    try {
+        const r = await window.apiFetch('/api/users');
+        if (!r.ok) return;
+        engineers = await r.json();
+        const techEngs = engineers.filter(u => u.role !== 'admin');
+
+        // Populate engineer dropdown in assignment panel
+        const engSel = document.getElementById('engSel');
+        techEngs.forEach(u => {
+            const o = document.createElement('option');
+            o.value = u.id;
+            o.textContent = u.name || u.username;
+            engSel.appendChild(o);
+        });
+
+        // Populate table filter
+        const tblEng = document.getElementById('tblEng');
+        techEngs.forEach(u => {
+            const o = document.createElement('option');
+            o.value = u.id;
+            o.textContent = u.name || u.username;
+            tblEng.appendChild(o);
+        });
+    } catch(e) { console.error('loadEngineers', e); }
+}
+
+async function loadCustomers() {
+    try {
+        const r = await window.apiFetch('/api/customers');
+        if (!r.ok) return;
+        allCustomers = await r.json();
+
+        // Build circle list from data
+        buildCirclePanel();
+
+        // Build table circle filter
+        const circles = [...new Set(allCustomers.map(c => c.circle).filter(Boolean))].sort();
+        const tblCircle = document.getElementById('tblCircle');
+        circles.forEach(c => {
+            const o = document.createElement('option');
+            o.value = c; o.textContent = c;
+            tblCircle.appendChild(o);
+        });
+
+        renderTable(allCustomers);
+    } catch(e) { console.error('loadCustomers', e); }
+}
+
+// ═══════════════════════════════════════════════════
+//  ENGINEER CHANGE
+// ═══════════════════════════════════════════════════
+function onEngChange() {
+    const id = document.getElementById('engSel').value;
+    const badge = document.getElementById('engBadge');
+    if (!id) { badge.style.display = 'none'; return; }
+    const eng = engineers.find(u => String(u.id) === String(id));
+    const count = allCustomers.filter(c => String(c.assigned_engineer_id) === String(id)).length;
+    badge.style.display = '';
+    badge.textContent = `📋 Already assigned: ${count} customers`;
+}
+
+// ═══════════════════════════════════════════════════
+//  BUILD CIRCLE PANEL (from allCustomers)
+// ═══════════════════════════════════════════════════
+function buildCirclePanel() {
+    const circles = [...new Set(allCustomers.map(c => c.circle).filter(Boolean))].sort();
+    const container = document.getElementById('lstCircle');
+
+    if (!circles.length) {
+        container.innerHTML = '<div class="p-empty"><div class="ei">⚠️</div><span>No circles found</span></div>';
+        return;
+    }
+
+    container.innerHTML = circles.map(circ => {
+        const count = allCustomers.filter(c => c.circle === circ).length;
+        return `<div class="p-row" data-v="${esc(circ)}" onclick="toggleRow(this,'circle')">
+            <input type="checkbox" data-v="${esc(circ)}">
+            <span class="rn">${esc(circ)}</span>
+            <span class="rm">${count}</span>
+        </div>`;
+    }).join('');
+
+    setBadge('Circle', 0);
+    document.getElementById('allCircle').checked = false;
+}
+
+// ═══════════════════════════════════════════════════
+//  BUILD OA PANEL (from selected circles)
+// ═══════════════════════════════════════════════════
+function buildOAPanel() {
+    const circles = [...sel.circle];
+    const container = document.getElementById('lstOA');
+
+    if (!circles.length) {
+        container.innerHTML = '<div class="p-empty"><div class="ei">📍</div><span>Select a Circle first</span></div>';
+        sel.oa.clear(); sel.cust.clear();
+        setBadge('OA', 0); setBadge('Cust', 0);
+        document.getElementById('allOA').checked = false;
+        document.getElementById('lstCust').innerHTML = '<div class="p-empty"><div class="ei">🏢</div><span>Select an OA first</span></div>';
+        document.getElementById('srchOA').value = '';
+        document.getElementById('srchCust').value = '';
+        return;
+    }
+
+    const oaMap = {};  // oa_name → count
+    allCustomers.forEach(c => {
+        if (!circles.includes(c.circle)) return;
+        const oa = c.oa_name || '(No OA)';
+        oaMap[oa] = (oaMap[oa] || 0) + 1;
+    });
+    const oaNames = Object.keys(oaMap).sort();
+
+    if (!oaNames.length) {
+        container.innerHTML = '<div class="p-empty"><div class="ei">🔍</div><span>No OA found for selected circles</span></div>';
+        return;
+    }
+
+    // Remove deselected OAs from sel.oa
+    [...sel.oa].forEach(o => { if (!oaNames.includes(o)) sel.oa.delete(o); });
+
+    container.innerHTML = oaNames.map(oa => {
+        const on = sel.oa.has(oa);
+        return `<div class="p-row${on ? ' on' : ''}" data-v="${esc(oa)}" onclick="toggleRow(this,'oa')">
+            <input type="checkbox" data-v="${esc(oa)}" ${on ? 'checked' : ''}>
+            <span class="rn">${esc(oa)}</span>
+            <span class="rm">${oaMap[oa]}</span>
+        </div>`;
+    }).join('');
+
+    setBadge('OA', sel.oa.size);
+    updateSelectAll('OA');
+    document.getElementById('srchOA').value = '';
+
+    // Rebuild customer panel if any OA still selected
+    buildCustPanel();
+}
+
+// ═══════════════════════════════════════════════════
+//  BUILD CUSTOMER PANEL (from selected OAs)
+// ═══════════════════════════════════════════════════
+function buildCustPanel() {
+    const circles = [...sel.circle];
+    const oas     = [...sel.oa];
+    const container = document.getElementById('lstCust');
+
+    if (!oas.length) {
+        container.innerHTML = '<div class="p-empty"><div class="ei">🏢</div><span>Select an OA first</span></div>';
+        sel.cust.clear(); setBadge('Cust', 0);
+        document.getElementById('allCust').checked = false;
+        document.getElementById('srchCust').value = '';
+        return;
+    }
+
+    const relevant = allCustomers.filter(c =>
+        circles.includes(c.circle) && oas.includes(c.oa_name || '(No OA)')
+    );
+
+    if (!relevant.length) {
+        container.innerHTML = '<div class="p-empty"><div class="ei">🔍</div><span>No customers found</span></div>';
+        sel.cust.clear(); setBadge('Cust', 0);
+        return;
+    }
+
+    // Clean up cust sel — remove those not in relevant
+    const relevantIds = new Set(relevant.map(c => c.id));
+    [...sel.cust].forEach(id => { if (!relevantIds.has(id)) sel.cust.delete(id); });
+
+    container.innerHTML = relevant.map(c => {
+        const on  = sel.cust.has(c.id);
+        const hasEng = !!c.assigned_engineer_name;
+        return `<div class="p-row${on ? ' on' : hasEng ? ' eng' : ''}" data-id="${c.id}" onclick="toggleCust(this)">
+            <input type="checkbox" data-id="${c.id}" ${on ? 'checked' : ''}>
+            <span class="rn">${esc(c.customer_name)}</span>
+            ${hasEng ? `<span class="re">→ ${esc(c.assigned_engineer_name)}</span>` : ''}
+        </div>`;
+    }).join('');
+
+    setBadge('Cust', sel.cust.size);
+    updateSelectAll('Cust');
+    document.getElementById('srchCust').value = '';
+}
+
+// ═══════════════════════════════════════════════════
+//  TOGGLE ROW (Circle / OA)
+// ═══════════════════════════════════════════════════
+function toggleRow(row, panel) {
+    const v  = row.dataset.v;
+    const cb = row.querySelector('input[type=checkbox]');
+    const isOn = !cb.checked;   // we toggle
+    cb.checked = isOn;
+    row.classList.toggle('on', isOn);
+
+    if (panel === 'circle') {
+        if (isOn) sel.circle.add(v); else sel.circle.delete(v);
+        setBadge('Circle', sel.circle.size);
+        updateSelectAll('Circle');
+        // Auto-cascade to OA (debounced)
+        clearTimeout(debCircle);
+        debCircle = setTimeout(buildOAPanel, 200);
+    } else if (panel === 'oa') {
+        if (isOn) sel.oa.add(v); else sel.oa.delete(v);
+        setBadge('OA', sel.oa.size);
+        updateSelectAll('OA');
+        // Auto-cascade to Customer (debounced)
+        clearTimeout(debOA);
+        debOA = setTimeout(buildCustPanel, 200);
+    }
+}
+
+function toggleCust(row) {
+    const id = parseInt(row.dataset.id);
+    const cb = row.querySelector('input[type=checkbox]');
+    const isOn = !cb.checked;
+    cb.checked = isOn;
+    if (isOn) { sel.cust.add(id); row.classList.add('on'); row.classList.remove('eng'); }
+    else       { sel.cust.delete(id); row.classList.remove('on'); }
+    setBadge('Cust', sel.cust.size);
+    updateSelectAll('Cust');
+}
+
+// ─── Select All ──────────────────────────────────
+function selectAllRows(panel, checked) {
+    const lstId = { circle:'lstCircle', oa:'lstOA', cust:'lstCust' }[panel];
+    document.querySelectorAll(`#${lstId} .p-row`).forEach(row => {
+        if (row.style.display === 'none') return;
+        const cb = row.querySelector('input[type=checkbox]');
+        cb.checked = checked;
+        row.classList.toggle('on', checked);
+
+        if (panel === 'circle') {
+            if (checked) sel.circle.add(row.dataset.v); else sel.circle.delete(row.dataset.v);
+        } else if (panel === 'oa') {
+            if (checked) sel.oa.add(row.dataset.v); else sel.oa.delete(row.dataset.v);
+        } else if (panel === 'cust') {
+            const id = parseInt(row.dataset.id);
+            if (checked) { sel.cust.add(id); row.classList.remove('eng'); }
+            else          { sel.cust.delete(id); }
+        }
+    });
+
+    if (panel === 'circle') { setBadge('Circle', sel.circle.size); clearTimeout(debCircle); debCircle = setTimeout(buildOAPanel, 200); }
+    if (panel === 'oa')     { setBadge('OA', sel.oa.size);       clearTimeout(debOA);     debOA     = setTimeout(buildCustPanel, 200); }
+    if (panel === 'cust')   { setBadge('Cust', sel.cust.size); }
+}
+
+// ─── Search filter inside panel ──────────────────
+function filterPanel(panel, q) {
+    const lstId = { circle:'lstCircle', oa:'lstOA', cust:'lstCust' }[panel];
+    const lower = q.toLowerCase();
+    document.querySelectorAll(`#${lstId} .p-row`).forEach(row => {
+        const name = row.querySelector('.rn');
+        row.style.display = name && name.textContent.toLowerCase().includes(lower) ? '' : 'none';
+    });
+}
+
+// ═══════════════════════════════════════════════════
+//  SUBMIT
+// ═══════════════════════════════════════════════════
+async function saveAssignment() {
+    const engId = document.getElementById('engSel').value;
+    if (!engId)           { showMsg('Please select an engineer first', 'err'); return; }
+    if (!sel.cust.size)   { showMsg('Please select at least one customer', 'err'); return; }
+
+    const btn = document.getElementById('btnSave');
+    btn.disabled = true; btn.textContent = '⏳ Saving...';
+
+    try {
+        const r = await window.apiFetch('/api/customers/bulk-assign', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ engineer_id: parseInt(engId), customer_ids: [...sel.cust] })
+        });
+        if (!r.ok) { const e = await r.json(); throw new Error(e.error); }
+        const data = await r.json();
+        showMsg(`✔ ${data.count} customers assigned successfully!`, 'ok');
+        showToast(`✔ ${data.count} customers assigned!`, 'ok');
+
+        // Update local data & refresh
+        const eng = engineers.find(u => String(u.id) === String(engId));
+        sel.cust.forEach(id => {
+            const c = allCustomers.find(x => x.id === id);
+            if (c) { c.assigned_engineer_id = parseInt(engId); c.assigned_engineer_name = eng?.name || eng?.username; }
+        });
+        onEngChange();         // update badge
+        buildCustPanel();      // refresh color coding
+        renderTable(currentTableData());   // refresh table
+    } catch(e) {
+        showMsg(e.message || 'Save failed. Please try again.', 'err');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '✔ Submit — Assign Customers';
+    }
+}
+
+function resetPanels() {
+    sel.circle.clear(); sel.oa.clear(); sel.cust.clear();
+    buildCirclePanel();
+    document.getElementById('lstOA').innerHTML   = '<div class="p-empty"><div class="ei">📍</div><span>Select a Circle first</span></div>';
+    document.getElementById('lstCust').innerHTML = '<div class="p-empty"><div class="ei">🏢</div><span>Select an OA first</span></div>';
+    document.getElementById('allOA').checked = false;
+    document.getElementById('allCust').checked = false;
+    setBadge('OA', 0); setBadge('Cust', 0);
+    document.getElementById('srchCircle').value = '';
+    document.getElementById('srchOA').value = '';
+    document.getElementById('srchCust').value = '';
+    hideMsg();
+}
+
+// ═══════════════════════════════════════════════════
+//  TABLE (bottom section)
+// ═══════════════════════════════════════════════════
+function currentTableData() {
+    const q      = document.getElementById('tblSearch').value.toLowerCase();
+    const circle = document.getElementById('tblCircle').value;
+    const engId  = document.getElementById('tblEng').value;
+    return allCustomers.filter(c => {
+        if (q && !(c.customer_name||'').toLowerCase().includes(q) && !(c.telephone_number||'').includes(q)) return false;
+        if (circle && c.circle !== circle) return false;
+        if (engId  && String(c.assigned_engineer_id) !== String(engId)) return false;
+        return true;
+    });
+}
+
+function renderTable(data) {
+    document.getElementById('tblInfo').textContent = `Showing ${data.length} of ${allCustomers.length} customers`;
+    const tbody = document.getElementById('tblBody');
+    if (!data.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="tbl-nodata">No customers found.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = data.map((c, i) => `
+        <tr>
+            <td style="color:#94a3b8;font-size:0.77rem;">${i+1}</td>
+            <td class="c-name">${esc(c.customer_name)}</td>
+            <td class="c-tel">${esc((c.std_code ? c.std_code+'-' : '') + (c.telephone_number||''))}</td>
+            <td>${c.circle ? `<span class="c-badge">${esc(c.circle)}</span>` : '-'}</td>
+            <td style="color:#64748b;">${esc(c.oa_name||'-')}</td>
+            <td>${c.assigned_engineer_name
+                ? `<span class="c-eng">${esc(c.assigned_engineer_name)}</span>`
+                : '<span class="c-noeng">Unassigned</span>'}</td>
+        </tr>
+    `).join('');
+}
+
+function applyTableFilter()  { renderTable(currentTableData()); }
+function resetTableFilter()  {
+    document.getElementById('tblSearch').value = '';
+    document.getElementById('tblCircle').value = '';
+    document.getElementById('tblEng').value    = '';
+    renderTable(allCustomers);
+}
+
+// ═══════════════════════════════════════════════════
+//  UTILITIES
+// ═══════════════════════════════════════════════════
+function setBadge(cap, n) {
+    const el = document.getElementById('bdg' + cap);
+    if (el) el.textContent = n;
+}
+
+function updateSelectAll(cap) {
+    const lstId  = { Circle:'lstCircle', OA:'lstOA', Cust:'lstCust' }[cap];
+    const chkId  = { Circle:'allCircle', OA:'allOA', Cust:'allCust' }[cap];
+    const rows   = document.querySelectorAll(`#${lstId} .p-row:not([style*="none"])`);
+    const checked = document.querySelectorAll(`#${lstId} input[type=checkbox]:checked`);
+    const el = document.getElementById(chkId);
+    if (el) el.checked = rows.length > 0 && checked.length === rows.length;
+}
+
+function showMsg(txt, type) {
+    const el = document.getElementById('actMsg');
+    el.textContent = txt;
+    el.className   = 'act-msg ' + type;
+    clearTimeout(el._t);
+    el._t = setTimeout(hideMsg, 5000);
+}
+function hideMsg() { document.getElementById('actMsg').className = 'act-msg'; }
+
+function showToast(txt, type) {
+    const t = document.getElementById('toast');
+    t.textContent = txt;
+    t.className   = `toast ${type} show`;
+    clearTimeout(t._t);
+    t._t = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+function esc(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

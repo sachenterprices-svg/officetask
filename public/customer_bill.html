@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Bill - Coral Infratel</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="auth.js"></script>
+    <style>
+        /* ── Page styles ── */
+        .page-card {
+            background: #fff;
+            border-radius: 20px;
+            padding: 28px 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+        }
+
+        /* ── Filter bar ── */
+        .filter-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 14px 18px;
+            margin-top: 20px;
+        }
+        .filter-bar select,
+        .filter-bar input[type="text"] {
+            padding: 9px 13px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.88rem;
+            color: #334155;
+            background: #fff;
+            min-width: 170px;
+            transition: border-color .2s;
+        }
+        .filter-bar select:focus,
+        .filter-bar input:focus {
+            outline: none;
+            border-color: #002d72;
+            box-shadow: 0 0 0 3px rgba(0,45,114,.08);
+        }
+        .filter-bar input[type="text"] { min-width: 220px; }
+
+        .btn-filter {
+            background: #002d72;
+            color: #fff;
+            border: none;
+            padding: 9px 20px;
+            border-radius: 8px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.88rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: .2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-filter:hover { background: #1e40af; transform: translateY(-1px); }
+
+        .btn-reset-f {
+            background: #f1f5f9;
+            color: #64748b;
+            border: 1px solid #e2e8f0;
+            padding: 9px 16px;
+            border-radius: 8px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.88rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: .2s;
+        }
+        .btn-reset-f:hover { background: #e2e8f0; }
+
+        /* ── Stats row ── */
+        .stats-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 16px;
+        }
+        .stat-chip {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            color: #1d4ed8;
+            font-size: 0.82rem;
+            font-weight: 700;
+            padding: 7px 16px;
+            border-radius: 20px;
+            white-space: nowrap;
+        }
+        .stat-chip.green { background: #f0fdf4; border-color: #bbf7d0; color: #15803d; }
+        .stat-chip.orange { background: #fff7ed; border-color: #fed7aa; color: #c2410c; }
+
+        /* ── Bulk action bar ── */
+        .bulk-bar {
+            display: none;
+            align-items: center;
+            gap: 12px;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 10px;
+            padding: 11px 18px;
+            margin-top: 14px;
+        }
+        .bulk-bar.show { display: flex; }
+        .bulk-bar span { font-size: 0.88rem; font-weight: 700; color: #1d4ed8; }
+        .btn-send-bill {
+            background: #002d72;
+            color: #fff;
+            border: none;
+            padding: 9px 22px;
+            border-radius: 8px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.87rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: .2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+        }
+        .btn-send-bill:hover { background: #1e40af; }
+        .btn-desel {
+            background: #f1f5f9;
+            color: #64748b;
+            border: 1px solid #e2e8f0;
+            padding: 9px 14px;
+            border-radius: 8px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.87rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .btn-desel:hover { background: #e2e8f0; }
+
+        /* ── Table ── */
+        .tbl-wrap {
+            margin-top: 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            overflow: hidden;
+        }
+        .tbl-header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .tbl-info { font-size: 0.82rem; color: #64748b; font-weight: 500; }
+
+        table { width: 100%; border-collapse: collapse; }
+        thead { background: #f8fafc; }
+        th {
+            padding: 11px 14px;
+            text-align: left;
+            font-size: 0.7rem;
+            font-weight: 800;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            border-bottom: 1px solid #e2e8f0;
+            white-space: nowrap;
+        }
+        th.chk-col { width: 40px; }
+        td {
+            padding: 12px 14px;
+            border-bottom: 1px solid #f8fafc;
+            font-size: 0.86rem;
+            color: #334155;
+            vertical-align: middle;
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: #fafbff; }
+        tr.selected td { background: #eff6ff; }
+
+        td input[type="checkbox"] {
+            width: 15px;
+            height: 15px;
+            cursor: pointer;
+            accent-color: #002d72;
+        }
+
+        .c-name { font-weight: 700; color: #0f172a; }
+        .c-code { font-family: monospace; font-size: 0.8rem; color: #64748b; }
+        .c-tel  { font-family: monospace; color: #475569; font-size: 0.83rem; }
+        .badge-circle {
+            background: #dbeafe;
+            color: #1d4ed8;
+            padding: 3px 9px;
+            border-radius: 10px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .badge-oa {
+            background: #f1f5f9;
+            color: #475569;
+            padding: 3px 8px;
+            border-radius: 8px;
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+        .c-rent { font-weight: 700; color: #002d72; }
+        .c-email { color: #2563eb; font-size: 0.82rem; }
+        .c-no-email { color: #94a3b8; font-style: italic; font-size: 0.82rem; }
+
+        .tbl-empty {
+            text-align: center;
+            padding: 60px 20px;
+            color: #94a3b8;
+        }
+        .tbl-empty .em-icon { font-size: 2.5rem; margin-bottom: 10px; }
+
+        /* Loading dots */
+        .ld-row { display: flex; gap: 5px; align-items: center; justify-content: center; padding: 50px; }
+        .ld-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: #002d72;
+            animation: ldp .7s infinite alternate;
+        }
+        .ld-dot:nth-child(2) { animation-delay: .22s; }
+        .ld-dot:nth-child(3) { animation-delay: .44s; }
+        @keyframes ldp { from{opacity:.2;transform:scale(.7)} to{opacity:1;transform:scale(1)} }
+
+        /* Pagination */
+        .pag-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .pag-btns { display: flex; gap: 6px; }
+        .pag-btn {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            padding: 6px 13px;
+            border-radius: 7px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            color: #334155;
+            transition: .15s;
+        }
+        .pag-btn:hover { border-color: #002d72; color: #002d72; }
+        .pag-btn.active { background: #002d72; color: #fff; border-color: #002d72; }
+        .pag-btn:disabled { opacity: .4; cursor: not-allowed; }
+        .pag-info { font-size: 0.82rem; color: #64748b; }
+
+        /* Toast */
+        .toast {
+            position: fixed; bottom: 24px; right: 24px;
+            padding: 12px 20px; border-radius: 10px;
+            font-weight: 600; font-size: 0.86rem;
+            z-index: 9999; opacity: 0; transform: translateY(10px);
+            transition: .3s; pointer-events: none;
+        }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .toast.ok  { background: #002d72; color: #fff; }
+        .toast.err { background: #dc2626; color: #fff; }
+    </style>
+</head>
+<body>
+
+<header class="top-header">
+    <div class="header-brand">
+        <img src="assets/Coral Infratel logo.jpg" alt="Coral Infratel" height="46"
+             style="display:block;object-fit:contain;">
+        <span style="color:#94a3b8;font-size:0.85rem;margin-left:12px;font-weight:500;">| WORKSPACE</span>
+    </div>
+    <div class="user-meta">
+        <span id="userInfoDisplay" style="font-weight:600;"></span>
+        <button onclick="window.logout()" class="logout-btn">Logout</button>
+    </div>
+</header>
+
+<div class="app-body">
+    <!-- Sidebar -->
+    <aside class="tile-sidebar">
+        <div class="sidebar-header">MENU</div>
+        <a href="dashboard.html" class="module-tile">
+            <i>🏠</i><div class="tile-content"><h4>Dashboard</h4></div>
+        </a>
+
+        <div class="sidebar-header" style="margin-top:20px;">BSNL ERP</div>
+        <a href="customers.html" class="module-tile">
+            <i>📂</i><div class="tile-content"><h4>Customer Master</h4></div>
+        </a>
+        <a href="reconciliation.html" class="module-tile">
+            <i>💰</i><div class="tile-content"><h4>Reconciliation</h4></div>
+        </a>
+        <a href="bsnl_setup.html" class="module-tile">
+            <i>🏢</i><div class="tile-content"><h4>BSNL Circle/OA Setup</h4></div>
+        </a>
+
+        <div class="sidebar-header" style="margin-top:20px;">BILLING</div>
+        <a href="customer_bill.html" class="module-tile active">
+            <i>🧾</i><div class="tile-content"><h4>Customer Bill</h4></div>
+        </a>
+    </aside>
+
+    <!-- Main content -->
+    <main class="content-area" style="padding:28px;">
+        <div class="page-card">
+
+            <!-- Page title -->
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+                <div>
+                    <h1 style="color:#0f172a;margin:0;font-weight:800;font-size:1.5rem;">🧾 Customer Bill</h1>
+                    <p style="color:#64748b;margin:5px 0 0;font-size:0.87rem;">
+                        Customers with active (non-closed) telephone lines — filter by Circle / OA, then select and send bill emails.
+                    </p>
+                </div>
+                <button class="btn-send-bill" id="btnSendTop" onclick="openSendModal()" style="display:none;">
+                    📧 Send Bill Email
+                </button>
+            </div>
+
+            <!-- Filter bar -->
+            <div class="filter-bar">
+                <select id="fCircle" onchange="onCircleChange()">
+                    <option value="">-- All Circles --</option>
+                </select>
+                <select id="fOA">
+                    <option value="">-- All OAs --</option>
+                </select>
+                <input type="text" id="fSearch" placeholder="🔍 Search customer / code / mobile..."
+                       oninput="applyFilters()">
+                <button class="btn-filter" onclick="applyFilters()">🔍 Search</button>
+                <button class="btn-reset-f" onclick="resetFilters()">Reset</button>
+                <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;font-weight:600;color:#475569;cursor:pointer;margin-left:auto;">
+                    <input type="checkbox" id="chkNoEmail" onchange="applyFilters()"
+                           style="width:15px;height:15px;cursor:pointer;accent-color:#002d72;">
+                    Show only customers with no email
+                </label>
+            </div>
+
+            <!-- Stats chips -->
+            <div class="stats-row">
+                <div class="stat-chip" id="statTotal">Loading...</div>
+                <div class="stat-chip green" id="statShowing">Showing 0</div>
+                <div class="stat-chip orange" id="statNoEmail">0 without email</div>
+            </div>
+
+            <!-- Bulk action bar (shown when rows selected) -->
+            <div class="bulk-bar" id="bulkBar">
+                <span id="bulkCount">0 selected</span>
+                <button class="btn-send-bill" onclick="openSendModal()">📧 Send Bill Email</button>
+                <button class="btn-desel" onclick="deselectAll()">✕ Deselect All</button>
+            </div>
+
+            <!-- Table -->
+            <div class="tbl-wrap">
+                <div class="tbl-header-row">
+                    <div class="tbl-info" id="tblInfo">Loading customers...</div>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;font-weight:700;color:#64748b;cursor:pointer;">
+                        <input type="checkbox" id="chkAll" onchange="toggleSelectAll(this.checked)"
+                               style="width:15px;height:15px;cursor:pointer;accent-color:#002d72;">
+                        Select All (this page)
+                    </label>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th class="chk-col"></th>
+                                <th>#</th>
+                                <th>Customer Name</th>
+                                <th>Code</th>
+                                <th>Circle</th>
+                                <th>OA</th>
+                                <th>Mobile</th>
+                                <th>Email</th>
+                                <th style="text-align:right;">Monthly Rent (₹)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tblBody">
+                            <tr>
+                                <td colspan="9">
+                                    <div class="ld-row">
+                                        <div class="ld-dot"></div>
+                                        <div class="ld-dot"></div>
+                                        <div class="ld-dot"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Pagination -->
+                <div class="pag-row" id="pagRow" style="display:none;">
+                    <span class="pag-info" id="pagInfo"></span>
+                    <div class="pag-btns" id="pagBtns"></div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+</div>
+
+<!-- Send Bill Modal -->
+<div id="sendModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+     background:rgba(0,0,0,0.45);z-index:3000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:18px;padding:30px;width:90%;max-width:520px;
+                position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.15);">
+        <h2 style="margin:0 0 6px;color:#0f172a;font-size:1.2rem;font-weight:800;">📧 Send Bill Email</h2>
+        <p style="color:#64748b;font-size:0.87rem;margin:0 0 20px;">
+            A bill email will be sent to the selected customers.
+        </p>
+
+        <div style="background:#f8fafc;border-radius:10px;padding:14px 16px;margin-bottom:18px;">
+            <div style="font-size:0.78rem;font-weight:800;color:#64748b;text-transform:uppercase;
+                        letter-spacing:0.6px;margin-bottom:8px;">Selected Customers</div>
+            <div id="modalCustomerList" style="max-height:160px;overflow-y:auto;font-size:0.86rem;
+                 color:#334155;display:flex;flex-direction:column;gap:4px;"></div>
+        </div>
+
+        <div style="margin-bottom:16px;">
+            <label style="display:block;font-size:0.8rem;font-weight:700;color:#64748b;
+                          text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">
+                Subject
+            </label>
+            <input type="text" id="emailSubject"
+                   value="Coral Infratel — Monthly Bill for the Current Period"
+                   style="width:100%;padding:10px 13px;border:1px solid #cbd5e1;border-radius:8px;
+                          font-family:'Inter',sans-serif;font-size:0.9rem;box-sizing:border-box;">
+        </div>
+
+        <div style="margin-bottom:20px;">
+            <label style="display:block;font-size:0.8rem;font-weight:700;color:#64748b;
+                          text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">
+                Message (optional)
+            </label>
+            <textarea id="emailBody" rows="4"
+                      placeholder="Add a custom message to include in the email..."
+                      style="width:100%;padding:10px 13px;border:1px solid #cbd5e1;border-radius:8px;
+                             font-family:'Inter',sans-serif;font-size:0.88rem;
+                             resize:vertical;box-sizing:border-box;"></textarea>
+        </div>
+
+        <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 14px;
+                    margin-bottom:20px;font-size:0.82rem;color:#c2410c;font-weight:600;">
+            ⚠️ Customers without an email address will be skipped.
+        </div>
+
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button onclick="closeSendModal()"
+                    style="background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;padding:10px 20px;
+                           border-radius:8px;font-family:'Inter',sans-serif;font-weight:700;cursor:pointer;">
+                Cancel
+            </button>
+            <button onclick="sendBillEmails()" id="btnSendConfirm"
+                    style="background:#002d72;color:#fff;border:none;padding:10px 26px;border-radius:8px;
+                           font-family:'Inter',sans-serif;font-weight:700;cursor:pointer;transition:.2s;">
+                📧 Send Emails
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════
+let allCustomers   = [];   // all active customers from API
+let filteredData   = [];   // after filter applied
+let selectedIds    = new Set();
+
+// Pagination
+const PAGE_SIZE = 50;
+let currentPage = 1;
+
+const API = (url, opts) => fetch(url, {
+    headers: {
+        'Authorization': 'Bearer ' + localStorage.getItem('crm_token'),
+        'Content-Type': 'application/json'
+    }, ...opts
+});
+
+// ═══════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+    const user = JSON.parse(localStorage.getItem('crm_user'));
+    if (!user) { window.location.href = 'login.html'; return; }
+    document.getElementById('userInfoDisplay').textContent =
+        `${user.name || user.username} (${user.role === 'admin' ? 'Admin' : 'User'})`;
+
+    await loadCustomers();
+});
+
+async function loadCustomers() {
+    try {
+        const r = await window.apiFetch('/api/bills/active-customers');
+        if (!r.ok) throw new Error('API error');
+        // API already returns only customers with active (non-closed) lines
+        allCustomers = await r.json();
+
+        buildFilterDropdowns();
+        applyFilters();
+        updateStats();
+    } catch(e) {
+        document.getElementById('tblBody').innerHTML =
+            `<tr><td colspan="9" class="tbl-empty"><div class="em-icon">⚠️</div>Failed to load customers</td></tr>`;
+        console.error(e);
+    }
+}
+
+// ═══════════════════════════════════════════════════════
+//  DROPDOWNS
+// ═══════════════════════════════════════════════════════
+function buildFilterDropdowns() {
+    const circles = [...new Set(allCustomers.map(c => c.circle).filter(Boolean))].sort();
+    const circSel = document.getElementById('fCircle');
+    circles.forEach(c => {
+        const o = document.createElement('option');
+        o.value = c; o.textContent = c;
+        circSel.appendChild(o);
+    });
+}
+
+function onCircleChange() {
+    const circle = document.getElementById('fCircle').value;
+    const oaSel  = document.getElementById('fOA');
+    oaSel.innerHTML = '<option value="">-- All OAs --</option>';
+    if (circle) {
+        const oas = [...new Set(
+            allCustomers.filter(c => c.circle === circle).map(c => c.oa_name).filter(Boolean)
+        )].sort();
+        oas.forEach(o => {
+            const opt = document.createElement('option');
+            opt.value = o; opt.textContent = o;
+            oaSel.appendChild(opt);
+        });
+    } else {
+        // Rebuild all OAs
+        const oas = [...new Set(allCustomers.map(c => c.oa_name).filter(Boolean))].sort();
+        oas.forEach(o => {
+            const opt = document.createElement('option');
+            opt.value = o; opt.textContent = o;
+            oaSel.appendChild(opt);
+        });
+    }
+    applyFilters();
+}
+
+// ═══════════════════════════════════════════════════════
+//  FILTER
+// ═══════════════════════════════════════════════════════
+function applyFilters() {
+    const circle   = document.getElementById('fCircle').value;
+    const oa       = document.getElementById('fOA').value;
+    const q        = document.getElementById('fSearch').value.toLowerCase().trim();
+    const noEmail  = document.getElementById('chkNoEmail').checked;
+
+    filteredData = allCustomers.filter(c => {
+        if (circle && c.circle !== circle) return false;
+        if (oa     && (c.oa_name || '') !== oa) return false;
+        if (q) {
+            const name  = (c.customer_name || '').toLowerCase();
+            const code  = (c.customer_code || '').toLowerCase();
+            const mob   = (c.mobile_no || '').toLowerCase();
+            if (!name.includes(q) && !code.includes(q) && !mob.includes(q)) return false;
+        }
+        if (noEmail && c.email_id && c.email_id.trim()) return false;
+        return true;
+    });
+
+    currentPage = 1;
+    renderTable();
+    updateStats();
+}
+
+function resetFilters() {
+    document.getElementById('fCircle').value = '';
+    document.getElementById('fOA').value = '';
+    document.getElementById('fSearch').value = '';
+    document.getElementById('chkNoEmail').checked = false;
+    // Rebuild OA dropdown to show all
+    const oaSel = document.getElementById('fOA');
+    oaSel.innerHTML = '<option value="">-- All OAs --</option>';
+    const oas = [...new Set(allCustomers.map(c => c.oa_name).filter(Boolean))].sort();
+    oas.forEach(o => {
+        const opt = document.createElement('option');
+        opt.value = o; opt.textContent = o;
+        oaSel.appendChild(opt);
+    });
+    applyFilters();
+}
+
+// ═══════════════════════════════════════════════════════
+//  RENDER TABLE
+// ═══════════════════════════════════════════════════════
+function renderTable() {
+    const totalPages = Math.max(1, Math.ceil(filteredData.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const page  = filteredData.slice(start, start + PAGE_SIZE);
+
+    const tbody = document.getElementById('tblBody');
+    document.getElementById('tblInfo').textContent =
+        `Showing ${filteredData.length} of ${allCustomers.length} active customers`;
+
+    if (!page.length) {
+        tbody.innerHTML = `<tr><td colspan="9">
+            <div class="tbl-empty">
+                <div class="em-icon">🔍</div>
+                <div>No customers match the current filters.</div>
+            </div></td></tr>`;
+        document.getElementById('pagRow').style.display = 'none';
+        document.getElementById('chkAll').checked = false;
+        return;
+    }
+
+    tbody.innerHTML = page.map((c, i) => {
+        const isSel  = selectedIds.has(c.id);
+        const telStr = c.mobile_no || '—';
+        const rent   = c.monthly_rent ? '₹ ' + Number(c.monthly_rent).toLocaleString('en-IN') : '—';
+        return `<tr class="${isSel ? 'selected' : ''}" onclick="rowClick(${c.id},this)">
+            <td onclick="event.stopPropagation()">
+                <input type="checkbox" data-id="${c.id}"
+                       ${isSel ? 'checked' : ''}
+                       onchange="toggleRow(${c.id}, this.checked, this.closest('tr'))">
+            </td>
+            <td style="color:#94a3b8;font-size:0.78rem;">${start + i + 1}</td>
+            <td>
+                <div class="c-name">${esc(c.customer_name)}</div>
+                ${c.contact_person ? `<div style="font-size:0.75rem;color:#94a3b8;">${esc(c.contact_person)}</div>` : ''}
+            </td>
+            <td class="c-code">${esc(c.customer_code || '—')}</td>
+            <td>${c.circle ? `<span class="badge-circle">${esc(c.circle)}</span>` : '—'}</td>
+            <td>${c.oa_name ? `<span class="badge-oa">${esc(c.oa_name)}</span>` : '—'}</td>
+            <td class="c-tel">${esc(telStr)}</td>
+            <td>${c.email_id && c.email_id.trim()
+                ? `<span class="c-email">📧 ${esc(c.email_id)}</span>`
+                : `<span class="c-no-email">No email</span>`}</td>
+            <td style="text-align:right;" class="c-rent">${rent}</td>
+        </tr>`;
+    }).join('');
+
+    // Sync select-all checkbox
+    const pageIds = page.map(c => c.id);
+    document.getElementById('chkAll').checked =
+        pageIds.length > 0 && pageIds.every(id => selectedIds.has(id));
+
+    renderPagination(totalPages);
+    updateBulkBar();
+}
+
+// ═══════════════════════════════════════════════════════
+//  PAGINATION
+// ═══════════════════════════════════════════════════════
+function renderPagination(totalPages) {
+    const pagRow = document.getElementById('pagRow');
+    if (totalPages <= 1) { pagRow.style.display = 'none'; return; }
+
+    pagRow.style.display = 'flex';
+    document.getElementById('pagInfo').textContent =
+        `Page ${currentPage} of ${totalPages}  (${filteredData.length} records)`;
+
+    const btns = document.getElementById('pagBtns');
+    btns.innerHTML = '';
+
+    // Prev
+    const prev = document.createElement('button');
+    prev.className = 'pag-btn';
+    prev.textContent = '◀ Prev';
+    prev.disabled = currentPage === 1;
+    prev.onclick = () => { currentPage--; renderTable(); };
+    btns.appendChild(prev);
+
+    // Page numbers (show max 7 buttons)
+    const range = pageRange(currentPage, totalPages);
+    range.forEach(p => {
+        if (p === '...') {
+            const sp = document.createElement('span');
+            sp.textContent = '…';
+            sp.style.cssText = 'padding:6px 4px;color:#94a3b8;font-size:0.85rem;';
+            btns.appendChild(sp);
+        } else {
+            const b = document.createElement('button');
+            b.className = 'pag-btn' + (p === currentPage ? ' active' : '');
+            b.textContent = p;
+            b.onclick = () => { currentPage = p; renderTable(); };
+            btns.appendChild(b);
+        }
+    });
+
+    // Next
+    const next = document.createElement('button');
+    next.className = 'pag-btn';
+    next.textContent = 'Next ▶';
+    next.disabled = currentPage === totalPages;
+    next.onclick = () => { currentPage++; renderTable(); };
+    btns.appendChild(next);
+}
+
+function pageRange(cur, total) {
+    if (total <= 7) return Array.from({length: total}, (_, i) => i + 1);
+    const r = [];
+    if (cur <= 4) {
+        for (let i = 1; i <= 5; i++) r.push(i);
+        r.push('...'); r.push(total);
+    } else if (cur >= total - 3) {
+        r.push(1); r.push('...');
+        for (let i = total - 4; i <= total; i++) r.push(i);
+    } else {
+        r.push(1); r.push('...');
+        r.push(cur - 1); r.push(cur); r.push(cur + 1);
+        r.push('...'); r.push(total);
+    }
+    return r;
+}
+
+// ═══════════════════════════════════════════════════════
+//  SELECTION
+// ═══════════════════════════════════════════════════════
+function rowClick(id, tr) {
+    const cb = tr.querySelector('input[type=checkbox]');
+    const newState = !cb.checked;
+    cb.checked = newState;
+    toggleRow(id, newState, tr);
+}
+
+function toggleRow(id, checked, tr) {
+    if (checked) selectedIds.add(id);
+    else          selectedIds.delete(id);
+    if (tr) tr.classList.toggle('selected', checked);
+    updateBulkBar();
+
+    // Sync select-all
+    const start   = (currentPage - 1) * PAGE_SIZE;
+    const pageIds = filteredData.slice(start, start + PAGE_SIZE).map(c => c.id);
+    document.getElementById('chkAll').checked =
+        pageIds.length > 0 && pageIds.every(i => selectedIds.has(i));
+}
+
+function toggleSelectAll(checked) {
+    const start  = (currentPage - 1) * PAGE_SIZE;
+    const page   = filteredData.slice(start, start + PAGE_SIZE);
+    page.forEach(c => {
+        if (checked) selectedIds.add(c.id);
+        else          selectedIds.delete(c.id);
+    });
+    // Re-render to update row styles
+    renderTable();
+    // Restore chkAll state (renderTable may reset it)
+    document.getElementById('chkAll').checked = checked;
+}
+
+function deselectAll() {
+    selectedIds.clear();
+    renderTable();
+    document.getElementById('chkAll').checked = false;
+}
+
+function updateBulkBar() {
+    const bar = document.getElementById('bulkBar');
+    const top = document.getElementById('btnSendTop');
+    const n   = selectedIds.size;
+    bar.classList.toggle('show', n > 0);
+    top.style.display = n > 0 ? '' : 'none';
+    document.getElementById('bulkCount').textContent = `${n} customer${n !== 1 ? 's' : ''} selected`;
+}
+
+// ═══════════════════════════════════════════════════════
+//  STATS
+// ═══════════════════════════════════════════════════════
+function updateStats() {
+    document.getElementById('statTotal').textContent = `${allCustomers.length} customers with active lines`;
+    document.getElementById('statShowing').textContent = `Showing ${filteredData.length}`;
+    const noEmail = allCustomers.filter(c => !c.email_id || !c.email_id.trim()).length;
+    document.getElementById('statNoEmail').textContent = `${noEmail} without email`;
+}
+
+// ═══════════════════════════════════════════════════════
+//  SEND BILL MODAL
+// ═══════════════════════════════════════════════════════
+function openSendModal() {
+    if (!selectedIds.size) { showToast('Please select at least one customer', 'err'); return; }
+    const selected = allCustomers.filter(c => selectedIds.has(c.id));
+    const list = document.getElementById('modalCustomerList');
+    list.innerHTML = selected.map(c => {
+        const hasEmail = c.email_id && c.email_id.trim();
+        return `<div style="display:flex;justify-content:space-between;align-items:center;
+                            padding:5px 0;border-bottom:1px solid #f1f5f9;">
+            <span style="font-weight:600;">${esc(c.customer_name)}</span>
+            ${hasEmail
+                ? `<span style="font-size:0.78rem;color:#2563eb;">${esc(c.email_id)}</span>`
+                : `<span style="font-size:0.78rem;color:#f97316;font-weight:600;">⚠ No email</span>`}
+        </div>`;
+    }).join('');
+    document.getElementById('sendModal').style.display = 'flex';
+}
+
+function closeSendModal() {
+    document.getElementById('sendModal').style.display = 'none';
+}
+
+async function sendBillEmails() {
+    const selected  = allCustomers.filter(c => selectedIds.has(c.id));
+    const withEmail = selected.filter(c => c.email_id && c.email_id.trim());
+    if (!withEmail.length) {
+        showToast('None of the selected customers have an email address.', 'err');
+        return;
+    }
+    const subject = document.getElementById('emailSubject').value.trim();
+    const body    = document.getElementById('emailBody').value.trim();
+    const btn     = document.getElementById('btnSendConfirm');
+    btn.textContent = '⏳ Sending...';
+    btn.disabled    = true;
+
+    try {
+        const r = await API('/api/bills/send-email', {
+            method: 'POST',
+            body: JSON.stringify({
+                customer_ids : withEmail.map(c => c.id),
+                subject,
+                message      : body
+            })
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Failed to send');
+        closeSendModal();
+        showToast(`✔ Bill emails sent to ${d.sent || withEmail.length} customers!`, 'ok');
+        deselectAll();
+    } catch(e) {
+        showToast(e.message || 'Email send failed. Please try again.', 'err');
+    } finally {
+        btn.textContent = '📧 Send Emails';
+        btn.disabled    = false;
+    }
+}
+
+// ═══════════════════════════════════════════════════════
+//  UTILITIES
+// ═══════════════════════════════════════════════════════
+function showToast(txt, type) {
+    const t = document.getElementById('toast');
+    t.textContent = txt;
+    t.className   = `toast ${type} show`;
+    clearTimeout(t._t);
+    t._t = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+function esc(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Close modal on backdrop click
+document.getElementById('sendModal').addEventListener('click', function(e) {
+    if (e.target === this) closeSendModal();
+});
+</script>
+</body>
+</html>

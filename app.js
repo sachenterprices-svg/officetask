@@ -39,7 +39,8 @@ const pool = mysql.createPool({
     connectionLimit: 5,
     queueLimit: 0,
     connectTimeout: 30000,
-    ssl: false
+    ssl: false,
+    timezone: '+05:30'
 });
 
 // Upgrade Users Table for Advanced Features
@@ -54,7 +55,8 @@ async function upgradeUsersTable() {
             { name: 'allowed_customers', type: 'TEXT' },
             { name: 'permissions', type: 'JSON' },
             { name: 'reports_to', type: 'INT' },
-            { name: 'backdate_rights', type: 'BOOLEAN DEFAULT FALSE' }
+            { name: 'backdate_rights', type: 'BOOLEAN DEFAULT FALSE' },
+            { name: 'department', type: "VARCHAR(50) DEFAULT 'Technical'" }
         ];
 
         for (const col of columns) {
@@ -138,7 +140,10 @@ async function initializeComplaintsTable() {
             { name: 'priority', type: "ENUM('Low','Medium','High') DEFAULT 'Low'" },
             { name: 'fault_at', type: 'VARCHAR(150)' },
             { name: 'remark', type: 'TEXT' },
-            { name: 'assigner_comments', type: 'TEXT' }
+            { name: 'assigner_comments', type: 'TEXT' },
+            { name: 'verification_status', type: "VARCHAR(50) DEFAULT NULL" },
+            { name: 'resolved_by', type: 'VARCHAR(100) DEFAULT NULL' },
+            { name: 'verified_by', type: 'VARCHAR(100) DEFAULT NULL' }
         ];
         for (const col of newCols) {
             try {
@@ -183,6 +188,67 @@ async function generateComplaintNo(circle, oa_name) {
 }
 
 // Initialize Master Customer Database (Excel-based)
+async function initializeAreaEngineerMappingTables() {
+    try {
+        // Circle-level mapping
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS circle_engineer_mapping (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                circle VARCHAR(100) NOT NULL,
+                engineer_id INT NOT NULL,
+                UNIQUE KEY uniq_circle (circle)
+            ) ENGINE=InnoDB
+        `);
+        // OA-level mapping (overrides circle)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS oa_engineer_mapping (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                circle VARCHAR(100) NOT NULL,
+                oa_name VARCHAR(100) NOT NULL,
+                engineer_id INT NOT NULL,
+                UNIQUE KEY uniq_oa (circle, oa_name)
+            ) ENGINE=InnoDB
+        `);
+        // Customer-specific (overrides OA & Circle) - column on customers table
+        try { await pool.query('ALTER TABLE customers ADD COLUMN assigned_engineer_id INT DEFAULT NULL'); } catch(e) {}
+        console.log('✅ Area engineer mapping tables initialized.');
+    } catch (err) {
+        console.error('⚠️ Area mapping init error:', err.message);
+    }
+}
+
+// Helper: auto-assign engineer based on priority (Customer > OA > Circle)
+async function autoAssignEngineer(circle, oa_name, telephone_number, std_code) {
+    try {
+        // Priority 1: specific customer assignment
+        const [custRows] = await pool.query(
+            `SELECT assigned_engineer_id FROM customers
+             WHERE telephone_number=? AND std_code=? AND assigned_engineer_id IS NOT NULL LIMIT 1`,
+            [telephone_number, std_code]
+        );
+        if (custRows.length && custRows[0].assigned_engineer_id) return custRows[0].assigned_engineer_id;
+
+        // Priority 2: OA-wise
+        if (oa_name) {
+            const [oaRows] = await pool.query(
+                'SELECT engineer_id FROM oa_engineer_mapping WHERE circle=? AND oa_name=? LIMIT 1',
+                [circle, oa_name]
+            );
+            if (oaRows.length) return oaRows[0].engineer_id;
+        }
+
+        // Priority 3: Circle-wise
+        if (circle) {
+            const [circleRows] = await pool.query(
+                'SELECT engineer_id FROM circle_engineer_mapping WHERE circle=? LIMIT 1',
+                [circle]
+            );
+            if (circleRows.length) return circleRows[0].engineer_id;
+        }
+        return null; // Unassigned
+    } catch(e) { return null; }
+}
+
 async function initializeCustomersTable() {
     try {
         await pool.query(`
@@ -401,6 +467,43 @@ async function initializeTasksTable() {
     }
 }
 
+async function initializeUserManagersTable() {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS user_managers (
+                user_id INT NOT NULL,
+                manager_id INT NOT NULL,
+                PRIMARY KEY (user_id, manager_id),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (manager_id) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB
+        `);
+        console.log('✅ User Managers table initialized.');
+    } catch (err) {
+        console.error('⚠️ Could not initialize user_managers table:', err.message);
+    }
+}
+
+async function initializeTaskCategoriesTable() {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS task_categories (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(100) NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB
+        `);
+        // Insert defaults if empty
+        const [rows] = await pool.query('SELECT COUNT(*) as cnt FROM task_categories');
+        if (rows[0].cnt === 0) {
+            await pool.query(`INSERT INTO task_categories (name) VALUES ('General'),('Accounts'),('Sales'),('Clerical'),('Technical'),('Other')`);
+        }
+        console.log('✅ Task Categories table initialized.');
+    } catch (err) {
+        console.error('⚠️ Could not initialize task_categories table:', err.message);
+    }
+}
+
 async function initializeRecurringTasksTable() {
     try {
         await pool.query(`
@@ -419,6 +522,51 @@ async function initializeRecurringTasksTable() {
         console.log('✅ Recurring Tasks table initialized.');
     } catch (err) {
         console.error('⚠️ Could not initialize recurring tasks table:', err.message);
+    }
+}
+
+async function initializeActivityTables() {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS activity_templates (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                department ENUM('Technical','Clerical','Accounts','Sales','Admin','All') NOT NULL DEFAULT 'All',
+                category ENUM('Daily','Week1','Week2','Week3','Week4') NOT NULL DEFAULT 'Daily',
+                task_name TEXT NOT NULL,
+                sort_order INT DEFAULT 0,
+                is_active TINYINT(1) DEFAULT 1,
+                created_by INT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB
+        `);
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS activity_user_tasks (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                template_id INT NOT NULL,
+                assigned_by INT,
+                assigned_date DATE,
+                is_active TINYINT(1) DEFAULT 1,
+                UNIQUE KEY unique_user_template (user_id, template_id)
+            ) ENGINE=InnoDB
+        `);
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS activity_logs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                template_id INT,
+                custom_task VARCHAR(500),
+                log_date DATE NOT NULL,
+                status ENUM('done','not_done','partial','leave','na') DEFAULT 'not_done',
+                remarks TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_user_task_date (user_id, template_id, log_date)
+            ) ENGINE=InnoDB
+        `);
+        console.log('✅ Activity tables initialized.');
+    } catch (err) {
+        console.error('⚠️ Could not initialize activity tables:', err.message);
     }
 }
 
@@ -583,12 +731,106 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
+// --- TASK CATEGORIES ROUTES ---
+app.get('/api/task-categories', authenticateToken, async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT * FROM task_categories ORDER BY name');
+        res.json(rows);
+    } catch (err) { res.status(500).json({ error: 'Failed to fetch task categories' }); }
+});
+
+app.post('/api/task-categories', authenticateToken, isAdmin, async (req, res) => {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'Name required' });
+    try {
+        const [result] = await pool.query('INSERT INTO task_categories (name) VALUES (?)', [name.trim()]);
+        res.status(201).json({ id: result.insertId, name: name.trim() });
+    } catch (err) {
+        if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Category already exists' });
+        res.status(500).json({ error: 'Failed to create category' });
+    }
+});
+
+app.delete('/api/task-categories/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        await pool.query('DELETE FROM task_categories WHERE id = ?', [req.params.id]);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: 'Failed to delete category' }); }
+});
+
+// --- ASSIGNABLE USERS (Hierarchy-based via user_managers table, excludes self) ---
+app.get('/api/users/assignable', authenticateToken, async (req, res) => {
+    try {
+        const currentUser = req.user;
+        let rows;
+        if (currentUser.role === 'admin') {
+            [rows] = await pool.query(
+                'SELECT id, username, name, role FROM users WHERE username != ? ORDER BY name',
+                [currentUser.username]
+            );
+        } else {
+            const [meRow] = await pool.query('SELECT id FROM users WHERE username = ?', [currentUser.username]);
+            const myId = meRow[0]?.id;
+            // Users who report to current user (from user_managers table)
+            [rows] = await pool.query(
+                `SELECT u.id, u.username, u.name, u.role
+                 FROM users u
+                 JOIN user_managers um ON u.id = um.user_id
+                 WHERE um.manager_id = ? ORDER BY u.name`,
+                [myId]
+            );
+        }
+        res.json(rows);
+    } catch (err) {
+        console.error('Assignable users error:', err);
+        res.status(500).json({ error: 'Failed to fetch assignable users' });
+    }
+});
+
+// --- USER MANAGERS (Multiple managers per user) ---
+// Get all managers for a specific user
+app.get('/api/user-managers/:userId', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const [rows] = await pool.query(
+            'SELECT manager_id FROM user_managers WHERE user_id = ?',
+            [req.params.userId]
+        );
+        res.json(rows.map(r => r.manager_id));
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch managers' });
+    }
+});
+
+// Set managers for a user (replaces all existing)
+app.post('/api/user-managers/:userId', authenticateToken, isAdmin, async (req, res) => {
+    const { manager_ids } = req.body; // array of manager IDs
+    const userId = req.params.userId;
+    const conn = await pool.getConnection();
+    try {
+        await conn.beginTransaction();
+        await conn.query('DELETE FROM user_managers WHERE user_id = ?', [userId]);
+        if (manager_ids && manager_ids.length > 0) {
+            const values = manager_ids.map(mid => [userId, mid]);
+            await conn.query('INSERT INTO user_managers (user_id, manager_id) VALUES ?', [values]);
+        }
+        await conn.commit();
+        res.json({ success: true });
+    } catch (err) {
+        await conn.rollback();
+        console.error('Set managers error:', err);
+        res.status(500).json({ error: 'Failed to set managers' });
+    } finally {
+        conn.release();
+    }
+});
+
 // --- USERS ROUTES (Admin Only) ---
 app.get('/api/users', authenticateToken, isAdmin, async (req, res) => {
     try {
         const [rows] = await pool.query(`
-            SELECT u1.id, u1.username, u1.role, u1.name, u1.mobile, u1.email, 
+            SELECT u1.id, u1.username, u1.role, u1.name, u1.mobile, u1.email,
                    u1.allowed_circle, u1.allowed_oa, u1.permissions, u1.reports_to, u1.created_at,
+                   u1.department,
                    u2.name as manager_name, u2.username as manager_username
             FROM users u1
             LEFT JOIN users u2 ON u1.reports_to = u2.id
@@ -601,12 +843,12 @@ app.get('/api/users', authenticateToken, isAdmin, async (req, res) => {
 });
 
 app.post('/api/users', authenticateToken, isAdmin, async (req, res) => {
-    const { username, password, role, name, mobile, email, allowed_circle, allowed_oa, permissions, reports_to } = req.body;
+    const { username, password, role, name, mobile, email, allowed_circle, allowed_oa, permissions, reports_to, department } = req.body;
     try {
         const hash = await bcrypt.hash(password, 10);
         const [result] = await pool.query(
-            'INSERT INTO users (username, password_hash, role, name, mobile, email, allowed_circle, allowed_oa, permissions, reports_to, backdate_rights) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [username, hash, role || 'user', name || null, mobile || null, email || null, allowed_circle || null, allowed_oa || null, JSON.stringify(permissions || []), reports_to || null, req.body.backdate_rights || false]
+            'INSERT INTO users (username, password_hash, role, name, mobile, email, allowed_circle, allowed_oa, permissions, reports_to, backdate_rights, department) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [username, hash, role || 'user', name || null, mobile || null, email || null, allowed_circle || null, allowed_oa || null, JSON.stringify(permissions || []), reports_to || null, req.body.backdate_rights || false, department || 'Technical']
         );
         res.status(201).json({ id: result.insertId, username, role });
     } catch (err) {
@@ -616,11 +858,11 @@ app.post('/api/users', authenticateToken, isAdmin, async (req, res) => {
 });
 
 app.put('/api/users/:id', authenticateToken, isAdmin, async (req, res) => {
-    const { role, name, mobile, email, allowed_circle, allowed_oa, permissions, reports_to } = req.body;
+    const { role, name, mobile, email, allowed_circle, allowed_oa, permissions, reports_to, department } = req.body;
     try {
         await pool.query(
-            'UPDATE users SET role=?, name=?, mobile=?, email=?, allowed_circle=?, allowed_oa=?, permissions=?, reports_to=?, backdate_rights=? WHERE id=?',
-            [role, name || null, mobile || null, email || null, allowed_circle || null, allowed_oa || null, JSON.stringify(permissions || []), reports_to || null, req.body.backdate_rights || false, req.params.id]
+            'UPDATE users SET role=?, name=?, mobile=?, email=?, allowed_circle=?, allowed_oa=?, permissions=?, reports_to=?, backdate_rights=?, department=? WHERE id=?',
+            [role, name || null, mobile || null, email || null, allowed_circle || null, allowed_oa || null, JSON.stringify(permissions || []), reports_to || null, req.body.backdate_rights || false, department || 'Technical', req.params.id]
         );
         res.json({ message: 'User updated successfully' });
     } catch (err) {
@@ -759,6 +1001,29 @@ app.patch('/api/proposals/:id/followup', authenticateToken, async (req, res) => 
 });
 
 // --- COMPLAINTS ROUTES ---
+
+// Public check: does an active complaint exist for this number?
+app.get('/api/complaints/check', async (req, res) => {
+    const { std_code, telephone_number } = req.query;
+    try {
+        const [rows] = await pool.query(
+            `SELECT id, complaint_no, status FROM complaints
+             WHERE telephone_number = ? AND std_code = ?
+             AND status NOT IN ('Resolved', 'Cancelled')
+             ORDER BY created_at DESC LIMIT 1`,
+            [telephone_number, std_code]
+        );
+        if (rows.length > 0) {
+            const ticketId = `CRM-${String(rows[0].id).padStart(4, '0')}`;
+            res.json({ exists: true, ticket_id: ticketId, complaint_no: rows[0].complaint_no, status: rows[0].status });
+        } else {
+            res.json({ exists: false });
+        }
+    } catch (err) {
+        res.json({ exists: false });
+    }
+});
+
 app.get('/api/complaints', authenticateToken, async (req, res) => {
     try {
         const user = req.user;
@@ -815,11 +1080,19 @@ app.get('/api/complaints/report', authenticateToken, async (req, res) => {
 // Update complaint (engineer action)
 app.put('/api/complaints/:id', authenticateToken, async (req, res) => {
     const { fault_at, status, remark, assigner_comments, priority, assigned_to } = req.body;
+    const currentUser = req.user;
     try {
         const fields = [];
         const params = [];
         if (fault_at !== undefined) { fields.push('fault_at=?'); params.push(fault_at); }
-        if (status !== undefined) { fields.push('status=?'); params.push(status); }
+        if (status !== undefined) {
+            fields.push('status=?'); params.push(status);
+            // When Resolved or Cancelled → set resolved_by + verification_status
+            if (status === 'Resolved' || status === 'Cancelled') {
+                fields.push('resolved_by=?'); params.push(currentUser.name || currentUser.username);
+                fields.push('verification_status=?'); params.push('Pending Verification');
+            }
+        }
         if (remark !== undefined) { fields.push('remark=?'); params.push(remark); }
         if (assigner_comments !== undefined) { fields.push('assigner_comments=?'); params.push(assigner_comments); }
         if (priority !== undefined) { fields.push('priority=?'); params.push(priority); }
@@ -834,9 +1107,85 @@ app.put('/api/complaints/:id', authenticateToken, async (req, res) => {
     }
 });
 
+// GET complaints pending verification (for seniors/managers)
+app.get('/api/complaints/pending-verification', authenticateToken, async (req, res) => {
+    const currentUser = req.user;
+    try {
+        let rows;
+        if (currentUser.role === 'admin') {
+            // Admin sees all pending verification
+            [rows] = await pool.query(
+                `SELECT c.*, u.name as assigned_username FROM complaints c
+                 LEFT JOIN users u ON c.assigned_to = u.id
+                 WHERE c.verification_status = 'Pending Verification'
+                 ORDER BY c.updated_at DESC`
+            );
+        } else {
+            // Non-admin: see complaints resolved by their subordinates
+            const [meRow] = await pool.query('SELECT id FROM users WHERE username=?', [currentUser.username]);
+            const myId = meRow[0]?.id;
+            [rows] = await pool.query(
+                `SELECT c.*, u.name as assigned_username FROM complaints c
+                 LEFT JOIN users u ON c.assigned_to = u.id
+                 LEFT JOIN users resolver ON resolver.name = c.resolved_by OR resolver.username = c.resolved_by
+                 LEFT JOIN user_managers um ON um.user_id = resolver.id
+                 WHERE c.verification_status = 'Pending Verification' AND um.manager_id = ?
+                 ORDER BY c.updated_at DESC`,
+                [myId]
+            );
+        }
+        res.json(rows);
+    } catch (err) {
+        console.error('Pending verification error:', err);
+        res.status(500).json({ error: 'Failed to fetch' });
+    }
+});
+
+// PUT verify/reject a complaint
+app.put('/api/complaints/:id/verify', authenticateToken, async (req, res) => {
+    const { action } = req.body; // 'Verified' or 'Rejected'
+    const currentUser = req.user;
+    try {
+        if (action === 'Verified') {
+            await pool.query(
+                `UPDATE complaints SET verification_status='Verified', verified_by=? WHERE id=?`,
+                [currentUser.name || currentUser.username, req.params.id]
+            );
+        } else if (action === 'Rejected') {
+            // Reject → back to In Progress, clear verification
+            await pool.query(
+                `UPDATE complaints SET verification_status='Rejected', status='In Progress', resolved_by=NULL WHERE id=?`,
+                [req.params.id]
+            );
+        }
+        res.json({ message: `Complaint ${action}` });
+    } catch (err) {
+        console.error('Verify error:', err);
+        res.status(500).json({ error: 'Failed to verify' });
+    }
+});
+
 app.post('/api/complaints', async (req, res) => {
     const { customer_name, complainee_name, mobile, email, issue_type, description, std_code, telephone_number } = req.body;
     try {
+        // Check for existing active complaint for this telephone number
+        const [existing] = await pool.query(
+            `SELECT id FROM complaints
+             WHERE telephone_number = ? AND std_code = ?
+             AND status NOT IN ('Resolved', 'Cancelled')
+             ORDER BY created_at DESC LIMIT 1`,
+            [telephone_number, std_code]
+        );
+        if (existing.length > 0) {
+            const existingTicketId = `CRM-${String(existing[0].id).padStart(4, '0')}`;
+            return res.status(409).json({
+                duplicate: true,
+                ticket_id: existingTicketId,
+                complaint_no: existing[0].complaint_no,
+                message: 'Your complaint is already registered with us.'
+            });
+        }
+
         // Lookup circle and OA from customers table (try multiple formats)
         let circle = '', oa_name = '';
         try {
@@ -852,9 +1201,11 @@ app.post('/api/complaints', async (req, res) => {
         } catch (e) { /* ignore */ }
 
         const complaint_no = await generateComplaintNo(circle, oa_name);
+        // Auto-assign engineer (Customer > OA > Circle priority)
+        const autoEngineerId = await autoAssignEngineer(circle, oa_name, telephone_number, std_code);
         const [result] = await pool.query(
-            'INSERT INTO complaints (complaint_no, customer_name, complainee_name, mobile, email, issue_type, description, std_code, telephone_number, circle, oa_name, assigner_comments) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [complaint_no, customer_name, complainee_name || customer_name, mobile, email, issue_type || 'Auto-Support', description, std_code, telephone_number, circle, oa_name, 'System Auto Assign']
+            'INSERT INTO complaints (complaint_no, customer_name, complainee_name, mobile, email, issue_type, description, std_code, telephone_number, circle, oa_name, assigner_comments, assigned_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [complaint_no, customer_name, complainee_name || customer_name, mobile, email, issue_type || 'Auto-Support', description, std_code, telephone_number, circle, oa_name, 'System Auto Assign', autoEngineerId]
         );
 
         const ticketId = `CRM-${String(result.insertId).padStart(4, '0')}`;
@@ -997,12 +1348,143 @@ async function sendWhatsAppNotification(data) {
 // --- CUSTOMERS ROUTES ---
 app.get('/api/customers', authenticateToken, async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT * FROM customers ORDER BY customer_name ASC');
+        const [rows] = await pool.query(`
+            SELECT c.*, u.id as assigned_engineer_id, u.name as assigned_engineer_name, u.username as assigned_engineer_username
+            FROM customers c
+            LEFT JOIN users u ON c.assigned_engineer_id = u.id
+            ORDER BY c.customer_name ASC
+        `);
         res.json(rows);
     } catch (err) {
         console.error('Fetch customers error:', err);
         res.status(500).json({ error: 'Failed to fetch customers' });
     }
+});
+
+// Bulk assign engineer to multiple customers
+app.post('/api/customers/bulk-assign', authenticateToken, isAdmin, async (req, res) => {
+    const { engineer_id, customer_ids } = req.body;
+    if (!engineer_id || !Array.isArray(customer_ids) || !customer_ids.length) {
+        return res.status(400).json({ error: 'engineer_id and customer_ids[] required' });
+    }
+    try {
+        const placeholders = customer_ids.map(() => '?').join(',');
+        const [result] = await pool.query(
+            `UPDATE customers SET assigned_engineer_id=? WHERE id IN (${placeholders})`,
+            [engineer_id, ...customer_ids]
+        );
+        res.json({ message: `${result.affectedRows} customers assigned`, count: result.affectedRows });
+    } catch (err) {
+        console.error('Bulk assign error:', err);
+        res.status(500).json({ error: 'Bulk assign failed' });
+    }
+});
+
+// Assign engineer to customer
+app.put('/api/customers/:id/assign-engineer', authenticateToken, async (req, res) => {
+    const { engineer_id } = req.body;
+    try {
+        // Add column if not exists
+        try { await pool.query('ALTER TABLE customers ADD COLUMN assigned_engineer_id INT DEFAULT NULL'); } catch(e) {}
+        await pool.query('UPDATE customers SET assigned_engineer_id=? WHERE id=?', [engineer_id, req.params.id]);
+        res.json({ message: 'Engineer assigned' });
+    } catch (err) {
+        console.error('Assign engineer error:', err);
+        res.status(500).json({ error: 'Failed to assign' });
+    }
+});
+
+// ── AREA ENGINEER MAPPING APIs ────────────────────────────────────
+
+// GET all circle mappings
+app.get('/api/area-assignment/circles', authenticateToken, async (req, res) => {
+    try {
+        const [rows] = await pool.query(
+            `SELECT cem.*, u.name as engineer_name, u.username
+             FROM circle_engineer_mapping cem
+             LEFT JOIN users u ON cem.engineer_id = u.id
+             ORDER BY cem.circle`
+        );
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: 'Failed' }); }
+});
+
+// Save circle → engineer mapping
+app.post('/api/area-assignment/circles', authenticateToken, async (req, res) => {
+    const { circle, engineer_id } = req.body;
+    try {
+        await pool.query(
+            `INSERT INTO circle_engineer_mapping (circle, engineer_id)
+             VALUES (?, ?) ON DUPLICATE KEY UPDATE engineer_id=?`,
+            [circle, engineer_id, engineer_id]
+        );
+        res.json({ message: 'Circle mapping saved' });
+    } catch(e) { res.status(500).json({ error: 'Failed' }); }
+});
+
+app.delete('/api/area-assignment/circles/:circle', authenticateToken, async (req, res) => {
+    try {
+        await pool.query('DELETE FROM circle_engineer_mapping WHERE circle=?', [decodeURIComponent(req.params.circle)]);
+        res.json({ message: 'Deleted' });
+    } catch(e) { res.status(500).json({ error: 'Failed' }); }
+});
+
+// GET all OA mappings
+app.get('/api/area-assignment/oas', authenticateToken, async (req, res) => {
+    try {
+        const [rows] = await pool.query(
+            `SELECT oem.*, u.name as engineer_name, u.username
+             FROM oa_engineer_mapping oem
+             LEFT JOIN users u ON oem.engineer_id = u.id
+             ORDER BY oem.circle, oem.oa_name`
+        );
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: 'Failed' }); }
+});
+
+// Save OA → engineer mapping
+app.post('/api/area-assignment/oas', authenticateToken, async (req, res) => {
+    const { circle, oa_name, engineer_id } = req.body;
+    try {
+        await pool.query(
+            `INSERT INTO oa_engineer_mapping (circle, oa_name, engineer_id)
+             VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE engineer_id=?`,
+            [circle, oa_name, engineer_id, engineer_id]
+        );
+        res.json({ message: 'OA mapping saved' });
+    } catch(e) { res.status(500).json({ error: 'Failed' }); }
+});
+
+app.delete('/api/area-assignment/oas/:id', authenticateToken, async (req, res) => {
+    try {
+        await pool.query('DELETE FROM oa_engineer_mapping WHERE id=?', [req.params.id]);
+        res.json({ message: 'Deleted' });
+    } catch(e) { res.status(500).json({ error: 'Failed' }); }
+});
+
+// TEMPORARY REASSIGNMENT: Engineer on leave → reassign all their area to another engineer
+app.post('/api/area-assignment/temp-reassign', authenticateToken, async (req, res) => {
+    const { from_engineer_id, to_engineer_id, scope } = req.body;
+    // scope: 'all' (all active complaints) or 'area' (update mappings temporarily)
+    try {
+        let updated = 0;
+        if (scope === 'complaints') {
+            // Reassign all active complaints currently assigned to from_engineer
+            const [result] = await pool.query(
+                `UPDATE complaints SET assigned_to=?
+                 WHERE assigned_to=? AND status NOT IN ('Resolved','Cancelled')`,
+                [to_engineer_id, from_engineer_id]
+            );
+            updated = result.affectedRows;
+        } else if (scope === 'area') {
+            // Update circle & OA mappings
+            await pool.query('UPDATE circle_engineer_mapping SET engineer_id=? WHERE engineer_id=?', [to_engineer_id, from_engineer_id]);
+            await pool.query('UPDATE oa_engineer_mapping SET engineer_id=? WHERE engineer_id=?', [to_engineer_id, from_engineer_id]);
+            await pool.query('UPDATE customers SET assigned_engineer_id=? WHERE assigned_engineer_id=?', [to_engineer_id, from_engineer_id]);
+            updated = 1;
+        }
+        res.json({ message: 'Reassigned successfully', updated });
+    } catch(e) { res.status(500).json({ error: 'Failed' }); }
 });
 
 app.get('/api/customers/search', async (req, res) => {
@@ -1489,6 +1971,33 @@ app.get('/api/reports/consolidated', authenticateToken, async (req, res) => {
     }
 });
 
+// ── BILLING ENDPOINTS ────────────────────────────────────────────────────────
+
+// Customers with at least one ACTIVE (non-closed) telephone line
+app.get('/api/bills/active-customers', authenticateToken, async (req, res) => {
+    try {
+        const [rows] = await pool.query(`
+            SELECT DISTINCT
+                c.id, c.circle, c.ssa, c.oa_name,
+                c.customer_code, c.customer_name,
+                c.mobile_no, c.email_id,
+                c.acc_person_email,
+                c.monthly_rent, c.contact_person
+            FROM customers c
+            WHERE EXISTS (
+                SELECT 1 FROM customer_lines cl
+                WHERE cl.customer_id = c.id
+                  AND (cl.is_closed IS NULL OR cl.is_closed = '' OR UPPER(cl.is_closed) NOT IN ('YES','CLOSED'))
+            )
+            ORDER BY c.circle, c.oa_name, c.customer_name
+        `);
+        res.json(rows);
+    } catch (err) {
+        console.error('Billing active customers error:', err);
+        res.status(500).json({ error: 'Failed to fetch billing customers' });
+    }
+});
+
 app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
     try {
         const [[{ count: pendingComplaints }]] = await pool.query("SELECT COUNT(*) as count FROM complaints WHERE status = 'Pending'");
@@ -1805,6 +2314,198 @@ app.delete('/api/recurring-tasks/:id', authenticateToken, isAdmin, async (req, r
     }
 });
 
+// ============================================================
+// --- DAILY ACTIVITY MODULE APIs ---
+// ============================================================
+
+// GET all templates (admin: all, user: own dept)
+app.get('/api/activity/templates', authenticateToken, async (req, res) => {
+    try {
+        let query, params = [];
+        if (req.user.role === 'admin') {
+            query = 'SELECT * FROM activity_templates ORDER BY department, category, sort_order, id';
+        } else {
+            const [uRows] = await pool.query('SELECT department FROM users WHERE id=?', [req.user.id]);
+            const dept = uRows[0]?.department || 'All';
+            query = 'SELECT * FROM activity_templates WHERE (department=? OR department="All") AND is_active=1 ORDER BY category, sort_order, id';
+            params = [dept];
+        }
+        const [rows] = await pool.query(query, params);
+        res.json(rows);
+    } catch (err) { res.status(500).json({ error: 'Failed to fetch templates' }); }
+});
+
+// POST create template (admin only)
+app.post('/api/activity/templates', authenticateToken, isAdmin, async (req, res) => {
+    const { department, category, task_name, sort_order } = req.body;
+    if (!task_name) return res.status(400).json({ error: 'task_name required' });
+    try {
+        await pool.query(
+            'INSERT INTO activity_templates (department, category, task_name, sort_order, created_by) VALUES (?,?,?,?,?)',
+            [department||'All', category||'Daily', task_name, sort_order||0, req.user.id]
+        );
+        res.json({ message: 'Template created' });
+    } catch (err) { res.status(500).json({ error: 'Failed to create template' }); }
+});
+
+// PUT update template (admin only)
+app.put('/api/activity/templates/:id', authenticateToken, isAdmin, async (req, res) => {
+    const { department, category, task_name, sort_order, is_active } = req.body;
+    try {
+        await pool.query(
+            'UPDATE activity_templates SET department=?, category=?, task_name=?, sort_order=?, is_active=? WHERE id=?',
+            [department, category, task_name, sort_order||0, is_active===false?0:1, req.params.id]
+        );
+        res.json({ message: 'Template updated' });
+    } catch (err) { res.status(500).json({ error: 'Failed to update template' }); }
+});
+
+// DELETE template (admin only)
+app.delete('/api/activity/templates/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        await pool.query('DELETE FROM activity_templates WHERE id=?', [req.params.id]);
+        res.json({ message: 'Template deleted' });
+    } catch (err) { res.status(500).json({ error: 'Failed to delete template' }); }
+});
+
+// GET user assignments
+app.get('/api/activity/assignments', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.query.user_id || (req.user.role !== 'admin' ? req.user.id : null);
+        let query = `SELECT aut.*, at.task_name, at.category, at.department, u.name as user_name, u.username
+                     FROM activity_user_tasks aut
+                     JOIN activity_templates at ON aut.template_id=at.id
+                     JOIN users u ON aut.user_id=u.id
+                     WHERE aut.is_active=1`;
+        const params = [];
+        if (userId) { query += ' AND aut.user_id=?'; params.push(userId); }
+        query += ' ORDER BY u.name, at.department, at.category, at.sort_order';
+        const [rows] = await pool.query(query, params);
+        res.json(rows);
+    } catch (err) { res.status(500).json({ error: 'Failed to fetch assignments' }); }
+});
+
+// POST assign tasks to user (admin only)
+app.post('/api/activity/assignments', authenticateToken, isAdmin, async (req, res) => {
+    const { user_id, template_ids } = req.body;
+    if (!user_id || !Array.isArray(template_ids)) return res.status(400).json({ error: 'user_id and template_ids[] required' });
+    try {
+        for (const tid of template_ids) {
+            await pool.query(
+                'INSERT INTO activity_user_tasks (user_id, template_id, assigned_by, assigned_date) VALUES (?,?,?,CURDATE()) ON DUPLICATE KEY UPDATE is_active=1, assigned_by=?, assigned_date=CURDATE()',
+                [user_id, tid, req.user.id, req.user.id]
+            );
+        }
+        res.json({ message: `${template_ids.length} tasks assigned` });
+    } catch (err) { res.status(500).json({ error: 'Failed to assign tasks' }); }
+});
+
+// DELETE assignment (admin only)
+app.delete('/api/activity/assignments/:id', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        await pool.query('UPDATE activity_user_tasks SET is_active=0 WHERE id=?', [req.params.id]);
+        res.json({ message: 'Assignment removed' });
+    } catch (err) { res.status(500).json({ error: 'Failed to remove assignment' }); }
+});
+
+// GET my tasks for a date (auto-show Daily + current week tasks)
+app.get('/api/activity/my-tasks', authenticateToken, async (req, res) => {
+    const date = req.query.date || new Date().toISOString().split('T')[0];
+    const userId = req.query.user_id || req.user.id;
+    if (req.user.role !== 'admin' && String(userId) !== String(req.user.id)) {
+        return res.status(403).json({ error: 'Access denied' });
+    }
+    try {
+        const d = new Date(date);
+        const day = d.getDate();
+        let weekCategories = ['Daily'];
+        if (day >= 1 && day <= 7) weekCategories.push('Week1');
+        else if (day >= 8 && day <= 14) weekCategories.push('Week2');
+        else if (day >= 15 && day <= 21) weekCategories.push('Week3');
+        else weekCategories.push('Week4');
+
+        const catPlaceholders = weekCategories.map(() => '?').join(',');
+        const [tasks] = await pool.query(
+            `SELECT aut.id as assignment_id, at.id as template_id, at.task_name, at.category, at.department,
+                    al.status, al.remarks, al.id as log_id
+             FROM activity_user_tasks aut
+             JOIN activity_templates at ON aut.template_id=at.id
+             LEFT JOIN activity_logs al ON al.template_id=at.id AND al.user_id=? AND al.log_date=?
+             WHERE aut.user_id=? AND aut.is_active=1 AND at.is_active=1 AND at.category IN (${catPlaceholders})
+             ORDER BY at.category, at.sort_order, at.id`,
+            [userId, date, userId, ...weekCategories]
+        );
+        res.json(tasks);
+    } catch (err) { res.status(500).json({ error: 'Failed to fetch tasks' }); }
+});
+
+// POST/PUT submit daily log (upsert)
+app.post('/api/activity/logs', authenticateToken, async (req, res) => {
+    const { logs, log_date } = req.body; // logs: [{template_id, status, remarks}]
+    if (!Array.isArray(logs) || !log_date) return res.status(400).json({ error: 'logs[] and log_date required' });
+    const userId = req.user.id;
+    try {
+        for (const l of logs) {
+            await pool.query(
+                `INSERT INTO activity_logs (user_id, template_id, log_date, status, remarks)
+                 VALUES (?,?,?,?,?)
+                 ON DUPLICATE KEY UPDATE status=VALUES(status), remarks=VALUES(remarks), updated_at=NOW()`,
+                [userId, l.template_id, log_date, l.status||'not_done', l.remarks||'']
+            );
+        }
+        res.json({ message: `${logs.length} task(s) saved for ${log_date}` });
+    } catch (err) { res.status(500).json({ error: 'Failed to save logs' }); }
+});
+
+// GET activity logs (admin: all, user: own) with filters
+app.get('/api/activity/logs', authenticateToken, async (req, res) => {
+    const { user_id, date_from, date_to, department } = req.query;
+    try {
+        let where = ['1=1'];
+        const params = [];
+        if (req.user.role !== 'admin') { where.push('al.user_id=?'); params.push(req.user.id); }
+        else if (user_id) { where.push('al.user_id=?'); params.push(user_id); }
+        if (date_from) { where.push('al.log_date >= ?'); params.push(date_from); }
+        if (date_to) { where.push('al.log_date <= ?'); params.push(date_to); }
+        if (department) { where.push('at.department=?'); params.push(department); }
+
+        const [rows] = await pool.query(
+            `SELECT al.*, at.task_name, at.category, at.department,
+                    u.name as user_name, u.username, u.department as user_dept
+             FROM activity_logs al
+             LEFT JOIN activity_templates at ON al.template_id=at.id
+             JOIN users u ON al.user_id=u.id
+             WHERE ${where.join(' AND ')}
+             ORDER BY al.log_date DESC, u.name, at.category, at.sort_order`,
+            params
+        );
+        res.json(rows);
+    } catch (err) { res.status(500).json({ error: 'Failed to fetch logs' }); }
+});
+
+// GET list of users with their task summary for a date (admin dashboard)
+app.get('/api/activity/summary', authenticateToken, isAdmin, async (req, res) => {
+    const date = req.query.date || new Date().toISOString().split('T')[0];
+    try {
+        const [rows] = await pool.query(
+            `SELECT u.id, u.name, u.username, u.department,
+                    COUNT(aut.id) as total_assigned,
+                    SUM(CASE WHEN al.status='done' THEN 1 ELSE 0 END) as done_count,
+                    SUM(CASE WHEN al.status='not_done' THEN 1 ELSE 0 END) as not_done_count,
+                    SUM(CASE WHEN al.status='partial' THEN 1 ELSE 0 END) as partial_count,
+                    SUM(CASE WHEN al.status='leave' THEN 1 ELSE 0 END) as leave_count
+             FROM users u
+             LEFT JOIN activity_user_tasks aut ON aut.user_id=u.id AND aut.is_active=1
+             LEFT JOIN activity_logs al ON al.user_id=u.id AND al.log_date=? AND al.template_id=aut.template_id
+             WHERE u.role != 'admin' OR u.id = u.id
+             GROUP BY u.id
+             ORDER BY u.name`,
+            [date]
+        );
+        res.json(rows);
+    } catch (err) { res.status(500).json({ error: 'Failed to fetch summary' }); }
+});
+
 // Basic Health Check Endpoint
 app.get('/api/health', async (req, res) => {
     try {
@@ -1949,9 +2650,13 @@ async function startupChecks() {
     await upgradeUsersTable();
     await upgradeProposalsTable();
     await initializeComplaintsTable();
+    await initializeAreaEngineerMappingTables();
     await initializeCustomersTable();
     await initializeTasksTable();
+    await initializeUserManagersTable();
+    await initializeTaskCategoriesTable();
     await initializeRecurringTasksTable();
+    await initializeActivityTables();
     await initializeTaskReportsTable();
     await initializeAnalyticsTable();
     await initializeSystemLogsTable();
