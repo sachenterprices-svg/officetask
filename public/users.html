@@ -92,13 +92,11 @@
 
     <header class="top-header">
         <div class="header-brand">
-            <span style="color: #002d72;">Coral</span> <span style="color: #f97316;">Infratel</span>
-        </div>
+                <img src="assets/Coral Infratel logo.jpg" alt="Coral Infratel Pvt. Ltd." height="46" style="display:block; object-fit:contain;">
+            </div>
         <div class="user-meta">
             <div class="header-row">
-                <button onclick="window.open('reset_pwd.html', '_blank', 'width=450,height=600')"
-                    style="background:#f59e0b; color:white; border:none; padding:8px 15px; border-radius:6px; font-weight:700; cursor:pointer; font-family: 'Inter', sans-serif;">🔑
-                    Change Pwd</button>
+                <!-- 🔑 Change Pwd button auto-injected by auth.js -->
             </div>
             <div class="header-row">
                 <span id="userInfoDisplay" style="color: var(--primary); font-weight:700;"></span>
@@ -121,18 +119,16 @@
                     <h4>Users</h4>
                 </div>
             </a>
-            <a href="website_management.html" class="module-tile admin-only"><i>🌐</i>
+            <a href="user_hierarchy.html" class="module-tile admin-only"><i>🔗</i>
                 <div class="tile-content">
-                    <h4>Website Management</h4>
+                    <h4>User Hierarchy</h4>
                 </div>
             </a>
-            <a href="maintenance_logs.html" class="module-tile admin-only"><i>⚙️</i>
+            <a href="data_import.html" class="module-tile admin-only"><i>🗄️</i>
                 <div class="tile-content">
-                    <h4>System Maintenance</h4>
+                    <h4>Data Import</h4>
                 </div>
             </a>
-            <!-- Local Hierarchy Modules will be added here dynamically if needed, 
-                 ensuring they don't appear on other pages -->
         </aside>
 
         <main class="content-area">
@@ -253,7 +249,33 @@
                     </label>
                 </div>
 
-                <h3 style="font-size:1rem; border-top:1px solid #f1f5f9; padding-top:15px; margin-top:20px;">Module
+                <!-- Work Allotment -->
+                <div style="border-top:1px solid #f1f5f9; padding-top:15px; margin-top:20px; margin-bottom:15px;">
+                    <h3 style="font-size:1rem; margin:0 0 10px; color:#0f172a; font-weight:700;">💼 Work Allotment</h3>
+                    <p style="font-size:0.8rem; color:#64748b; margin:0 0 12px;">इस User को कौन से काम allot करने हैं? (Multiple select allowed)</p>
+                    <div style="display:flex; gap:16px; flex-wrap:wrap;">
+                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;
+                                      background:#eff6ff; border:1.5px solid #bfdbfe; border-radius:8px;
+                                      padding:8px 16px; font-size:0.9rem; font-weight:600; color:#1d4ed8;
+                                      transition:.2s;" id="wt-label-engineer">
+                            <input type="checkbox" id="workTypeEngineer" value="engineer"
+                                   style="width:15px;height:15px;accent-color:#1d4ed8;"
+                                   onchange="updateWorkTypeStyle('engineer')">
+                            🔧 Engineer (Complaint)
+                        </label>
+                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;
+                                      background:#f0fdf4; border:1.5px solid #bbf7d0; border-radius:8px;
+                                      padding:8px 16px; font-size:0.9rem; font-weight:600; color:#15803d;
+                                      transition:.2s;" id="wt-label-clerical">
+                            <input type="checkbox" id="workTypeClerical" value="clerical"
+                                   style="width:15px;height:15px;accent-color:#15803d;"
+                                   onchange="updateWorkTypeStyle('clerical')">
+                            📋 Clerical
+                        </label>
+                    </div>
+                </div>
+
+                <h3 style="font-size:1rem; border-top:1px solid #f1f5f9; padding-top:15px; margin-top:10px;">Module
                     Permissions (Rights)</h3>
                 <div id="dynamicPermissionsContainer"
                     style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; background:#f8fafc; padding:15px; border-radius:8px;">
@@ -266,6 +288,42 @@
                     <button type="submit" class="btn-primary">Save User</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- ── Admin: Change Any User's Password Modal ── -->
+    <div id="adminPwdModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.45); z-index:3000; align-items:center; justify-content:center;">
+        <div style="background:white; width:90%; max-width:420px; border-radius:16px; padding:30px; position:relative; box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
+                <div style="width:42px; height:42px; background:#fef3c7; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.3rem;">🔑</div>
+                <div>
+                    <h3 style="margin:0; font-size:1.1rem; color:#0f172a;">Change Password</h3>
+                    <p id="adminPwdUserLabel" style="margin:4px 0 0; font-size:0.82rem; color:#64748b;">User: —</p>
+                </div>
+                <button onclick="closeAdminPwdModal()" style="position:absolute; right:18px; top:18px; background:none; border:none; font-size:1.4rem; cursor:pointer; color:#94a3b8;">✕</button>
+            </div>
+
+            <div style="margin-bottom:14px;">
+                <label style="display:block; font-size:0.78rem; font-weight:700; color:#64748b; margin-bottom:6px; text-transform:uppercase; letter-spacing:.5px;">New Password</label>
+                <input type="password" id="adminNewPwd" placeholder="Minimum 6 characters" minlength="6"
+                    style="width:100%; padding:11px 14px; border:1.5px solid #e2e8f0; border-radius:8px; box-sizing:border-box; font-size:0.95rem; outline:none; transition:border .2s;"
+                    onfocus="this.style.borderColor='#f59e0b'" onblur="this.style.borderColor='#e2e8f0'">
+            </div>
+            <div style="margin-bottom:20px;">
+                <label style="display:block; font-size:0.78rem; font-weight:700; color:#64748b; margin-bottom:6px; text-transform:uppercase; letter-spacing:.5px;">Confirm Password</label>
+                <input type="password" id="adminConfirmPwd" placeholder="Repeat new password" minlength="6"
+                    style="width:100%; padding:11px 14px; border:1.5px solid #e2e8f0; border-radius:8px; box-sizing:border-box; font-size:0.95rem; outline:none; transition:border .2s;"
+                    onfocus="this.style.borderColor='#f59e0b'" onblur="this.style.borderColor='#e2e8f0'">
+            </div>
+
+            <div id="adminPwdMsg" style="display:none; padding:10px 14px; border-radius:8px; font-size:0.85rem; font-weight:600; margin-bottom:14px;"></div>
+
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button type="button" onclick="closeAdminPwdModal()"
+                    style="padding:10px 20px; border:none; background:#f1f5f9; border-radius:8px; font-weight:700; cursor:pointer; color:#475569;">Cancel</button>
+                <button type="button" onclick="submitAdminPwdChange()"
+                    style="padding:10px 22px; border:none; background:#f59e0b; border-radius:8px; font-weight:700; cursor:pointer; color:white;">Update Password</button>
+            </div>
         </div>
     </div>
 

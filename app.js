@@ -77,7 +77,8 @@ async function upgradeUsersTable() {
             { name: 'permissions', type: 'JSON' },
             { name: 'reports_to', type: 'INT' },
             { name: 'backdate_rights', type: 'BOOLEAN DEFAULT FALSE' },
-            { name: 'department', type: "VARCHAR(50) DEFAULT 'Technical'" }
+            { name: 'department', type: "VARCHAR(50) DEFAULT 'Technical'" },
+            { name: 'work_types', type: 'JSON' }
         ];
 
         for (const col of columns) {
@@ -780,26 +781,35 @@ app.delete('/api/task-categories/:id', authenticateToken, isAdmin, async (req, r
 });
 
 // --- ASSIGNABLE USERS (Hierarchy-based via user_managers table, excludes self) ---
+// Optional ?work_type=engineer to return only users with that work type
 app.get('/api/users/assignable', authenticateToken, async (req, res) => {
     try {
         const currentUser = req.user;
+        const filterWorkType = req.query.work_type || null;
         let rows;
         if (currentUser.role === 'admin') {
             [rows] = await pool.query(
-                'SELECT id, username, name, role FROM users WHERE username != ? ORDER BY name',
+                'SELECT id, username, name, role, work_types FROM users WHERE username != ? ORDER BY name',
                 [currentUser.username]
             );
         } else {
             const [meRow] = await pool.query('SELECT id FROM users WHERE username = ?', [currentUser.username]);
             const myId = meRow[0]?.id;
-            // Users who report to current user (from user_managers table)
             [rows] = await pool.query(
-                `SELECT u.id, u.username, u.name, u.role
+                `SELECT u.id, u.username, u.name, u.role, u.work_types
                  FROM users u
                  JOIN user_managers um ON u.id = um.user_id
                  WHERE um.manager_id = ? ORDER BY u.name`,
                 [myId]
             );
+        }
+        // Filter by work_type if requested
+        if (filterWorkType) {
+            rows = rows.filter(u => {
+                let wt = u.work_types;
+                if (typeof wt === 'string') { try { wt = JSON.parse(wt); } catch(e) { wt = []; } }
+                return Array.isArray(wt) && wt.includes(filterWorkType);
+            });
         }
         res.json(rows);
     } catch (err) {
@@ -879,11 +889,11 @@ app.post('/api/users', authenticateToken, isAdmin, async (req, res) => {
 });
 
 app.put('/api/users/:id', authenticateToken, isAdmin, async (req, res) => {
-    const { role, name, mobile, email, allowed_circle, allowed_oa, permissions, reports_to, department } = req.body;
+    const { role, name, mobile, email, allowed_circle, allowed_oa, permissions, reports_to, department, work_types } = req.body;
     try {
         await pool.query(
-            'UPDATE users SET role=?, name=?, mobile=?, email=?, allowed_circle=?, allowed_oa=?, permissions=?, reports_to=?, backdate_rights=?, department=? WHERE id=?',
-            [role, name || null, mobile || null, email || null, allowed_circle || null, allowed_oa || null, JSON.stringify(permissions || []), reports_to || null, req.body.backdate_rights || false, department || 'Technical', req.params.id]
+            'UPDATE users SET role=?, name=?, mobile=?, email=?, allowed_circle=?, allowed_oa=?, permissions=?, reports_to=?, backdate_rights=?, department=?, work_types=? WHERE id=?',
+            [role, name || null, mobile || null, email || null, allowed_circle || null, allowed_oa || null, JSON.stringify(permissions || []), reports_to || null, req.body.backdate_rights || false, department || 'Technical', JSON.stringify(work_types || []), req.params.id]
         );
         res.json({ message: 'User updated successfully' });
     } catch (err) {
