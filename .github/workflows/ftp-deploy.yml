@@ -7,7 +7,7 @@ on:
     paths:
       - 'public/**'
       - 'website/**'
-  workflow_dispatch:   # Manual trigger from GitHub Actions tab
+  workflow_dispatch:
 
 jobs:
   deploy-crm-files:
@@ -24,13 +24,15 @@ jobs:
           server:         ${{ secrets.FTP_SERVER }}
           username:       ${{ secrets.FTP_USERNAME }}
           password:       ${{ secrets.FTP_PASSWORD }}
+          port:           21
+          protocol:       ftp
           local-dir:      ./public/
           server-dir:     officetask/
           exclude:        |
             **/.git*
             **/.git*/**
             **/node_modules/**
-          log-level:      standard
+          log-level:      verbose
 
       - name: Upload website/ to public_html/ (FTP)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
@@ -38,9 +40,11 @@ jobs:
           server:         ${{ secrets.FTP_SERVER }}
           username:       ${{ secrets.FTP_USERNAME }}
           password:       ${{ secrets.FTP_PASSWORD }}
+          port:           21
+          protocol:       ftp
           local-dir:      ./website/
           server-dir:     public_html/
           exclude:        |
             **/.git*
             **/.git*/**
-          log-level:      standard
+          log-level:      verbose
