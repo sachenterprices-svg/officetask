@@ -13,7 +13,7 @@ const billMailTransporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 465,
     secure: true,
-    auth: { user: 'bsnlpribill@gmail.com', pass: 'QWERTY&123456$' }
+    auth: { user: 'bsnlpribill@gmail.com', pass: 'aqpb qoqz eziq xwld' }
 });
 
 // multer: memory storage for PDF attachments (max 10 MB per file)
@@ -2064,9 +2064,7 @@ app.get('/api/bills/active-customers', authenticateToken, async (req, res) => {
                 c.customer_name, c.customer_code,
                 c.acc_person_email, c.contact_person,
                 (SELECT GROUP_CONCAT(
-                    CASE WHEN cl2.telephone_code IS NOT NULL AND cl2.telephone_code != ''
-                         THEN CONCAT(cl2.telephone_code, '-', cl2.telephone_number)
-                         ELSE cl2.telephone_number END
+                    cl2.telephone_number
                     ORDER BY cl2.id SEPARATOR '\n'
                  ) FROM customer_lines cl2
                  WHERE cl2.customer_id = c.id
