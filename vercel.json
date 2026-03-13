@@ -3,9 +3,15 @@
     "builds": [
         {
             "src": "app.js",
-            "use": "@vercel/node"
+            "use": "@vercel/node",
+            "config": { "maxLambdaSize": "15mb" }
         }
     ],
+    "functions": {
+        "app.js": {
+            "maxDuration": 60
+        }
+    },
     "headers": [
         {
             "source": "/api/(.*)",

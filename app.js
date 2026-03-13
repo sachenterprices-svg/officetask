@@ -2109,42 +2109,42 @@ app.post('/api/bills/send-email', authenticateToken, pdfUpload.any(), async (req
             ? `${billing_month} ${billing_year}` : 'Current Period';
         const emailSubject = subject || `BSNL PBX Bill — ${billingPeriod}`;
 
-        let sent = 0, failed = 0;
-        for (const cust of withEmail) {
-            try {
-                const attachments = [];
-                if (pdfMap[cust.id]) {
-                    const f = pdfMap[cust.id];
-                    attachments.push({
-                        filename: f.originalname || `bill_${cust.customer_code}_${billingPeriod}.pdf`,
-                        content: f.buffer,
-                        contentType: 'application/pdf'
-                    });
-                }
-                await billMailTransporter.sendMail({
-                    from: '"BSNL PBX BILL" <bsnlpribill@gmail.com>',
-                    to: cust.acc_person_email.trim(),
-                    subject: emailSubject,
-                    html: `<div style="font-family:Arial,sans-serif;max-width:600px;padding:20px;">
-                        <h2 style="color:#002d72;margin-bottom:6px;">BSNL PBX Bill</h2>
-                        <p style="color:#555;margin:0 0 16px;">Billing Period: <strong>${billingPeriod}</strong></p>
-                        <p>Dear ${cust.customer_name},</p>
-                        <p>Please find your BSNL PBX bill for <strong>${billingPeriod}</strong>.${
-                            attachments.length ? ' The bill is attached as a PDF.' : ''
-                        }</p>
-                        ${message ? `<p style="white-space:pre-line;">${message}</p>` : ''}
-                        <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">
-                        <p style="font-size:0.82em;color:#94a3b8;">Customer Code: ${cust.customer_code || '—'}</p>
-                        <p style="font-size:0.82em;color:#94a3b8;">This is an automated email. Please do not reply.</p>
-                    </div>`,
-                    attachments
+        // Send all emails in PARALLEL to avoid Vercel 10s timeout
+        const results = await Promise.allSettled(withEmail.map(cust => {
+            const attachments = [];
+            if (pdfMap[cust.id]) {
+                const f = pdfMap[cust.id];
+                attachments.push({
+                    filename: f.originalname || `bill_${cust.customer_code}_${billingPeriod}.pdf`,
+                    content: f.buffer,
+                    contentType: 'application/pdf'
                 });
-                sent++;
-            } catch (e) {
-                console.error(`Bill email failed for customer ${cust.id} (${cust.acc_person_email}):`, e.message);
-                failed++;
             }
-        }
+            return billMailTransporter.sendMail({
+                from: '"BSNL PBX BILL" <bsnlpribill@gmail.com>',
+                to: cust.acc_person_email.trim(),
+                subject: emailSubject,
+                html: `<div style="font-family:Arial,sans-serif;max-width:600px;padding:20px;">
+                    <h2 style="color:#002d72;margin-bottom:6px;">BSNL PBX Bill</h2>
+                    <p style="color:#555;margin:0 0 16px;">Billing Period: <strong>${billingPeriod}</strong></p>
+                    <p>Dear ${cust.customer_name},</p>
+                    <p>Please find your BSNL PBX bill for <strong>${billingPeriod}</strong>.${
+                        attachments.length ? ' The bill is attached as a PDF.' : ''
+                    }</p>
+                    ${message ? `<p style="white-space:pre-line;">${message}</p>` : ''}
+                    <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">
+                    <p style="font-size:0.82em;color:#94a3b8;">Customer Code: ${cust.customer_code || '—'}</p>
+                    <p style="font-size:0.82em;color:#94a3b8;">This is an automated email. Please do not reply.</p>
+                </div>`,
+                attachments
+            }).catch(e => {
+                console.error(`Bill email failed for ${cust.acc_person_email}:`, e.message);
+                throw e;
+            });
+        }));
+
+        const sent   = results.filter(r => r.status === 'fulfilled').length;
+        const failed = results.filter(r => r.status === 'rejected').length;
         res.json({ sent, failed, total: withEmail.length });
     } catch (err) {
         console.error('Send bill email error:', err);
