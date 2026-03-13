@@ -1238,6 +1238,7 @@ app.post('/api/complaints', async (req, res) => {
             ticket_id: ticketId,
             complaint_no,
             customer_name,
+            complainee_name: complainee_name || customer_name,
             company_name: company_name || customer_name,
             mobile,
             email,
@@ -1381,7 +1382,7 @@ async function sendEmailNotification(data) {
         html: `<div style="font-family:Arial,sans-serif;max-width:620px;padding:20px;color:#222;">
             <h2 style="color:#002d72;margin-bottom:4px;">Complaint Registration Confirmation</h2>
             <p style="color:#555;margin:0 0 18px;">Ticket: <strong>${data.complaint_no}</strong></p>
-            <p>Dear ${data.customer_name},</p>
+            <p>Dear ${data.complainee_name},</p>
             <p>Thank you for reaching out to us. We would like to inform you that the complaint registered under <strong>${data.company_name}</strong> for telephone number <strong>${telephone}</strong> has been successfully received and is now being processed by our support team.</p>
             <div style="background:#eff6ff;border-left:4px solid #002d72;padding:12px 18px;margin:18px 0;border-radius:4px;">
                 <strong style="color:#002d72;">Your Complaint Ticket Number: ${data.complaint_no}</strong>
