@@ -16,6 +16,14 @@ const billMailTransporter = nodemailer.createTransport({
     auth: { user: 'bsnlpribill@gmail.com', pass: 'aqpb qoqz eziq xwld' }
 });
 
+// ── SUPPORT / COMPLAINT MAILER ─────────────────────────────────────────────────
+const supportMailTransporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
+    auth: { user: 'bsnlpbxhelp@gmail.com', pass: 'yfpp apmh dnds lytr' }
+});
+
 // multer: memory storage for PDF attachments (max 10 MB per file)
 const pdfUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -1200,17 +1208,21 @@ app.post('/api/complaints', async (req, res) => {
         }
 
         // Lookup circle and OA from customers table (try multiple formats)
-        let circle = '', oa_name = '';
+        let circle = '', oa_name = '', company_name = '';
         try {
             const fullNumber = `${std_code}-${telephone_number}`;
             const [custRows] = await pool.query(
-                `SELECT c.circle, c.oa_name FROM customers c
+                `SELECT c.circle, c.oa_name, c.customer_name as company_name FROM customers c
                  WHERE (c.telephone_number=? AND c.telephone_code=?)
                  OR c.id IN (SELECT customer_id FROM customer_lines WHERE telephone_number = ? OR telephone_number = ?)
                  LIMIT 1`,
                 [telephone_number, std_code, fullNumber, `${std_code}${telephone_number}`]
             );
-            if (custRows.length > 0) { circle = custRows[0].circle || ''; oa_name = custRows[0].oa_name || ''; }
+            if (custRows.length > 0) {
+                circle = custRows[0].circle || '';
+                oa_name = custRows[0].oa_name || '';
+                company_name = custRows[0].company_name || '';
+            }
         } catch (e) { /* ignore */ }
 
         const complaint_no = await generateComplaintNo(circle, oa_name);
@@ -1222,7 +1234,18 @@ app.post('/api/complaints', async (req, res) => {
         );
 
         const ticketId = `CRM-${String(result.insertId).padStart(4, '0')}`;
-        const complaintData = { ticket_id: ticketId, complaint_no, customer_name, mobile, email, issue_type, description };
+        const complaintData = {
+            ticket_id: ticketId,
+            complaint_no,
+            customer_name,
+            company_name: company_name || customer_name,
+            mobile,
+            email,
+            issue_type,
+            description,
+            std_code,
+            telephone_number
+        };
 
         sendEmailNotification(complaintData).catch(err => console.error('Email Notify Error:', err.message));
         sendWhatsAppNotification(complaintData).catch(err => console.error('WhatsApp Notify Error:', err.message));
@@ -1347,10 +1370,31 @@ app.delete('/api/bsnl/oas/:id', authenticateToken, isAdmin, async (req, res) => 
     }
 });
 
-// --- NOTIFICATION HELPERS (Placeholders) ---
+// --- NOTIFICATION HELPERS ---
 async function sendEmailNotification(data) {
-    console.log(`[NOTIFY] Sending Email to ${data.email} with Ticket ID: ${data.ticket_id}`);
-    // TODO: Implement nodemailer logic when credentials provided
+    if (!data.email || !data.email.trim()) return;
+    const telephone = data.std_code ? `${data.std_code}-${data.telephone_number}` : (data.telephone_number || '');
+    await supportMailTransporter.sendMail({
+        from: '"BSNL EPABX SUPPORT" <bsnlpbxhelp@gmail.com>',
+        to: data.email.trim(),
+        subject: `Complaint Registration Confirmation — Ticket ${data.complaint_no}`,
+        html: `<div style="font-family:Arial,sans-serif;max-width:620px;padding:20px;color:#222;">
+            <h2 style="color:#002d72;margin-bottom:4px;">Complaint Registration Confirmation</h2>
+            <p style="color:#555;margin:0 0 18px;">Ticket: <strong>${data.complaint_no}</strong></p>
+            <p>Dear ${data.customer_name},</p>
+            <p>Thank you for reaching out to us. We would like to inform you that the complaint registered under <strong>${data.company_name}</strong> for telephone number <strong>${telephone}</strong> has been successfully received and is now being processed by our support team.</p>
+            <div style="background:#eff6ff;border-left:4px solid #002d72;padding:12px 18px;margin:18px 0;border-radius:4px;">
+                <strong style="color:#002d72;">Your Complaint Ticket Number: ${data.complaint_no}</strong>
+            </div>
+            <p>Please keep this ticket number for future reference. Our team will review your complaint and get back to you at the earliest. You may also use this ticket number to track the status of your complaint on our website.</p>
+            <p>If you have any further queries, please do not hesitate to contact our support team.</p>
+            <br>
+            <p style="margin:0;">Warm regards,<br><strong>Customer Support Team</strong></p>
+            <hr style="border:none;border-top:1px solid #e2e8f0;margin:18px 0;">
+            <p style="font-size:0.78rem;color:#94a3b8;">This is an auto-generated email. Please do not reply directly to this message.</p>
+        </div>`
+    });
+    console.log(`[SUPPORT MAIL] Sent confirmation to ${data.email} — Ticket: ${data.complaint_no}`);
 }
 
 async function sendWhatsAppNotification(data) {
