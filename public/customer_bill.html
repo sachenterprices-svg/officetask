@@ -321,14 +321,21 @@
                     <option value="">-- All OAs --</option>
                 </select>
                 <input type="text" id="fSearch" placeholder="🔍 Search customer name..."
-                       oninput="applyFilters()">
-                <button class="btn-filter" onclick="applyFilters()">🔍 Search</button>
+                       onkeydown="if(event.key==='Enter') loadData()">
+                <button class="btn-filter" onclick="loadData()">📋 Load Data</button>
                 <button class="btn-reset-f" onclick="resetFilters()">Reset</button>
-                <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;font-weight:600;color:#475569;cursor:pointer;margin-left:auto;">
-                    <input type="checkbox" id="chkNoEmail" onchange="applyFilters()"
+                <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;font-weight:600;color:#475569;cursor:pointer;">
+                    <input type="checkbox" id="chkNoEmail"
                            style="width:15px;height:15px;cursor:pointer;accent-color:#002d72;">
                     No email only
                 </label>
+                <div style="display:flex;align-items:center;gap:6px;margin-left:auto;">
+                    <label style="font-size:0.82rem;font-weight:700;color:#64748b;white-space:nowrap;">Show rows:</label>
+                    <input type="number" id="perPageInput" value="100" min="10" max="5000"
+                           style="width:75px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;
+                                  font-family:'Inter',sans-serif;font-size:0.88rem;font-weight:700;
+                                  color:#334155;text-align:center;">
+                </div>
             </div>
 
             <!-- Stats chips -->
@@ -453,11 +460,11 @@
 // ═══════════════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════════════
-let allCustomers = [];
-let filteredData = [];
-
-const PAGE_SIZE = 50;
-let currentPage = 1;
+let serverTotal   = 0;
+let currentLimit  = 100;
+let currentOffset = 0;
+let currentFilters = { circle: '', oa: '', search: '', noEmail: false };
+let lastRows = [];   // rows currently displayed (used for send modal)
 
 // PDF attachments: Map<customerId, File>
 const pdfFiles = new Map();
@@ -472,7 +479,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('userInfoDisplay').textContent =
         `${user.name || user.username} (${user.role === 'admin' ? 'Admin' : 'User'})`;
 
-    // Set billing month to current month
     const now = new Date();
     const months = ['January','February','March','April','May','June',
                     'July','August','September','October','November','December'];
@@ -480,7 +486,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('billingYear').value  = now.getFullYear();
     updatePeriodBadge();
 
-    await loadCustomers();
+    await loadCircleDropdown();  // lightweight — only circle list
+    showBlankState();            // don't load data yet
 });
 
 function updatePeriodBadge() {
@@ -490,100 +497,131 @@ function updatePeriodBadge() {
 }
 
 // ═══════════════════════════════════════════════════════
-//  DATA LOAD
+//  DROPDOWNS — lightweight API calls
 // ═══════════════════════════════════════════════════════
-async function loadCustomers() {
+async function loadCircleDropdown() {
     try {
-        const r = await window.apiFetch('/api/bills/active-customers');
+        const r = await window.apiFetch('/api/bills/circles');
+        if (!r.ok) return;
+        const circles = await r.json();
+        const sel = document.getElementById('fCircle');
+        circles.forEach(c => {
+            const o = document.createElement('option');
+            o.value = c; o.textContent = c; sel.appendChild(o);
+        });
+    } catch(e) { console.error('Failed to load circles', e); }
+}
+
+async function onCircleChange() {
+    const circle = document.getElementById('fCircle').value;
+    const oaSel  = document.getElementById('fOA');
+    oaSel.innerHTML = '<option value="">-- All OAs --</option>';
+    try {
+        const url = '/api/bills/oas' + (circle ? `?circle=${encodeURIComponent(circle)}` : '');
+        const r = await window.apiFetch(url);
+        if (!r.ok) return;
+        const oas = await r.json();
+        oas.forEach(o => {
+            const opt = document.createElement('option');
+            opt.value = o; opt.textContent = o; oaSel.appendChild(opt);
+        });
+    } catch(e) { console.error('Failed to load OAs', e); }
+}
+
+// ═══════════════════════════════════════════════════════
+//  LOAD DATA — triggered by button
+// ═══════════════════════════════════════════════════════
+async function loadData() {
+    currentFilters = {
+        circle:  document.getElementById('fCircle').value,
+        oa:      document.getElementById('fOA').value,
+        search:  document.getElementById('fSearch').value.trim(),
+        noEmail: document.getElementById('chkNoEmail').checked
+    };
+    currentLimit  = Math.min(Math.max(parseInt(document.getElementById('perPageInput').value) || 100, 10), 5000);
+    document.getElementById('perPageInput').value = currentLimit;
+    currentOffset = 0;
+    await fetchAndRender();
+}
+
+async function fetchAndRender() {
+    showLoadingState();
+    try {
+        const p = new URLSearchParams();
+        if (currentFilters.circle)  p.set('circle',   currentFilters.circle);
+        if (currentFilters.oa)      p.set('oa',        currentFilters.oa);
+        if (currentFilters.search)  p.set('search',    currentFilters.search);
+        if (currentFilters.noEmail) p.set('no_email',  '1');
+        p.set('limit',  currentLimit);
+        p.set('offset', currentOffset);
+
+        const r = await window.apiFetch('/api/bills/active-customers?' + p.toString());
         if (!r.ok) throw new Error('API error ' + r.status);
-        allCustomers = await r.json();
-        buildFilterDropdowns();
-        applyFilters();
+        const data = await r.json();
+
+        serverTotal = data.total;
+        lastRows    = data.rows;
+        renderTable(data.rows);
+        updateStats(data.rows, data.total);
+        renderPagination(data.total);
     } catch(e) {
         document.getElementById('tblBody').innerHTML =
             `<tr><td colspan="6" class="tbl-empty"><div class="em-icon">⚠️</div>Failed to load customers</td></tr>`;
+        document.getElementById('tblInfo').textContent = '';
+        document.getElementById('pagRow').style.display = 'none';
         console.error(e);
     }
 }
 
 // ═══════════════════════════════════════════════════════
-//  DROPDOWNS
+//  BLANK / LOADING STATES
 // ═══════════════════════════════════════════════════════
-function buildFilterDropdowns() {
-    const circles = [...new Set(allCustomers.map(c => c.circle).filter(Boolean))].sort();
-    const sel = document.getElementById('fCircle');
-    circles.forEach(c => {
-        const o = document.createElement('option');
-        o.value = c; o.textContent = c; sel.appendChild(o);
-    });
-    rebuildOADropdown('');
+function showBlankState() {
+    document.getElementById('tblBody').innerHTML = `
+        <tr><td colspan="6">
+            <div class="tbl-empty">
+                <div class="em-icon">📋</div>
+                <div style="font-weight:700;color:#475569;font-size:0.95rem;">Select filters and click "Load Data"</div>
+                <div style="font-size:0.83rem;margin-top:5px;">Use Circle / OA dropdowns above, then press Load Data</div>
+            </div>
+        </td></tr>`;
+    document.getElementById('tblInfo').textContent = '';
+    document.getElementById('pagRow').style.display = 'none';
+    document.getElementById('statTotal').textContent   = '—';
+    document.getElementById('statShowing').textContent = 'Not loaded yet';
+    document.getElementById('statNoEmail').textContent = '—';
 }
 
-function rebuildOADropdown(circle) {
-    const oaSel = document.getElementById('fOA');
-    oaSel.innerHTML = '<option value="">-- All OAs --</option>';
-    const src = circle ? allCustomers.filter(c => c.circle === circle) : allCustomers;
-    const oas = [...new Set(src.map(c => c.oa_name).filter(Boolean))].sort();
-    oas.forEach(o => {
-        const opt = document.createElement('option');
-        opt.value = o; opt.textContent = o; oaSel.appendChild(opt);
-    });
-}
-
-function onCircleChange() {
-    rebuildOADropdown(document.getElementById('fCircle').value);
-    applyFilters();
-}
-
-// ═══════════════════════════════════════════════════════
-//  FILTER
-// ═══════════════════════════════════════════════════════
-function applyFilters() {
-    const circle  = document.getElementById('fCircle').value;
-    const oa      = document.getElementById('fOA').value;
-    const q       = document.getElementById('fSearch').value.toLowerCase().trim();
-    const noEmail = document.getElementById('chkNoEmail').checked;
-
-    filteredData = allCustomers.filter(c => {
-        if (circle && c.circle !== circle) return false;
-        if (oa     && (c.oa_name || '') !== oa) return false;
-        if (q) {
-            const name = (c.customer_name || '').toLowerCase();
-            if (!name.includes(q)) return false;
-        }
-        if (noEmail && c.acc_person_email && c.acc_person_email.trim()) return false;
-        return true;
-    });
-
-    currentPage = 1;
-    renderTable();
-    updateStats();
+function showLoadingState() {
+    document.getElementById('tblBody').innerHTML = `
+        <tr><td colspan="6">
+            <div class="ld-row">
+                <div class="ld-dot"></div><div class="ld-dot"></div><div class="ld-dot"></div>
+            </div>
+        </td></tr>`;
+    document.getElementById('tblInfo').textContent = 'Loading...';
+    document.getElementById('pagRow').style.display = 'none';
 }
 
 function resetFilters() {
-    document.getElementById('fCircle').value = '';
-    document.getElementById('fOA').value = '';
-    document.getElementById('fSearch').value = '';
+    document.getElementById('fCircle').value  = '';
+    document.getElementById('fOA').value      = '';
+    document.getElementById('fSearch').value  = '';
     document.getElementById('chkNoEmail').checked = false;
-    rebuildOADropdown('');
-    applyFilters();
+    document.getElementById('perPageInput').value = 100;
+    onCircleChange();  // reset OA dropdown
+    showBlankState();
 }
 
 // ═══════════════════════════════════════════════════════
 //  RENDER TABLE
 // ═══════════════════════════════════════════════════════
-function renderTable() {
-    const totalPages = Math.max(1, Math.ceil(filteredData.length / PAGE_SIZE));
-    if (currentPage > totalPages) currentPage = totalPages;
-
-    const start = (currentPage - 1) * PAGE_SIZE;
-    const page  = filteredData.slice(start, start + PAGE_SIZE);
-
+function renderTable(rows) {
     const tbody = document.getElementById('tblBody');
     document.getElementById('tblInfo').textContent =
-        `Showing ${filteredData.length} of ${allCustomers.length} active customers`;
+        `Showing ${rows.length} of ${serverTotal} customers with active lines`;
 
-    if (!page.length) {
+    if (!rows.length) {
         tbody.innerHTML = `<tr><td colspan="6">
             <div class="tbl-empty">
                 <div class="em-icon">🔍</div>
@@ -593,7 +631,7 @@ function renderTable() {
         return;
     }
 
-    tbody.innerHTML = page.map(c => {
+    tbody.innerHTML = rows.map(c => {
         // Build telephone lines display
         const lineArr = (c.active_lines || '').split('\n').map(l => l.trim()).filter(Boolean);
         const telHtml = lineArr.length
@@ -626,7 +664,6 @@ function renderTable() {
         </tr>`;
     }).join('');
 
-    renderPagination(totalPages);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -661,26 +698,28 @@ function onPDFSelected() {
 }
 
 // ═══════════════════════════════════════════════════════
-//  PAGINATION
+//  PAGINATION — server-side
 // ═══════════════════════════════════════════════════════
-function renderPagination(totalPages) {
-    const pagRow = document.getElementById('pagRow');
+function renderPagination(total) {
+    const pagRow    = document.getElementById('pagRow');
+    const totalPages = Math.ceil(total / currentLimit);
     if (totalPages <= 1) { pagRow.style.display = 'none'; return; }
 
+    const curPage = Math.floor(currentOffset / currentLimit) + 1;
     pagRow.style.display = 'flex';
     document.getElementById('pagInfo').textContent =
-        `Page ${currentPage} of ${totalPages}  (${filteredData.length} records)`;
+        `Page ${curPage} of ${totalPages}  (${total} records)`;
 
     const btns = document.getElementById('pagBtns');
     btns.innerHTML = '';
 
     const prev = document.createElement('button');
     prev.className = 'pag-btn'; prev.textContent = '◀ Prev';
-    prev.disabled = currentPage === 1;
-    prev.onclick = () => { currentPage--; renderTable(); };
+    prev.disabled = curPage === 1;
+    prev.onclick = () => { currentOffset -= currentLimit; fetchAndRender(); };
     btns.appendChild(prev);
 
-    pageRange(currentPage, totalPages).forEach(p => {
+    pageRange(curPage, totalPages).forEach(p => {
         if (p === '...') {
             const sp = document.createElement('span');
             sp.textContent = '…';
@@ -688,17 +727,17 @@ function renderPagination(totalPages) {
             btns.appendChild(sp);
         } else {
             const b = document.createElement('button');
-            b.className = 'pag-btn' + (p === currentPage ? ' active' : '');
+            b.className = 'pag-btn' + (p === curPage ? ' active' : '');
             b.textContent = p;
-            b.onclick = () => { currentPage = p; renderTable(); };
+            b.onclick = () => { currentOffset = (p - 1) * currentLimit; fetchAndRender(); };
             btns.appendChild(b);
         }
     });
 
     const next = document.createElement('button');
     next.className = 'pag-btn'; next.textContent = 'Next ▶';
-    next.disabled = currentPage === totalPages;
-    next.onclick = () => { currentPage++; renderTable(); };
+    next.disabled = curPage === totalPages;
+    next.onclick = () => { currentOffset += currentLimit; fetchAndRender(); };
     btns.appendChild(next);
 }
 
@@ -722,19 +761,23 @@ function pageRange(cur, total) {
 // ═══════════════════════════════════════════════════════
 //  STATS
 // ═══════════════════════════════════════════════════════
-function updateStats() {
-    document.getElementById('statTotal').textContent   = `${allCustomers.length} customers with active lines`;
-    document.getElementById('statShowing').textContent = `Showing ${filteredData.length}`;
-    const noEmail = allCustomers.filter(c => !c.acc_person_email || !c.acc_person_email.trim()).length;
-    document.getElementById('statNoEmail').textContent = `${noEmail} without email`;
+function updateStats(rows, total) {
+    document.getElementById('statTotal').textContent   = `${total} customers with active lines`;
+    document.getElementById('statShowing').textContent = `Showing ${rows.length}`;
+    const noEmail = rows.filter(c => !c.acc_person_email || !c.acc_person_email.trim()).length;
+    document.getElementById('statNoEmail').textContent = `${noEmail} without email (this page)`;
 }
 
 // ═══════════════════════════════════════════════════════
 //  SEND BILL MODAL
 // ═══════════════════════════════════════════════════════
 function openSendModal() {
-    const withEmail = filteredData.filter(c => c.acc_person_email && c.acc_person_email.trim());
-    const noEmail   = filteredData.length - withEmail.length;
+    if (!lastRows.length) {
+        showToast('Please load customers first using the filters above.', 'err');
+        return;
+    }
+    const withEmail = lastRows.filter(c => c.acc_person_email && c.acc_person_email.trim());
+    const noEmail   = lastRows.length - withEmail.length;
 
     const month = document.getElementById('billingMonth').value;
     const year  = document.getElementById('billingYear').value;
@@ -758,9 +801,9 @@ function closeSendModal() {
 }
 
 async function sendBillEmails() {
-    const withEmail = filteredData.filter(c => c.acc_person_email && c.acc_person_email.trim());
+    const withEmail = lastRows.filter(c => c.acc_person_email && c.acc_person_email.trim());
     if (!withEmail.length) {
-        showToast('No customers with email in current filter.', 'err');
+        showToast('No customers with email in current view.', 'err');
         return;
     }
 

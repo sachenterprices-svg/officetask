@@ -1986,35 +1986,98 @@ app.get('/api/reports/consolidated', authenticateToken, async (req, res) => {
 
 // ── BILLING ENDPOINTS ────────────────────────────────────────────────────────
 
-// Customers with at least one ACTIVE (non-closed) telephone line
-app.get('/api/bills/active-customers', authenticateToken, async (req, res) => {
+// ── BILLING: distinct circles with active lines (lightweight) ─────────────────
+app.get('/api/bills/circles', authenticateToken, async (req, res) => {
     try {
         const [rows] = await pool.query(`
+            SELECT DISTINCT c.circle
+            FROM customers c
+            WHERE c.circle IS NOT NULL AND c.circle != ''
+              AND EXISTS (
+                SELECT 1 FROM customer_lines cl
+                WHERE cl.customer_id = c.id
+                  AND (cl.is_closed IS NULL OR cl.is_closed = '' OR UPPER(cl.is_closed) NOT IN ('YES','CLOSED'))
+              )
+            ORDER BY c.circle
+        `);
+        res.json(rows.map(r => r.circle));
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── BILLING: distinct OAs for a circle (lightweight) ──────────────────────────
+app.get('/api/bills/oas', authenticateToken, async (req, res) => {
+    try {
+        const { circle } = req.query;
+        const params = [];
+        let extra = '';
+        if (circle) { extra = ' AND c.circle = ?'; params.push(circle); }
+        const [rows] = await pool.query(`
+            SELECT DISTINCT c.oa_name
+            FROM customers c
+            WHERE c.oa_name IS NOT NULL AND c.oa_name != ''
+              AND EXISTS (
+                SELECT 1 FROM customer_lines cl
+                WHERE cl.customer_id = c.id
+                  AND (cl.is_closed IS NULL OR cl.is_closed = '' OR UPPER(cl.is_closed) NOT IN ('YES','CLOSED'))
+              )${extra}
+            ORDER BY c.oa_name
+        `, params);
+        res.json(rows.map(r => r.oa_name));
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── BILLING: customers with active lines (server-side filter + pagination) ────
+app.get('/api/bills/active-customers', authenticateToken, async (req, res) => {
+    try {
+        const { circle, oa, search, no_email } = req.query;
+        const limitN  = Math.min(Math.max(parseInt(req.query.limit)  || 100, 1), 5000);
+        const offsetN = Math.max(parseInt(req.query.offset) || 0, 0);
+
+        const baseWhere = `EXISTS (
+            SELECT 1 FROM customer_lines cl
+            WHERE cl.customer_id = c.id
+              AND (cl.is_closed IS NULL OR cl.is_closed = '' OR UPPER(cl.is_closed) NOT IN ('YES','CLOSED'))
+        )`;
+        const conditions = [baseWhere];
+        const params = [];
+
+        if (circle)   { conditions.push('c.circle = ?');                          params.push(circle); }
+        if (oa)       { conditions.push('c.oa_name = ?');                         params.push(oa); }
+        if (search)   { conditions.push('c.customer_name LIKE ?');                params.push(`%${search}%`); }
+        if (no_email === '1') {
+            conditions.push('(c.acc_person_email IS NULL OR c.acc_person_email = \'\')');
+        }
+
+        const where = 'WHERE ' + conditions.join(' AND ');
+
+        const [[{ total }]] = await pool.query(
+            `SELECT COUNT(DISTINCT c.id) AS total FROM customers c ${where}`, params
+        );
+
+        const [rows] = await pool.query(`
             SELECT DISTINCT
-                c.id, c.circle, c.ssa, c.oa_name,
-                c.customer_code, c.customer_name,
-                c.mobile_no, c.email_id,
-                c.acc_person_email,
-                c.monthly_rent, c.contact_person,
+                c.id, c.circle, c.oa_name,
+                c.customer_name, c.customer_code,
+                c.acc_person_email, c.contact_person,
                 (SELECT GROUP_CONCAT(
                     CASE WHEN cl2.telephone_code IS NOT NULL AND cl2.telephone_code != ''
                          THEN CONCAT(cl2.telephone_code, '-', cl2.telephone_number)
-                         ELSE cl2.telephone_number
-                    END
+                         ELSE cl2.telephone_number END
                     ORDER BY cl2.id SEPARATOR '\n'
                  ) FROM customer_lines cl2
                  WHERE cl2.customer_id = c.id
                    AND (cl2.is_closed IS NULL OR cl2.is_closed = '' OR UPPER(cl2.is_closed) NOT IN ('YES','CLOSED'))
                 ) AS active_lines
-            FROM customers c
-            WHERE EXISTS (
-                SELECT 1 FROM customer_lines cl
-                WHERE cl.customer_id = c.id
-                  AND (cl.is_closed IS NULL OR cl.is_closed = '' OR UPPER(cl.is_closed) NOT IN ('YES','CLOSED'))
-            )
+            FROM customers c ${where}
             ORDER BY c.circle, c.oa_name, c.customer_name
-        `);
-        res.json(rows);
+            LIMIT ? OFFSET ?
+        `, [...params, limitN, offsetN]);
+
+        res.json({ total, rows, limit: limitN, offset: offsetN });
     } catch (err) {
         console.error('Billing active customers error:', err);
         res.status(500).json({ error: 'Failed to fetch billing customers' });
