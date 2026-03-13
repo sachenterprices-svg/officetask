@@ -11,6 +11,7 @@ on:
 
 jobs:
   deploy-crm-files:
+    if: false  # TEMPORARILY DISABLED - re-enable by removing this line
     name: Deploy public/ → officetask/ via FTP
     runs-on: ubuntu-latest
 
