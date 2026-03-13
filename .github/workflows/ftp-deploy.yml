@@ -18,33 +18,46 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Upload public/ to officetask/ (FTP)
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server:         ${{ secrets.FTP_SERVER }}
-          username:       ${{ secrets.FTP_USERNAME }}
-          password:       ${{ secrets.FTP_PASSWORD }}
-          port:           21
-          protocol:       ftp
-          local-dir:      ./public/
-          server-dir:     officetask/
-          exclude:        |
-            **/.git*
-            **/.git*/**
-            **/node_modules/**
-          log-level:      verbose
+      - name: Install lftp
+        run: sudo apt-get install -y lftp
 
-      - name: Upload website/ to public_html/ (FTP)
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server:         ${{ secrets.FTP_SERVER }}
-          username:       ${{ secrets.FTP_USERNAME }}
-          password:       ${{ secrets.FTP_PASSWORD }}
-          port:           21
-          protocol:       ftp
-          local-dir:      ./website/
-          server-dir:     public_html/
-          exclude:        |
-            **/.git*
-            **/.git*/**
-          log-level:      verbose
+      - name: Write FTP credentials to netrc (safe - no shell injection)
+        env:
+          FTP_HOST: ${{ secrets.FTP_SERVER }}
+          FTP_USER: ${{ secrets.FTP_USERNAME }}
+          FTP_PASS: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          printf 'machine %s login %s password %s\n' "$FTP_HOST" "$FTP_USER" "$FTP_PASS" > ~/.netrc
+          chmod 600 ~/.netrc
+          mkdir -p ~/.lftp
+          echo "set ftp:ssl-allow no" >> ~/.lftp/rc
+          echo "set net:timeout 30" >> ~/.lftp/rc
+          echo "set net:reconnect-interval-base 5" >> ~/.lftp/rc
+          echo "set net:max-retries 3" >> ~/.lftp/rc
+
+      - name: Upload public/ → officetask/
+        env:
+          FTP_HOST: ${{ secrets.FTP_SERVER }}
+        run: |
+          lftp -e "
+            mirror -R --delete --no-perms --parallel=4 \
+              --exclude-glob .git* \
+              --exclude-glob node_modules/ \
+              public/ officetask/;
+            quit
+          " ftp://$FTP_HOST
+
+      - name: Upload website/ → public_html/
+        env:
+          FTP_HOST: ${{ secrets.FTP_SERVER }}
+        run: |
+          lftp -e "
+            mirror -R --delete --no-perms --parallel=4 \
+              --exclude-glob .git* \
+              website/ public_html/;
+            quit
+          " ftp://$FTP_HOST
+
+      - name: Cleanup credentials
+        if: always()
+        run: rm -f ~/.netrc
