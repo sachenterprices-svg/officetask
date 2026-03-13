@@ -845,7 +845,7 @@ async function sendBillEmails() {
             'ok'
         );
         pdfFiles.clear();
-        renderTable();
+        renderTable(lastRows);
     } catch(e) {
         showToast(e.message || 'Email send failed. Please try again.', 'err');
     } finally {
