@@ -2083,10 +2083,13 @@ app.get('/api/bills/active-customers', authenticateToken, async (req, res) => {
 });
 
 // Send bill emails (with optional per-customer PDF attachments)
-app.post('/api/bills/send-email', authenticateToken, pdfUpload.any(), async (req, res) => {
+// Send bill emails — accepts JSON body with base64-encoded PDFs (Vercel-compatible, no multer)
+app.post('/api/bills/send-email', authenticateToken, async (req, res) => {
     try {
-        const { billing_month, billing_year, subject, message } = req.body;
-        const customerIds = JSON.parse(req.body.customer_ids || '[]');
+        const { billing_month, billing_year, subject, message, customer_ids, pdfs } = req.body;
+        // customer_ids: array of ints
+        // pdfs: { "<custId>": { name: "filename.pdf", data: "<base64>" }, ... }
+        const customerIds = Array.isArray(customer_ids) ? customer_ids : JSON.parse(customer_ids || '[]');
         if (!customerIds.length) return res.status(400).json({ error: 'No customers specified' });
 
         const [customers] = await pool.query(
@@ -2096,27 +2099,20 @@ app.post('/api/bills/send-email', authenticateToken, pdfUpload.any(), async (req
         const withEmail = customers.filter(c => c.acc_person_email && c.acc_person_email.trim());
         if (!withEmail.length) return res.status(400).json({ error: 'None of the selected customers have an email address' });
 
-        // Build PDF map: pdf_<customer_id> → file buffer
-        const pdfMap = {};
-        if (req.files) {
-            req.files.forEach(f => {
-                const m = f.fieldname.match(/^pdf_(\d+)$/);
-                if (m) pdfMap[parseInt(m[1])] = f;
-            });
-        }
+        const pdfMap = pdfs || {};  // { "123": { name: "bill.pdf", data: "<base64>" } }
 
         const billingPeriod = (billing_month && billing_year)
             ? `${billing_month} ${billing_year}` : 'Current Period';
         const emailSubject = subject || `BSNL PBX Bill — ${billingPeriod}`;
 
-        // Send all emails in PARALLEL to avoid Vercel 10s timeout
+        // Send all emails in PARALLEL
         const results = await Promise.allSettled(withEmail.map(cust => {
             const attachments = [];
-            if (pdfMap[cust.id]) {
-                const f = pdfMap[cust.id];
+            const pdfEntry = pdfMap[String(cust.id)];
+            if (pdfEntry && pdfEntry.data) {
                 attachments.push({
-                    filename: f.originalname || `bill_${cust.customer_code}_${billingPeriod}.pdf`,
-                    content: f.buffer,
+                    filename: pdfEntry.name || `bill_${cust.customer_code}_${billingPeriod}.pdf`,
+                    content: Buffer.from(pdfEntry.data, 'base64'),
                     contentType: 'application/pdf'
                 });
             }
