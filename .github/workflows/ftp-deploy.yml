@@ -1,0 +1,45 @@
+name: Auto Deploy to FTP (crm.coralinfratel.com)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'public/**'
+      - 'website/**'
+
+jobs:
+  deploy-crm-files:
+    name: Deploy public/ → officetask/ via FTP
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Upload public/ to officetask/ (FTP)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server:         ${{ secrets.FTP_SERVER }}
+          username:       ${{ secrets.FTP_USERNAME }}
+          password:       ${{ secrets.FTP_PASSWORD }}
+          local-dir:      ./public/
+          server-dir:     officetask/
+          exclude:        |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+          log-level:      standard
+
+      - name: Upload website/ to public_html/ (FTP)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server:         ${{ secrets.FTP_SERVER }}
+          username:       ${{ secrets.FTP_USERNAME }}
+          password:       ${{ secrets.FTP_PASSWORD }}
+          local-dir:      ./website/
+          server-dir:     public_html/
+          exclude:        |
+            **/.git*
+            **/.git*/**
+          log-level:      standard
