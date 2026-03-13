@@ -220,24 +220,57 @@
                     </div>
                 </div>
 
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:15px;">
-                    <div>
-                        <label
-                            style="display:block; font-size:0.8rem; font-weight:700; color:#64748b; margin-bottom:5px;">Allowed
-                            Circle</label>
-                        <select id="modalCircle" onchange="onUserCircleChange()"
-                            style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px; box-sizing:border-box; background:#fff; font-family:inherit; font-size:0.9rem;">
-                            <option value="">-- All Circles --</option>
-                        </select>
+                <!-- Multi-select Circle / OA panels -->
+                <div style="margin-bottom:15px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                        <span style="font-size:0.8rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">Allowed Circles &amp; OAs</span>
+                        <span style="font-size:0.75rem; color:#94a3b8;">Multiple select allowed</span>
                     </div>
-                    <div>
-                        <label
-                            style="display:block; font-size:0.8rem; font-weight:700; color:#64748b; margin-bottom:5px;">Allowed
-                            OA</label>
-                        <select id="modalOA"
-                            style="width:100%; padding:10px; border:1px solid #e2e8f0; border-radius:8px; box-sizing:border-box; background:#fff; font-family:inherit; font-size:0.9rem;">
-                            <option value="">-- All OAs --</option>
-                        </select>
+                    <div style="display:grid; grid-template-columns:1fr 28px 1fr; gap:0; align-items:start;">
+
+                        <!-- Circle Panel -->
+                        <div style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden;">
+                            <div style="background:#002d72; display:flex; align-items:center; gap:8px; padding:8px 12px;">
+                                <input type="checkbox" id="ucAllCircle" title="Select All"
+                                       style="width:14px;height:14px;cursor:pointer;accent-color:#fff;flex-shrink:0;"
+                                       onchange="ucSelectAll('circle',this.checked)">
+                                <span style="font-size:0.72rem;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:0.7px;flex:1;">Circle</span>
+                                <span id="ucBdgCircle" style="background:rgba(255,255,255,0.2);color:#fff;font-size:0.68rem;font-weight:800;padding:2px 8px;border-radius:8px;">0</span>
+                            </div>
+                            <div style="padding:5px 8px; border-bottom:1px solid #f1f5f9; background:#fafbfd;">
+                                <input type="text" id="ucSrchCircle" placeholder="Search circle..."
+                                       oninput="ucFilter('circle',this.value)"
+                                       style="width:100%;padding:5px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:0.78rem;box-sizing:border-box;">
+                            </div>
+                            <div id="ucLstCircle" style="height:200px;overflow-y:auto;"></div>
+                        </div>
+
+                        <!-- Arrow -->
+                        <div style="display:flex;align-items:flex-start;justify-content:center;padding-top:44px;">
+                            <span style="color:#94a3b8;font-size:1rem;">▶</span>
+                        </div>
+
+                        <!-- OA Panel -->
+                        <div style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden;">
+                            <div style="background:#1e40af; display:flex; align-items:center; gap:8px; padding:8px 12px;">
+                                <input type="checkbox" id="ucAllOA" title="Select All"
+                                       style="width:14px;height:14px;cursor:pointer;accent-color:#fff;flex-shrink:0;"
+                                       onchange="ucSelectAll('oa',this.checked)">
+                                <span style="font-size:0.72rem;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:0.7px;flex:1;">OA</span>
+                                <span id="ucBdgOA" style="background:rgba(255,255,255,0.2);color:#fff;font-size:0.68rem;font-weight:800;padding:2px 8px;border-radius:8px;">0</span>
+                            </div>
+                            <div style="padding:5px 8px; border-bottom:1px solid #f1f5f9; background:#fafbfd;">
+                                <input type="text" id="ucSrchOA" placeholder="Search OA..."
+                                       oninput="ucFilter('oa',this.value)"
+                                       style="width:100%;padding:5px 8px;border:1px solid #e2e8f0;border-radius:5px;font-size:0.78rem;box-sizing:border-box;">
+                            </div>
+                            <div id="ucLstOA" style="height:200px;overflow-y:auto;">
+                                <div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:0.8rem;padding:10px;text-align:center;">
+                                    📍 Select a Circle first
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
 

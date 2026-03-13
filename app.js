@@ -78,7 +78,9 @@ async function upgradeUsersTable() {
             { name: 'reports_to', type: 'INT' },
             { name: 'backdate_rights', type: 'BOOLEAN DEFAULT FALSE' },
             { name: 'department', type: "VARCHAR(50) DEFAULT 'Technical'" },
-            { name: 'work_types', type: 'JSON' }
+            { name: 'work_types', type: 'JSON' },
+            { name: 'allowed_circles', type: 'TEXT' },   // JSON array of circle names (multi-select)
+            { name: 'allowed_oas', type: 'TEXT' }        // JSON array of OA names (multi-select)
         ];
 
         for (const col of columns) {
@@ -860,8 +862,9 @@ app.get('/api/users', authenticateToken, isAdmin, async (req, res) => {
     try {
         const [rows] = await pool.query(`
             SELECT u1.id, u1.username, u1.role, u1.name, u1.mobile, u1.email,
-                   u1.allowed_circle, u1.allowed_oa, u1.permissions, u1.reports_to, u1.created_at,
-                   u1.department,
+                   u1.allowed_circle, u1.allowed_oa, u1.allowed_circles, u1.allowed_oas,
+                   u1.permissions, u1.reports_to, u1.created_at,
+                   u1.department, u1.work_types, u1.allowed_customers,
                    u2.name as manager_name, u2.username as manager_username
             FROM users u1
             LEFT JOIN users u2 ON u1.reports_to = u2.id
@@ -874,12 +877,12 @@ app.get('/api/users', authenticateToken, isAdmin, async (req, res) => {
 });
 
 app.post('/api/users', authenticateToken, isAdmin, async (req, res) => {
-    const { username, password, role, name, mobile, email, allowed_circle, allowed_oa, permissions, reports_to, department } = req.body;
+    const { username, password, role, name, mobile, email, permissions, reports_to, department, work_types, allowed_circles, allowed_oas } = req.body;
     try {
         const hash = await bcrypt.hash(password, 10);
         const [result] = await pool.query(
-            'INSERT INTO users (username, password_hash, role, name, mobile, email, allowed_circle, allowed_oa, permissions, reports_to, backdate_rights, department) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [username, hash, role || 'user', name || null, mobile || null, email || null, allowed_circle || null, allowed_oa || null, JSON.stringify(permissions || []), reports_to || null, req.body.backdate_rights || false, department || 'Technical']
+            'INSERT INTO users (username, password_hash, role, name, mobile, email, permissions, reports_to, backdate_rights, department, work_types, allowed_circles, allowed_oas) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [username, hash, role || 'user', name || null, mobile || null, email || null, JSON.stringify(permissions || []), reports_to || null, req.body.backdate_rights || false, department || 'Technical', JSON.stringify(work_types || []), JSON.stringify(allowed_circles || []), JSON.stringify(allowed_oas || [])]
         );
         res.status(201).json({ id: result.insertId, username, role });
     } catch (err) {
@@ -889,11 +892,11 @@ app.post('/api/users', authenticateToken, isAdmin, async (req, res) => {
 });
 
 app.put('/api/users/:id', authenticateToken, isAdmin, async (req, res) => {
-    const { role, name, mobile, email, allowed_circle, allowed_oa, permissions, reports_to, department, work_types } = req.body;
+    const { role, name, mobile, email, permissions, reports_to, department, work_types, allowed_circles, allowed_oas } = req.body;
     try {
         await pool.query(
-            'UPDATE users SET role=?, name=?, mobile=?, email=?, allowed_circle=?, allowed_oa=?, permissions=?, reports_to=?, backdate_rights=?, department=?, work_types=? WHERE id=?',
-            [role, name || null, mobile || null, email || null, allowed_circle || null, allowed_oa || null, JSON.stringify(permissions || []), reports_to || null, req.body.backdate_rights || false, department || 'Technical', JSON.stringify(work_types || []), req.params.id]
+            'UPDATE users SET role=?, name=?, mobile=?, email=?, permissions=?, reports_to=?, backdate_rights=?, department=?, work_types=?, allowed_circles=?, allowed_oas=? WHERE id=?',
+            [role, name || null, mobile || null, email || null, JSON.stringify(permissions || []), reports_to || null, req.body.backdate_rights || false, department || 'Technical', JSON.stringify(work_types || []), JSON.stringify(allowed_circles || []), JSON.stringify(allowed_oas || []), req.params.id]
         );
         res.json({ message: 'User updated successfully' });
     } catch (err) {
@@ -2230,14 +2233,24 @@ app.get('/api/dashboard/pending-tasks', authenticateToken, async (req, res) => {
 
         // Permission filtering (similar to how reports/customers might eventually work)
         if (user.role !== 'admin') {
-            const [userData] = await pool.query('SELECT allowed_circle, allowed_oa, allowed_customers FROM users WHERE id = ?', [user.id]);
+            const [userData] = await pool.query('SELECT allowed_circle, allowed_oa, allowed_circles, allowed_oas, allowed_customers FROM users WHERE id = ?', [user.id]);
             const u = userData[0];
 
-            if (u.allowed_circle) {
+            // Multi-circle filter (new) — falls back to old single-value if new is empty
+            const parseArr = v => { try { const a = JSON.parse(v); return Array.isArray(a) ? a.filter(Boolean) : []; } catch(e) { return []; } };
+            const circles = parseArr(u.allowed_circles);
+            const oas     = parseArr(u.allowed_oas);
+            if (circles.length > 0) {
+                whereClause += ` AND circle IN (${circles.map(() => '?').join(',')})`;
+                params.push(...circles);
+            } else if (u.allowed_circle) {
                 whereClause += ' AND circle = ?';
                 params.push(u.allowed_circle);
             }
-            if (u.allowed_oa) {
+            if (oas.length > 0) {
+                whereClause += ` AND oa_name IN (${oas.map(() => '?').join(',')})`;
+                params.push(...oas);
+            } else if (u.allowed_oa) {
                 whereClause += ' AND oa_name = ?';
                 params.push(u.allowed_oa);
             }

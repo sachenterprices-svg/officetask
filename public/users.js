@@ -9,7 +9,26 @@ const MODULES_CONFIG = [
 
 let users = [];
 let selectedUserId = null;
-let _circleOaData = []; // cache circles+OAs
+let _circleOaData = []; // cache: [{name, oas:[{name},...]}]
+
+// Selected sets for Circle/OA panels
+const ucSel = { circle: new Set(), oa: new Set() };
+let _ucDebCircle = null;
+
+// ── Panel Row CSS injected once ────────────────────────────
+(function injectPanelStyles() {
+    const s = document.createElement('style');
+    s.textContent = `
+    .uc-row{display:flex;align-items:center;gap:8px;padding:7px 11px;border-bottom:1px solid #f8fafc;cursor:pointer;transition:background .12s;user-select:none;}
+    .uc-row:last-child{border-bottom:none;}
+    .uc-row:hover{background:#f0f7ff;}
+    .uc-row.on{background:#eff6ff;}
+    .uc-row input[type=checkbox]{width:13px;height:13px;cursor:pointer;accent-color:#002d72;flex-shrink:0;pointer-events:none;}
+    .uc-row .rn{font-size:0.82rem;color:#1e293b;flex:1;}
+    .uc-row.on .rn{color:#1e40af;font-weight:600;}
+    `;
+    document.head.appendChild(s);
+})();
 
 // Initialize Page
 document.addEventListener('DOMContentLoaded', async () => {
@@ -19,37 +38,114 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('userForm').addEventListener('submit', saveUser);
 });
 
-// Load all circles (with nested OAs) — used by Circle/OA dropdowns in user modal
+// Load circles+OAs from API and build circle panel rows
 async function loadCircleOaData() {
     try {
         const res = await window.apiFetch('/api/bsnl/circles');
         if (!res.ok) return;
         _circleOaData = await res.json();
-        const sel = document.getElementById('modalCircle');
-        if (!sel) return;
-        _circleOaData.forEach(c => {
-            const o = document.createElement('option');
-            o.value = c.name; o.textContent = c.name;
-            sel.appendChild(o);
-        });
+        ucBuildCirclePanel();
     } catch(e) { console.error('Circle load error', e); }
 }
 
-// When circle changes in user modal — populate OA dropdown
-function onUserCircleChange() {
-    const circleName = document.getElementById('modalCircle').value;
-    const oaSel = document.getElementById('modalOA');
-    oaSel.innerHTML = '<option value="">-- All OAs --</option>';
-    if (!circleName) return;
-    const circle = _circleOaData.find(c => c.name === circleName);
-    if (!circle || !circle.oas) return;
-    circle.oas.forEach(oa => {
-        const o = document.createElement('option');
-        o.value = oa.name; o.textContent = oa.name;
-        oaSel.appendChild(o);
+function ucBuildCirclePanel() {
+    const lst = document.getElementById('ucLstCircle');
+    if (!lst) return;
+    if (!_circleOaData.length) { lst.innerHTML = '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:0.8rem;">No circles found</div>'; return; }
+    lst.innerHTML = _circleOaData.map(c =>
+        `<div class="uc-row${ucSel.circle.has(c.name) ? ' on' : ''}" data-v="${escAttr(c.name)}" onclick="ucToggleRow(this,'circle')">
+            <input type="checkbox" ${ucSel.circle.has(c.name) ? 'checked' : ''}>
+            <span class="rn">${escHtml(c.name)}</span>
+        </div>`
+    ).join('');
+    ucSetBadge('Circle', ucSel.circle.size);
+    ucUpdateSelectAll('circle');
+}
+
+function ucBuildOAPanel() {
+    const lst = document.getElementById('ucLstOA');
+    if (!lst) return;
+    if (!ucSel.circle.size) {
+        lst.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:0.8rem;padding:10px;text-align:center;">📍 Select a Circle first</div>';
+        ucSel.oa.clear(); ucSetBadge('OA', 0); return;
+    }
+    // Collect OAs from all selected circles
+    const oaSet = new Map(); // oa name → count circles
+    _circleOaData.forEach(c => {
+        if (!ucSel.circle.has(c.name)) return;
+        (c.oas || []).forEach(oa => oaSet.set(oa.name, (oaSet.get(oa.name) || 0) + 1));
+    });
+    // Remove OAs not in current circles
+    [...ucSel.oa].forEach(o => { if (!oaSet.has(o)) ucSel.oa.delete(o); });
+    const sorted = [...oaSet.keys()].sort();
+    if (!sorted.length) { lst.innerHTML = '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:0.8rem;">No OA found</div>'; return; }
+    lst.innerHTML = sorted.map(oa =>
+        `<div class="uc-row${ucSel.oa.has(oa) ? ' on' : ''}" data-v="${escAttr(oa)}" onclick="ucToggleRow(this,'oa')">
+            <input type="checkbox" ${ucSel.oa.has(oa) ? 'checked' : ''}>
+            <span class="rn">${escHtml(oa)}</span>
+        </div>`
+    ).join('');
+    ucSetBadge('OA', ucSel.oa.size);
+    ucUpdateSelectAll('oa');
+    document.getElementById('ucSrchOA').value = '';
+}
+
+function ucToggleRow(row, panel) {
+    const v = row.dataset.v;
+    const cb = row.querySelector('input[type=checkbox]');
+    const on = !cb.checked;
+    cb.checked = on; row.classList.toggle('on', on);
+    if (panel === 'circle') {
+        if (on) ucSel.circle.add(v); else ucSel.circle.delete(v);
+        ucSetBadge('Circle', ucSel.circle.size);
+        ucUpdateSelectAll('circle');
+        clearTimeout(_ucDebCircle);
+        _ucDebCircle = setTimeout(ucBuildOAPanel, 150);
+    } else {
+        if (on) ucSel.oa.add(v); else ucSel.oa.delete(v);
+        ucSetBadge('OA', ucSel.oa.size);
+        ucUpdateSelectAll('oa');
+    }
+}
+window.ucToggleRow = ucToggleRow;
+
+function ucSelectAll(panel, checked) {
+    const lstId = panel === 'circle' ? 'ucLstCircle' : 'ucLstOA';
+    document.querySelectorAll(`#${lstId} .uc-row`).forEach(row => {
+        if (row.style.display === 'none') return;
+        const cb = row.querySelector('input[type=checkbox]');
+        cb.checked = checked; row.classList.toggle('on', checked);
+        if (panel === 'circle') { if (checked) ucSel.circle.add(row.dataset.v); else ucSel.circle.delete(row.dataset.v); }
+        else                    { if (checked) ucSel.oa.add(row.dataset.v);     else ucSel.oa.delete(row.dataset.v); }
+    });
+    if (panel === 'circle') { ucSetBadge('Circle', ucSel.circle.size); clearTimeout(_ucDebCircle); _ucDebCircle = setTimeout(ucBuildOAPanel, 150); }
+    else ucSetBadge('OA', ucSel.oa.size);
+}
+window.ucSelectAll = ucSelectAll;
+
+function ucFilter(panel, q) {
+    const lstId = panel === 'circle' ? 'ucLstCircle' : 'ucLstOA';
+    const low = q.toLowerCase();
+    document.querySelectorAll(`#${lstId} .uc-row`).forEach(row => {
+        const name = row.querySelector('.rn');
+        row.style.display = name && name.textContent.toLowerCase().includes(low) ? '' : 'none';
     });
 }
-window.onUserCircleChange = onUserCircleChange;
+window.ucFilter = ucFilter;
+
+function ucSetBadge(cap, n) { const el = document.getElementById('ucBdg'+cap); if (el) el.textContent = n; }
+
+function ucUpdateSelectAll(panel) {
+    const lstId = panel === 'circle' ? 'ucLstCircle' : 'ucLstOA';
+    const chkId = panel === 'circle' ? 'ucAllCircle' : 'ucAllOA';
+    const rows = document.querySelectorAll(`#${lstId} .uc-row:not([style*="none"])`);
+    const checked = document.querySelectorAll(`#${lstId} .uc-row input:checked`);
+    const el = document.getElementById(chkId);
+    if (el) el.checked = rows.length > 0 && checked.length === rows.length;
+}
+
+function escHtml(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s) { return String(s ?? '').replace(/"/g,'&quot;'); }
 
 async function loadUsers() {
     try {
@@ -175,11 +271,17 @@ function openEditModal(id) {
     document.getElementById('modalUsername').value = user.username || '';
     document.getElementById('modalUsername').disabled = true;
     document.getElementById('modalRole').value = user.role || 'user';
-    document.getElementById('modalCircle').value = user.allowed_circle || '';
-    onUserCircleChange(); // populate OA dropdown for this circle
-    document.getElementById('modalOA').value = user.allowed_oa || '';
     document.getElementById('modalCustomers').value = user.allowed_customers || '';
     document.getElementById('modalBackdate').checked = user.backdate_rights || false;
+
+    // Set multi-select Circle/OA panels
+    const parseArr = v => { try { const a = JSON.parse(v); return Array.isArray(a) ? a : []; } catch(e) { return []; } };
+    ucSel.circle = new Set(parseArr(user.allowed_circles));
+    ucSel.oa     = new Set(parseArr(user.allowed_oas));
+    ucBuildCirclePanel();
+    ucBuildOAPanel();
+    document.getElementById('ucSrchCircle').value = '';
+    document.getElementById('ucSrchOA').value = '';
 
     // Set Permissions
     let perms = [];
@@ -220,8 +322,8 @@ async function saveUser(e) {
         username: document.getElementById('modalUsername').value,
         role: document.getElementById('modalRole').value,
         reports_to: document.getElementById('modalReportsTo').value || null,
-        allowed_circle: document.getElementById('modalCircle').value || null,
-        allowed_oa: document.getElementById('modalOA').value || null,
+        allowed_circles: [...ucSel.circle],
+        allowed_oas:     [...ucSel.oa],
         allowed_customers: document.getElementById('modalCustomers').value || null,
         permissions: permissions,
         backdate_rights: document.getElementById('modalBackdate').checked
