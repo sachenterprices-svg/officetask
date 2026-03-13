@@ -1,12 +1,5 @@
 {
     "version": 2,
-    "builds": [
-        {
-            "src": "app.js",
-            "use": "@vercel/node",
-            "config": { "maxLambdaSize": "15mb" }
-        }
-    ],
     "functions": {
         "app.js": {
             "maxDuration": 60
