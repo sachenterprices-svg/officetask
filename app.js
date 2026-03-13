@@ -4,7 +4,20 @@ const path = require('path');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
+const multer = require('multer');
 require('dotenv').config();
+
+// ── BILLING MAILER (SMTP via Gmail SSL) ───────────────────────────────────────
+const billMailTransporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
+    auth: { user: 'bsnlpribill@gmail.com', pass: 'QWERTY&123456$' }
+});
+
+// multer: memory storage for PDF attachments (max 10 MB per file)
+const pdfUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -1982,7 +1995,17 @@ app.get('/api/bills/active-customers', authenticateToken, async (req, res) => {
                 c.customer_code, c.customer_name,
                 c.mobile_no, c.email_id,
                 c.acc_person_email,
-                c.monthly_rent, c.contact_person
+                c.monthly_rent, c.contact_person,
+                (SELECT GROUP_CONCAT(
+                    CASE WHEN cl2.telephone_code IS NOT NULL AND cl2.telephone_code != ''
+                         THEN CONCAT(cl2.telephone_code, '-', cl2.telephone_number)
+                         ELSE cl2.telephone_number
+                    END
+                    ORDER BY cl2.id SEPARATOR '\n'
+                 ) FROM customer_lines cl2
+                 WHERE cl2.customer_id = c.id
+                   AND (cl2.is_closed IS NULL OR cl2.is_closed = '' OR UPPER(cl2.is_closed) NOT IN ('YES','CLOSED'))
+                ) AS active_lines
             FROM customers c
             WHERE EXISTS (
                 SELECT 1 FROM customer_lines cl
@@ -1995,6 +2018,76 @@ app.get('/api/bills/active-customers', authenticateToken, async (req, res) => {
     } catch (err) {
         console.error('Billing active customers error:', err);
         res.status(500).json({ error: 'Failed to fetch billing customers' });
+    }
+});
+
+// Send bill emails (with optional per-customer PDF attachments)
+app.post('/api/bills/send-email', authenticateToken, pdfUpload.any(), async (req, res) => {
+    try {
+        const { billing_month, billing_year, subject, message } = req.body;
+        const customerIds = JSON.parse(req.body.customer_ids || '[]');
+        if (!customerIds.length) return res.status(400).json({ error: 'No customers specified' });
+
+        const [customers] = await pool.query(
+            'SELECT id, customer_name, customer_code, acc_person_email FROM customers WHERE id IN (?)',
+            [customerIds]
+        );
+        const withEmail = customers.filter(c => c.acc_person_email && c.acc_person_email.trim());
+        if (!withEmail.length) return res.status(400).json({ error: 'None of the selected customers have an email address' });
+
+        // Build PDF map: pdf_<customer_id> → file buffer
+        const pdfMap = {};
+        if (req.files) {
+            req.files.forEach(f => {
+                const m = f.fieldname.match(/^pdf_(\d+)$/);
+                if (m) pdfMap[parseInt(m[1])] = f;
+            });
+        }
+
+        const billingPeriod = (billing_month && billing_year)
+            ? `${billing_month} ${billing_year}` : 'Current Period';
+        const emailSubject = subject || `BSNL PBX Bill — ${billingPeriod}`;
+
+        let sent = 0, failed = 0;
+        for (const cust of withEmail) {
+            try {
+                const attachments = [];
+                if (pdfMap[cust.id]) {
+                    const f = pdfMap[cust.id];
+                    attachments.push({
+                        filename: f.originalname || `bill_${cust.customer_code}_${billingPeriod}.pdf`,
+                        content: f.buffer,
+                        contentType: 'application/pdf'
+                    });
+                }
+                await billMailTransporter.sendMail({
+                    from: '"BSNL PBX BILL" <bsnlpribill@gmail.com>',
+                    to: cust.acc_person_email.trim(),
+                    subject: emailSubject,
+                    html: `<div style="font-family:Arial,sans-serif;max-width:600px;padding:20px;">
+                        <h2 style="color:#002d72;margin-bottom:6px;">BSNL PBX Bill</h2>
+                        <p style="color:#555;margin:0 0 16px;">Billing Period: <strong>${billingPeriod}</strong></p>
+                        <p>Dear ${cust.customer_name},</p>
+                        <p>Please find your BSNL PBX bill for <strong>${billingPeriod}</strong>.${
+                            attachments.length ? ' The bill is attached as a PDF.' : ''
+                        }</p>
+                        ${message ? `<p style="white-space:pre-line;">${message}</p>` : ''}
+                        <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">
+                        <p style="font-size:0.82em;color:#94a3b8;">Customer Code: ${cust.customer_code || '—'}</p>
+                        <p style="font-size:0.82em;color:#94a3b8;">This is an automated email. Please do not reply.</p>
+                    </div>`,
+                    attachments
+                });
+                sent++;
+            } catch (e) {
+                console.error(`Bill email failed for customer ${cust.id} (${cust.acc_person_email}):`, e.message);
+                failed++;
+            }
+        }
+        res.json({ sent, failed, total: withEmail.length });
+    } catch (err) {
+        console.error('Send bill email error:', err);
+        res.status(500).json({ error: 'Email send failed: ' + err.message });
     }
 });
 

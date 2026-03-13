@@ -8,13 +8,61 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="auth.js"></script>
     <style>
-        /* ── Page styles ── */
         .page-card {
             background: #fff;
             border-radius: 20px;
             padding: 28px 30px;
             box-shadow: 0 4px 20px rgba(0,0,0,0.05);
             border: 1px solid #e2e8f0;
+        }
+
+        /* ── Billing Period bar ── */
+        .billing-period-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: linear-gradient(135deg, #002d72 0%, #1e40af 100%);
+            border-radius: 12px;
+            padding: 14px 20px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        .billing-period-bar label {
+            color: #bfdbfe;
+            font-size: 0.82rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            white-space: nowrap;
+        }
+        .billing-period-bar select,
+        .billing-period-bar input[type="number"] {
+            padding: 8px 14px;
+            border: 1px solid rgba(255,255,255,0.25);
+            border-radius: 8px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #fff;
+            background: rgba(255,255,255,0.15);
+            cursor: pointer;
+            transition: .2s;
+        }
+        .billing-period-bar select:focus,
+        .billing-period-bar input[type="number"]:focus {
+            outline: none;
+            background: rgba(255,255,255,0.25);
+        }
+        .billing-period-bar select option { color: #0f172a; background: #fff; }
+        .billing-period-badge {
+            background: rgba(255,255,255,0.18);
+            color: #fff;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 0.88rem;
+            font-weight: 700;
+            margin-left: auto;
+            white-space: nowrap;
         }
 
         /* ── Filter bar ── */
@@ -27,7 +75,7 @@
             border: 1px solid #e2e8f0;
             border-radius: 12px;
             padding: 14px 18px;
-            margin-top: 20px;
+            margin-top: 14px;
         }
         .filter-bar select,
         .filter-bar input[type="text"] {
@@ -48,187 +96,88 @@
             box-shadow: 0 0 0 3px rgba(0,45,114,.08);
         }
         .filter-bar input[type="text"] { min-width: 220px; }
-
         .btn-filter {
-            background: #002d72;
-            color: #fff;
-            border: none;
-            padding: 9px 20px;
-            border-radius: 8px;
-            font-family: 'Inter', sans-serif;
-            font-size: 0.88rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: .2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
+            background: #002d72; color: #fff; border: none;
+            padding: 9px 20px; border-radius: 8px;
+            font-family: 'Inter', sans-serif; font-size: 0.88rem; font-weight: 700;
+            cursor: pointer; transition: .2s;
+            display: inline-flex; align-items: center; gap: 6px;
         }
         .btn-filter:hover { background: #1e40af; transform: translateY(-1px); }
-
         .btn-reset-f {
-            background: #f1f5f9;
-            color: #64748b;
-            border: 1px solid #e2e8f0;
-            padding: 9px 16px;
-            border-radius: 8px;
-            font-family: 'Inter', sans-serif;
-            font-size: 0.88rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: .2s;
+            background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0;
+            padding: 9px 16px; border-radius: 8px;
+            font-family: 'Inter', sans-serif; font-size: 0.88rem; font-weight: 700;
+            cursor: pointer; transition: .2s;
         }
         .btn-reset-f:hover { background: #e2e8f0; }
 
         /* ── Stats row ── */
-        .stats-row {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-            margin-top: 16px;
-        }
+        .stats-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
         .stat-chip {
-            background: #eff6ff;
-            border: 1px solid #bfdbfe;
-            color: #1d4ed8;
-            font-size: 0.82rem;
-            font-weight: 700;
-            padding: 7px 16px;
-            border-radius: 20px;
-            white-space: nowrap;
+            background: #eff6ff; border: 1px solid #bfdbfe;
+            color: #1d4ed8; font-size: 0.82rem; font-weight: 700;
+            padding: 7px 16px; border-radius: 20px; white-space: nowrap;
         }
         .stat-chip.green { background: #f0fdf4; border-color: #bbf7d0; color: #15803d; }
         .stat-chip.orange { background: #fff7ed; border-color: #fed7aa; color: #c2410c; }
 
-        /* ── Bulk action bar ── */
-        .bulk-bar {
-            display: none;
-            align-items: center;
-            gap: 12px;
-            background: #eff6ff;
-            border: 1px solid #bfdbfe;
-            border-radius: 10px;
-            padding: 11px 18px;
-            margin-top: 14px;
-        }
-        .bulk-bar.show { display: flex; }
-        .bulk-bar span { font-size: 0.88rem; font-weight: 700; color: #1d4ed8; }
+        /* ── Send Bill button ── */
         .btn-send-bill {
-            background: #002d72;
-            color: #fff;
-            border: none;
-            padding: 9px 22px;
-            border-radius: 8px;
-            font-family: 'Inter', sans-serif;
-            font-size: 0.87rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: .2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 7px;
+            background: #002d72; color: #fff; border: none;
+            padding: 9px 22px; border-radius: 8px;
+            font-family: 'Inter', sans-serif; font-size: 0.87rem; font-weight: 700;
+            cursor: pointer; transition: .2s;
+            display: inline-flex; align-items: center; gap: 7px;
         }
         .btn-send-bill:hover { background: #1e40af; }
-        .btn-desel {
-            background: #f1f5f9;
-            color: #64748b;
-            border: 1px solid #e2e8f0;
-            padding: 9px 14px;
-            border-radius: 8px;
-            font-family: 'Inter', sans-serif;
-            font-size: 0.87rem;
-            font-weight: 700;
-            cursor: pointer;
-        }
-        .btn-desel:hover { background: #e2e8f0; }
 
         /* ── Table ── */
-        .tbl-wrap {
-            margin-top: 14px;
-            border: 1px solid #e2e8f0;
-            border-radius: 14px;
-            overflow: hidden;
-        }
+        .tbl-wrap { margin-top: 14px; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; }
         .tbl-header-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 16px;
-            background: #f8fafc;
-            border-bottom: 1px solid #e2e8f0;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 16px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;
         }
         .tbl-info { font-size: 0.82rem; color: #64748b; font-weight: 500; }
 
         table { width: 100%; border-collapse: collapse; }
         thead { background: #f8fafc; }
         th {
-            padding: 11px 14px;
-            text-align: left;
-            font-size: 0.7rem;
-            font-weight: 800;
-            color: #94a3b8;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            border-bottom: 1px solid #e2e8f0;
-            white-space: nowrap;
+            padding: 11px 14px; text-align: left;
+            font-size: 0.7rem; font-weight: 800; color: #94a3b8;
+            text-transform: uppercase; letter-spacing: 0.8px;
+            border-bottom: 1px solid #e2e8f0; white-space: nowrap;
         }
-        th.chk-col { width: 40px; }
         td {
-            padding: 12px 14px;
-            border-bottom: 1px solid #f8fafc;
-            font-size: 0.86rem;
-            color: #334155;
-            vertical-align: middle;
+            padding: 11px 14px; border-bottom: 1px solid #f8fafc;
+            font-size: 0.86rem; color: #334155; vertical-align: middle;
         }
         tr:last-child td { border-bottom: none; }
         tr:hover td { background: #fafbff; }
-        tr.selected td { background: #eff6ff; }
-
-        td input[type="checkbox"] {
-            width: 15px;
-            height: 15px;
-            cursor: pointer;
-            accent-color: #002d72;
-        }
 
         .c-name { font-weight: 700; color: #0f172a; }
-        .c-code { font-family: monospace; font-size: 0.8rem; color: #64748b; }
         .c-tel  { font-family: monospace; color: #475569; font-size: 0.83rem; }
         .badge-circle {
-            background: #dbeafe;
-            color: #1d4ed8;
-            padding: 3px 9px;
-            border-radius: 10px;
-            font-size: 0.72rem;
-            font-weight: 700;
-            white-space: nowrap;
+            background: #dbeafe; color: #1d4ed8;
+            padding: 3px 9px; border-radius: 10px;
+            font-size: 0.72rem; font-weight: 700; white-space: nowrap;
         }
         .badge-oa {
-            background: #f1f5f9;
-            color: #475569;
-            padding: 3px 8px;
-            border-radius: 8px;
-            font-size: 0.72rem;
-            font-weight: 600;
+            background: #f1f5f9; color: #475569;
+            padding: 3px 8px; border-radius: 8px;
+            font-size: 0.72rem; font-weight: 600;
         }
-        .c-rent { font-weight: 700; color: #002d72; }
         .c-email { color: #2563eb; font-size: 0.82rem; }
         .c-no-email { color: #94a3b8; font-style: italic; font-size: 0.82rem; }
 
-        .tbl-empty {
-            text-align: center;
-            padding: 60px 20px;
-            color: #94a3b8;
-        }
+        .tbl-empty { text-align: center; padding: 60px 20px; color: #94a3b8; }
         .tbl-empty .em-icon { font-size: 2.5rem; margin-bottom: 10px; }
 
         /* Loading dots */
         .ld-row { display: flex; gap: 5px; align-items: center; justify-content: center; padding: 50px; }
         .ld-dot {
-            width: 8px; height: 8px;
-            border-radius: 50%;
-            background: #002d72;
-            animation: ldp .7s infinite alternate;
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #002d72; animation: ldp .7s infinite alternate;
         }
         .ld-dot:nth-child(2) { animation-delay: .22s; }
         .ld-dot:nth-child(3) { animation-delay: .44s; }
@@ -236,32 +185,43 @@
 
         /* Pagination */
         .pag-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 16px;
-            background: #f8fafc;
-            border-top: 1px solid #e2e8f0;
-            gap: 10px;
-            flex-wrap: wrap;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 16px; background: #f8fafc; border-top: 1px solid #e2e8f0;
+            gap: 10px; flex-wrap: wrap;
         }
         .pag-btns { display: flex; gap: 6px; }
         .pag-btn {
-            background: #fff;
-            border: 1px solid #e2e8f0;
-            padding: 6px 13px;
-            border-radius: 7px;
-            font-family: 'Inter', sans-serif;
-            font-size: 0.82rem;
-            font-weight: 600;
-            cursor: pointer;
-            color: #334155;
-            transition: .15s;
+            background: #fff; border: 1px solid #e2e8f0;
+            padding: 6px 13px; border-radius: 7px;
+            font-family: 'Inter', sans-serif; font-size: 0.82rem; font-weight: 600;
+            cursor: pointer; color: #334155; transition: .15s;
         }
         .pag-btn:hover { border-color: #002d72; color: #002d72; }
         .pag-btn.active { background: #002d72; color: #fff; border-color: #002d72; }
         .pag-btn:disabled { opacity: .4; cursor: not-allowed; }
         .pag-info { font-size: 0.82rem; color: #64748b; }
+
+        /* ── PDF Toggle Switch ── */
+        .pdf-switch { position: relative; display: inline-block; width: 40px; height: 22px; }
+        .pdf-switch input { opacity: 0; width: 0; height: 0; }
+        .pdf-slider {
+            position: absolute; cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #cbd5e1; border-radius: 22px; transition: .3s;
+        }
+        .pdf-slider:before {
+            position: absolute; content: '';
+            height: 16px; width: 16px; left: 3px; bottom: 3px;
+            background: #fff; border-radius: 50%; transition: .3s;
+            box-shadow: 0 1px 3px rgba(0,0,0,.2);
+        }
+        .pdf-switch input:checked + .pdf-slider { background: #002d72; }
+        .pdf-switch input:checked + .pdf-slider:before { transform: translateX(18px); }
+        .pdf-filename {
+            font-size: 0.72rem; color: #002d72; font-weight: 600;
+            max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            display: block; margin-top: 3px;
+        }
 
         /* Toast */
         .toast {
@@ -297,7 +257,6 @@
         <a href="dashboard.html" class="module-tile">
             <i>🏠</i><div class="tile-content"><h4>Dashboard</h4></div>
         </a>
-
         <div class="sidebar-header" style="margin-top:20px;">BSNL ERP</div>
         <a href="customers.html" class="module-tile">
             <i>📂</i><div class="tile-content"><h4>Customer Master</h4></div>
@@ -308,7 +267,6 @@
         <a href="bsnl_setup.html" class="module-tile">
             <i>🏢</i><div class="tile-content"><h4>BSNL Circle/OA Setup</h4></div>
         </a>
-
         <div class="sidebar-header" style="margin-top:20px;">BILLING</div>
         <a href="customer_bill.html" class="module-tile active">
             <i>🧾</i><div class="tile-content"><h4>Customer Bill</h4></div>
@@ -324,12 +282,34 @@
                 <div>
                     <h1 style="color:#0f172a;margin:0;font-weight:800;font-size:1.5rem;">🧾 Customer Bill</h1>
                     <p style="color:#64748b;margin:5px 0 0;font-size:0.87rem;">
-                        Customers with active (non-closed) telephone lines — filter by Circle / OA, then select and send bill emails.
+                        Customers with active (non-closed) telephone lines — filter by Circle / OA, then send bill emails.
                     </p>
                 </div>
-                <button class="btn-send-bill" id="btnSendTop" onclick="openSendModal()" style="display:none;">
+                <button class="btn-send-bill" onclick="openSendModal()">
                     📧 Send Bill Email
                 </button>
+            </div>
+
+            <!-- Billing Period Selector -->
+            <div class="billing-period-bar">
+                <label>📅 Billing Period:</label>
+                <select id="billingMonth" onchange="updatePeriodBadge()">
+                    <option value="January">January</option>
+                    <option value="February">February</option>
+                    <option value="March">March</option>
+                    <option value="April">April</option>
+                    <option value="May">May</option>
+                    <option value="June">June</option>
+                    <option value="July">July</option>
+                    <option value="August">August</option>
+                    <option value="September">September</option>
+                    <option value="October">October</option>
+                    <option value="November">November</option>
+                    <option value="December">December</option>
+                </select>
+                <input type="number" id="billingYear" value="2026" min="2020" max="2035"
+                       style="width:90px;" oninput="updatePeriodBadge()">
+                <span class="billing-period-badge" id="periodBadge">📋 March 2026</span>
             </div>
 
             <!-- Filter bar -->
@@ -340,14 +320,14 @@
                 <select id="fOA">
                     <option value="">-- All OAs --</option>
                 </select>
-                <input type="text" id="fSearch" placeholder="🔍 Search customer / code / mobile..."
+                <input type="text" id="fSearch" placeholder="🔍 Search customer name..."
                        oninput="applyFilters()">
                 <button class="btn-filter" onclick="applyFilters()">🔍 Search</button>
                 <button class="btn-reset-f" onclick="resetFilters()">Reset</button>
                 <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;font-weight:600;color:#475569;cursor:pointer;margin-left:auto;">
                     <input type="checkbox" id="chkNoEmail" onchange="applyFilters()"
                            style="width:15px;height:15px;cursor:pointer;accent-color:#002d72;">
-                    Show only customers with no email
+                    No email only
                 </label>
             </div>
 
@@ -358,41 +338,26 @@
                 <div class="stat-chip orange" id="statNoEmail">0 without email</div>
             </div>
 
-            <!-- Bulk action bar (shown when rows selected) -->
-            <div class="bulk-bar" id="bulkBar">
-                <span id="bulkCount">0 selected</span>
-                <button class="btn-send-bill" onclick="openSendModal()">📧 Send Bill Email</button>
-                <button class="btn-desel" onclick="deselectAll()">✕ Deselect All</button>
-            </div>
-
             <!-- Table -->
             <div class="tbl-wrap">
                 <div class="tbl-header-row">
                     <div class="tbl-info" id="tblInfo">Loading customers...</div>
-                    <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;font-weight:700;color:#64748b;cursor:pointer;">
-                        <input type="checkbox" id="chkAll" onchange="toggleSelectAll(this.checked)"
-                               style="width:15px;height:15px;cursor:pointer;accent-color:#002d72;">
-                        Select All (this page)
-                    </label>
                 </div>
                 <div style="overflow-x:auto;">
                     <table>
                         <thead>
                             <tr>
-                                <th class="chk-col"></th>
-                                <th>#</th>
                                 <th>Customer Name</th>
-                                <th>Code</th>
                                 <th>Circle</th>
                                 <th>OA</th>
-                                <th>Mobile</th>
-                                <th>Email</th>
-                                <th style="text-align:right;">Monthly Rent (₹)</th>
+                                <th>Telephone No.</th>
+                                <th>Accounts Email</th>
+                                <th style="text-align:center;">Attach PDF</th>
                             </tr>
                         </thead>
                         <tbody id="tblBody">
                             <tr>
-                                <td colspan="9">
+                                <td colspan="6">
                                     <div class="ld-row">
                                         <div class="ld-dot"></div>
                                         <div class="ld-dot"></div>
@@ -403,7 +368,6 @@
                         </tbody>
                     </table>
                 </div>
-                <!-- Pagination -->
                 <div class="pag-row" id="pagRow" style="display:none;">
                     <span class="pag-info" id="pagInfo"></span>
                     <div class="pag-btns" id="pagBtns"></div>
@@ -417,36 +381,41 @@
 <!-- Send Bill Modal -->
 <div id="sendModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;
      background:rgba(0,0,0,0.45);z-index:3000;align-items:center;justify-content:center;">
-    <div style="background:#fff;border-radius:18px;padding:30px;width:90%;max-width:520px;
-                position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.15);">
+    <div style="background:#fff;border-radius:18px;padding:30px;width:90%;max-width:540px;
+                position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.15);max-height:90vh;overflow-y:auto;">
         <h2 style="margin:0 0 6px;color:#0f172a;font-size:1.2rem;font-weight:800;">📧 Send Bill Email</h2>
-        <p style="color:#64748b;font-size:0.87rem;margin:0 0 20px;">
-            A bill email will be sent to the selected customers.
+        <p style="color:#64748b;font-size:0.87rem;margin:0 0 18px;">
+            Bill emails will be sent to all customers currently visible in the list (who have an email address).
         </p>
 
-        <div style="background:#f8fafc;border-radius:10px;padding:14px 16px;margin-bottom:18px;">
+        <!-- Billing period info -->
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;
+                    margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+            <span style="font-size:1rem;">📅</span>
+            <span style="font-size:0.85rem;font-weight:700;color:#1d4ed8;">
+                Billing Period: <span id="modalBillingPeriod" style="font-size:1rem;"></span>
+            </span>
+        </div>
+
+        <!-- Customer count summary -->
+        <div style="background:#f8fafc;border-radius:10px;padding:12px 16px;margin-bottom:16px;">
             <div style="font-size:0.78rem;font-weight:800;color:#64748b;text-transform:uppercase;
-                        letter-spacing:0.6px;margin-bottom:8px;">Selected Customers</div>
-            <div id="modalCustomerList" style="max-height:160px;overflow-y:auto;font-size:0.86rem;
-                 color:#334155;display:flex;flex-direction:column;gap:4px;"></div>
+                        letter-spacing:0.6px;margin-bottom:6px;">Recipients</div>
+            <div id="modalRecipientInfo" style="font-size:0.9rem;font-weight:700;color:#0f172a;"></div>
+            <div id="modalPdfInfo" style="font-size:0.8rem;color:#002d72;font-weight:600;margin-top:4px;"></div>
         </div>
 
         <div style="margin-bottom:16px;">
             <label style="display:block;font-size:0.8rem;font-weight:700;color:#64748b;
-                          text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">
-                Subject
-            </label>
+                          text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Subject</label>
             <input type="text" id="emailSubject"
-                   value="Coral Infratel — Monthly Bill for the Current Period"
                    style="width:100%;padding:10px 13px;border:1px solid #cbd5e1;border-radius:8px;
                           font-family:'Inter',sans-serif;font-size:0.9rem;box-sizing:border-box;">
         </div>
 
         <div style="margin-bottom:20px;">
             <label style="display:block;font-size:0.8rem;font-weight:700;color:#64748b;
-                          text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">
-                Message (optional)
-            </label>
+                          text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Message (optional)</label>
             <textarea id="emailBody" rows="4"
                       placeholder="Add a custom message to include in the email..."
                       style="width:100%;padding:10px 13px;border:1px solid #cbd5e1;border-radius:8px;
@@ -474,26 +443,25 @@
     </div>
 </div>
 
+<!-- Hidden PDF file input (shared) -->
+<input type="file" id="pdfFileInput" accept=".pdf,application/pdf" style="display:none"
+       onchange="onPDFSelected()">
+
 <div id="toast" class="toast"></div>
 
 <script>
 // ═══════════════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════════════
-let allCustomers   = [];   // all active customers from API
-let filteredData   = [];   // after filter applied
-let selectedIds    = new Set();
+let allCustomers = [];
+let filteredData = [];
 
-// Pagination
 const PAGE_SIZE = 50;
 let currentPage = 1;
 
-const API = (url, opts) => fetch(url, {
-    headers: {
-        'Authorization': 'Bearer ' + localStorage.getItem('crm_token'),
-        'Content-Type': 'application/json'
-    }, ...opts
-});
+// PDF attachments: Map<customerId, File>
+const pdfFiles = new Map();
+let pendingPDFCustomerId = null;
 
 // ═══════════════════════════════════════════════════════
 //  INIT
@@ -504,22 +472,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('userInfoDisplay').textContent =
         `${user.name || user.username} (${user.role === 'admin' ? 'Admin' : 'User'})`;
 
+    // Set billing month to current month
+    const now = new Date();
+    const months = ['January','February','March','April','May','June',
+                    'July','August','September','October','November','December'];
+    document.getElementById('billingMonth').value = months[now.getMonth()];
+    document.getElementById('billingYear').value  = now.getFullYear();
+    updatePeriodBadge();
+
     await loadCustomers();
 });
 
+function updatePeriodBadge() {
+    const m = document.getElementById('billingMonth').value;
+    const y = document.getElementById('billingYear').value;
+    document.getElementById('periodBadge').textContent = `📋 ${m} ${y}`;
+}
+
+// ═══════════════════════════════════════════════════════
+//  DATA LOAD
+// ═══════════════════════════════════════════════════════
 async function loadCustomers() {
     try {
         const r = await window.apiFetch('/api/bills/active-customers');
-        if (!r.ok) throw new Error('API error');
-        // API already returns only customers with active (non-closed) lines
+        if (!r.ok) throw new Error('API error ' + r.status);
         allCustomers = await r.json();
-
         buildFilterDropdowns();
         applyFilters();
-        updateStats();
     } catch(e) {
         document.getElementById('tblBody').innerHTML =
-            `<tr><td colspan="9" class="tbl-empty"><div class="em-icon">⚠️</div>Failed to load customers</td></tr>`;
+            `<tr><td colspan="6" class="tbl-empty"><div class="em-icon">⚠️</div>Failed to load customers</td></tr>`;
         console.error(e);
     }
 }
@@ -529,36 +511,27 @@ async function loadCustomers() {
 // ═══════════════════════════════════════════════════════
 function buildFilterDropdowns() {
     const circles = [...new Set(allCustomers.map(c => c.circle).filter(Boolean))].sort();
-    const circSel = document.getElementById('fCircle');
+    const sel = document.getElementById('fCircle');
     circles.forEach(c => {
         const o = document.createElement('option');
-        o.value = c; o.textContent = c;
-        circSel.appendChild(o);
+        o.value = c; o.textContent = c; sel.appendChild(o);
+    });
+    rebuildOADropdown('');
+}
+
+function rebuildOADropdown(circle) {
+    const oaSel = document.getElementById('fOA');
+    oaSel.innerHTML = '<option value="">-- All OAs --</option>';
+    const src = circle ? allCustomers.filter(c => c.circle === circle) : allCustomers;
+    const oas = [...new Set(src.map(c => c.oa_name).filter(Boolean))].sort();
+    oas.forEach(o => {
+        const opt = document.createElement('option');
+        opt.value = o; opt.textContent = o; oaSel.appendChild(opt);
     });
 }
 
 function onCircleChange() {
-    const circle = document.getElementById('fCircle').value;
-    const oaSel  = document.getElementById('fOA');
-    oaSel.innerHTML = '<option value="">-- All OAs --</option>';
-    if (circle) {
-        const oas = [...new Set(
-            allCustomers.filter(c => c.circle === circle).map(c => c.oa_name).filter(Boolean)
-        )].sort();
-        oas.forEach(o => {
-            const opt = document.createElement('option');
-            opt.value = o; opt.textContent = o;
-            oaSel.appendChild(opt);
-        });
-    } else {
-        // Rebuild all OAs
-        const oas = [...new Set(allCustomers.map(c => c.oa_name).filter(Boolean))].sort();
-        oas.forEach(o => {
-            const opt = document.createElement('option');
-            opt.value = o; opt.textContent = o;
-            oaSel.appendChild(opt);
-        });
-    }
+    rebuildOADropdown(document.getElementById('fCircle').value);
     applyFilters();
 }
 
@@ -566,19 +539,17 @@ function onCircleChange() {
 //  FILTER
 // ═══════════════════════════════════════════════════════
 function applyFilters() {
-    const circle   = document.getElementById('fCircle').value;
-    const oa       = document.getElementById('fOA').value;
-    const q        = document.getElementById('fSearch').value.toLowerCase().trim();
-    const noEmail  = document.getElementById('chkNoEmail').checked;
+    const circle  = document.getElementById('fCircle').value;
+    const oa      = document.getElementById('fOA').value;
+    const q       = document.getElementById('fSearch').value.toLowerCase().trim();
+    const noEmail = document.getElementById('chkNoEmail').checked;
 
     filteredData = allCustomers.filter(c => {
         if (circle && c.circle !== circle) return false;
         if (oa     && (c.oa_name || '') !== oa) return false;
         if (q) {
-            const name  = (c.customer_name || '').toLowerCase();
-            const code  = (c.customer_code || '').toLowerCase();
-            const mob   = (c.mobile_no || '').toLowerCase();
-            if (!name.includes(q) && !code.includes(q) && !mob.includes(q)) return false;
+            const name = (c.customer_name || '').toLowerCase();
+            if (!name.includes(q)) return false;
         }
         if (noEmail && c.acc_person_email && c.acc_person_email.trim()) return false;
         return true;
@@ -594,15 +565,7 @@ function resetFilters() {
     document.getElementById('fOA').value = '';
     document.getElementById('fSearch').value = '';
     document.getElementById('chkNoEmail').checked = false;
-    // Rebuild OA dropdown to show all
-    const oaSel = document.getElementById('fOA');
-    oaSel.innerHTML = '<option value="">-- All OAs --</option>';
-    const oas = [...new Set(allCustomers.map(c => c.oa_name).filter(Boolean))].sort();
-    oas.forEach(o => {
-        const opt = document.createElement('option');
-        opt.value = o; opt.textContent = o;
-        oaSel.appendChild(opt);
-    });
+    rebuildOADropdown('');
     applyFilters();
 }
 
@@ -621,49 +584,80 @@ function renderTable() {
         `Showing ${filteredData.length} of ${allCustomers.length} active customers`;
 
     if (!page.length) {
-        tbody.innerHTML = `<tr><td colspan="9">
+        tbody.innerHTML = `<tr><td colspan="6">
             <div class="tbl-empty">
                 <div class="em-icon">🔍</div>
                 <div>No customers match the current filters.</div>
             </div></td></tr>`;
         document.getElementById('pagRow').style.display = 'none';
-        document.getElementById('chkAll').checked = false;
         return;
     }
 
-    tbody.innerHTML = page.map((c, i) => {
-        const isSel  = selectedIds.has(c.id);
-        const telStr = c.mobile_no || '—';
-        const rent   = c.monthly_rent ? '₹ ' + Number(c.monthly_rent).toLocaleString('en-IN') : '—';
-        return `<tr class="${isSel ? 'selected' : ''}" onclick="rowClick(${c.id},this)">
-            <td onclick="event.stopPropagation()">
-                <input type="checkbox" data-id="${c.id}"
-                       ${isSel ? 'checked' : ''}
-                       onchange="toggleRow(${c.id}, this.checked, this.closest('tr'))">
-            </td>
-            <td style="color:#94a3b8;font-size:0.78rem;">${start + i + 1}</td>
+    tbody.innerHTML = page.map(c => {
+        // Build telephone lines display
+        const lineArr = (c.active_lines || '').split('\n').map(l => l.trim()).filter(Boolean);
+        const telHtml = lineArr.length
+            ? lineArr.map(l => `<div class="c-tel">${esc(l)}</div>`).join('')
+            : '<span style="color:#94a3b8;font-size:0.8rem;">—</span>';
+
+        const emailHtml = c.acc_person_email && c.acc_person_email.trim()
+            ? `<span class="c-email">📧 ${esc(c.acc_person_email)}</span>`
+            : `<span class="c-no-email">No email</span>`;
+
+        const hasPDF     = pdfFiles.has(c.id);
+        const pdfName    = hasPDF ? esc(pdfFiles.get(c.id).name) : '';
+
+        return `<tr>
             <td>
                 <div class="c-name">${esc(c.customer_name)}</div>
                 ${c.contact_person ? `<div style="font-size:0.75rem;color:#94a3b8;">${esc(c.contact_person)}</div>` : ''}
             </td>
-            <td class="c-code">${esc(c.customer_code || '—')}</td>
             <td>${c.circle ? `<span class="badge-circle">${esc(c.circle)}</span>` : '—'}</td>
             <td>${c.oa_name ? `<span class="badge-oa">${esc(c.oa_name)}</span>` : '—'}</td>
-            <td class="c-tel">${esc(telStr)}</td>
-            <td>${c.acc_person_email && c.acc_person_email.trim()
-                ? `<span class="c-email">📧 ${esc(c.acc_person_email)}</span>`
-                : `<span class="c-no-email">No email</span>`}</td>
-            <td style="text-align:right;" class="c-rent">${rent}</td>
+            <td>${telHtml}</td>
+            <td>${emailHtml}</td>
+            <td style="text-align:center;" onclick="event.stopPropagation()">
+                <label class="pdf-switch">
+                    <input type="checkbox" ${hasPDF ? 'checked' : ''} onchange="togglePDF(${c.id}, this)">
+                    <span class="pdf-slider"></span>
+                </label>
+                <span id="pdf-name-${c.id}" class="pdf-filename">${pdfName}</span>
+            </td>
         </tr>`;
     }).join('');
 
-    // Sync select-all checkbox
-    const pageIds = page.map(c => c.id);
-    document.getElementById('chkAll').checked =
-        pageIds.length > 0 && pageIds.every(id => selectedIds.has(id));
-
     renderPagination(totalPages);
-    updateBulkBar();
+}
+
+// ═══════════════════════════════════════════════════════
+//  PDF TOGGLE
+// ═══════════════════════════════════════════════════════
+function togglePDF(custId, checkbox) {
+    if (checkbox.checked) {
+        pendingPDFCustomerId = custId;
+        document.getElementById('pdfFileInput').click();
+    } else {
+        pdfFiles.delete(custId);
+        const span = document.getElementById(`pdf-name-${custId}`);
+        if (span) span.textContent = '';
+    }
+}
+
+function onPDFSelected() {
+    const input = document.getElementById('pdfFileInput');
+    if (!input.files[0] || !pendingPDFCustomerId) {
+        // User cancelled file picker — uncheck the switch
+        const row = document.querySelector(`input[onchange*="togglePDF(${pendingPDFCustomerId}"]`);
+        if (row) row.checked = false;
+        pendingPDFCustomerId = null;
+        return;
+    }
+    const file = input.files[0];
+    pdfFiles.set(pendingPDFCustomerId, file);
+    const span = document.getElementById(`pdf-name-${pendingPDFCustomerId}`);
+    if (span) span.textContent = file.name;
+    input.value = '';
+    pendingPDFCustomerId = null;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -680,17 +674,13 @@ function renderPagination(totalPages) {
     const btns = document.getElementById('pagBtns');
     btns.innerHTML = '';
 
-    // Prev
     const prev = document.createElement('button');
-    prev.className = 'pag-btn';
-    prev.textContent = '◀ Prev';
+    prev.className = 'pag-btn'; prev.textContent = '◀ Prev';
     prev.disabled = currentPage === 1;
     prev.onclick = () => { currentPage--; renderTable(); };
     btns.appendChild(prev);
 
-    // Page numbers (show max 7 buttons)
-    const range = pageRange(currentPage, totalPages);
-    range.forEach(p => {
+    pageRange(currentPage, totalPages).forEach(p => {
         if (p === '...') {
             const sp = document.createElement('span');
             sp.textContent = '…';
@@ -705,10 +695,8 @@ function renderPagination(totalPages) {
         }
     });
 
-    // Next
     const next = document.createElement('button');
-    next.className = 'pag-btn';
-    next.textContent = 'Next ▶';
+    next.className = 'pag-btn'; next.textContent = 'Next ▶';
     next.disabled = currentPage === totalPages;
     next.onclick = () => { currentPage++; renderTable(); };
     btns.appendChild(next);
@@ -732,61 +720,10 @@ function pageRange(cur, total) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  SELECTION
-// ═══════════════════════════════════════════════════════
-function rowClick(id, tr) {
-    const cb = tr.querySelector('input[type=checkbox]');
-    const newState = !cb.checked;
-    cb.checked = newState;
-    toggleRow(id, newState, tr);
-}
-
-function toggleRow(id, checked, tr) {
-    if (checked) selectedIds.add(id);
-    else          selectedIds.delete(id);
-    if (tr) tr.classList.toggle('selected', checked);
-    updateBulkBar();
-
-    // Sync select-all
-    const start   = (currentPage - 1) * PAGE_SIZE;
-    const pageIds = filteredData.slice(start, start + PAGE_SIZE).map(c => c.id);
-    document.getElementById('chkAll').checked =
-        pageIds.length > 0 && pageIds.every(i => selectedIds.has(i));
-}
-
-function toggleSelectAll(checked) {
-    const start  = (currentPage - 1) * PAGE_SIZE;
-    const page   = filteredData.slice(start, start + PAGE_SIZE);
-    page.forEach(c => {
-        if (checked) selectedIds.add(c.id);
-        else          selectedIds.delete(c.id);
-    });
-    // Re-render to update row styles
-    renderTable();
-    // Restore chkAll state (renderTable may reset it)
-    document.getElementById('chkAll').checked = checked;
-}
-
-function deselectAll() {
-    selectedIds.clear();
-    renderTable();
-    document.getElementById('chkAll').checked = false;
-}
-
-function updateBulkBar() {
-    const bar = document.getElementById('bulkBar');
-    const top = document.getElementById('btnSendTop');
-    const n   = selectedIds.size;
-    bar.classList.toggle('show', n > 0);
-    top.style.display = n > 0 ? '' : 'none';
-    document.getElementById('bulkCount').textContent = `${n} customer${n !== 1 ? 's' : ''} selected`;
-}
-
-// ═══════════════════════════════════════════════════════
 //  STATS
 // ═══════════════════════════════════════════════════════
 function updateStats() {
-    document.getElementById('statTotal').textContent = `${allCustomers.length} customers with active lines`;
+    document.getElementById('statTotal').textContent   = `${allCustomers.length} customers with active lines`;
     document.getElementById('statShowing').textContent = `Showing ${filteredData.length}`;
     const noEmail = allCustomers.filter(c => !c.acc_person_email || !c.acc_person_email.trim()).length;
     document.getElementById('statNoEmail').textContent = `${noEmail} without email`;
@@ -796,19 +733,23 @@ function updateStats() {
 //  SEND BILL MODAL
 // ═══════════════════════════════════════════════════════
 function openSendModal() {
-    if (!selectedIds.size) { showToast('Please select at least one customer', 'err'); return; }
-    const selected = allCustomers.filter(c => selectedIds.has(c.id));
-    const list = document.getElementById('modalCustomerList');
-    list.innerHTML = selected.map(c => {
-        const hasEmail = c.acc_person_email && c.acc_person_email.trim();
-        return `<div style="display:flex;justify-content:space-between;align-items:center;
-                            padding:5px 0;border-bottom:1px solid #f1f5f9;">
-            <span style="font-weight:600;">${esc(c.customer_name)}</span>
-            ${hasEmail
-                ? `<span style="font-size:0.78rem;color:#2563eb;">${esc(c.acc_person_email)}</span>`
-                : `<span style="font-size:0.78rem;color:#f97316;font-weight:600;">⚠ No email</span>`}
-        </div>`;
-    }).join('');
+    const withEmail = filteredData.filter(c => c.acc_person_email && c.acc_person_email.trim());
+    const noEmail   = filteredData.length - withEmail.length;
+
+    const month = document.getElementById('billingMonth').value;
+    const year  = document.getElementById('billingYear').value;
+    document.getElementById('modalBillingPeriod').textContent = `${month} ${year}`;
+    document.getElementById('emailSubject').value = `BSNL PBX Bill — ${month} ${year}`;
+
+    document.getElementById('modalRecipientInfo').textContent =
+        `${withEmail.length} customer${withEmail.length !== 1 ? 's' : ''} will receive this email` +
+        (noEmail ? ` (${noEmail} skipped — no email)` : '');
+
+    const pdfCount = [...pdfFiles.keys()].filter(id => withEmail.find(c => c.id === id)).length;
+    document.getElementById('modalPdfInfo').textContent = pdfCount
+        ? `📎 ${pdfCount} customer${pdfCount !== 1 ? 's' : ''} have PDF bills attached`
+        : '';
+
     document.getElementById('sendModal').style.display = 'flex';
 }
 
@@ -817,12 +758,14 @@ function closeSendModal() {
 }
 
 async function sendBillEmails() {
-    const selected  = allCustomers.filter(c => selectedIds.has(c.id));
-    const withEmail = selected.filter(c => c.acc_person_email && c.acc_person_email.trim());
+    const withEmail = filteredData.filter(c => c.acc_person_email && c.acc_person_email.trim());
     if (!withEmail.length) {
-        showToast('None of the selected customers have an email address.', 'err');
+        showToast('No customers with email in current filter.', 'err');
         return;
     }
+
+    const month   = document.getElementById('billingMonth').value;
+    const year    = document.getElementById('billingYear').value;
     const subject = document.getElementById('emailSubject').value.trim();
     const body    = document.getElementById('emailBody').value.trim();
     const btn     = document.getElementById('btnSendConfirm');
@@ -830,19 +773,36 @@ async function sendBillEmails() {
     btn.disabled    = true;
 
     try {
-        const r = await API('/api/bills/send-email', {
+        const fd = new FormData();
+        fd.append('billing_month',  month);
+        fd.append('billing_year',   year);
+        fd.append('subject',        subject);
+        fd.append('message',        body);
+        fd.append('customer_ids',   JSON.stringify(withEmail.map(c => c.id)));
+
+        // Attach PDFs for matching customers
+        pdfFiles.forEach((file, custId) => {
+            if (withEmail.find(c => c.id === custId)) {
+                fd.append(`pdf_${custId}`, file, file.name);
+            }
+        });
+
+        const r = await fetch('/api/bills/send-email', {
             method: 'POST',
-            body: JSON.stringify({
-                customer_ids : withEmail.map(c => c.id),
-                subject,
-                message      : body
-            })
+            headers: { 'Authorization': 'Bearer ' + localStorage.getItem('crm_token') },
+            body: fd
         });
         const d = await r.json();
         if (!r.ok) throw new Error(d.error || 'Failed to send');
+
         closeSendModal();
-        showToast(`✔ Bill emails sent to ${d.sent || withEmail.length} customers!`, 'ok');
-        deselectAll();
+        showToast(
+            `✔ Sent to ${d.sent} customer${d.sent !== 1 ? 's' : ''}!` +
+            (d.failed ? ` ⚠ ${d.failed} failed.` : ''),
+            'ok'
+        );
+        pdfFiles.clear();
+        renderTable();
     } catch(e) {
         showToast(e.message || 'Email send failed. Please try again.', 'err');
     } finally {
@@ -859,14 +819,13 @@ function showToast(txt, type) {
     t.textContent = txt;
     t.className   = `toast ${type} show`;
     clearTimeout(t._t);
-    t._t = setTimeout(() => t.classList.remove('show'), 3500);
+    t._t = setTimeout(() => t.classList.remove('show'), 4000);
 }
 
 function esc(s) {
     return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// Close modal on backdrop click
 document.getElementById('sendModal').addEventListener('click', function(e) {
     if (e.target === this) closeSendModal();
 });
