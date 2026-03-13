@@ -580,7 +580,7 @@ function applyFilters() {
             const mob   = (c.mobile_no || '').toLowerCase();
             if (!name.includes(q) && !code.includes(q) && !mob.includes(q)) return false;
         }
-        if (noEmail && c.email_id && c.email_id.trim()) return false;
+        if (noEmail && c.acc_person_email && c.acc_person_email.trim()) return false;
         return true;
     });
 
@@ -650,8 +650,8 @@ function renderTable() {
             <td>${c.circle ? `<span class="badge-circle">${esc(c.circle)}</span>` : '—'}</td>
             <td>${c.oa_name ? `<span class="badge-oa">${esc(c.oa_name)}</span>` : '—'}</td>
             <td class="c-tel">${esc(telStr)}</td>
-            <td>${c.email_id && c.email_id.trim()
-                ? `<span class="c-email">📧 ${esc(c.email_id)}</span>`
+            <td>${c.acc_person_email && c.acc_person_email.trim()
+                ? `<span class="c-email">📧 ${esc(c.acc_person_email)}</span>`
                 : `<span class="c-no-email">No email</span>`}</td>
             <td style="text-align:right;" class="c-rent">${rent}</td>
         </tr>`;
@@ -788,7 +788,7 @@ function updateBulkBar() {
 function updateStats() {
     document.getElementById('statTotal').textContent = `${allCustomers.length} customers with active lines`;
     document.getElementById('statShowing').textContent = `Showing ${filteredData.length}`;
-    const noEmail = allCustomers.filter(c => !c.email_id || !c.email_id.trim()).length;
+    const noEmail = allCustomers.filter(c => !c.acc_person_email || !c.acc_person_email.trim()).length;
     document.getElementById('statNoEmail').textContent = `${noEmail} without email`;
 }
 
@@ -800,12 +800,12 @@ function openSendModal() {
     const selected = allCustomers.filter(c => selectedIds.has(c.id));
     const list = document.getElementById('modalCustomerList');
     list.innerHTML = selected.map(c => {
-        const hasEmail = c.email_id && c.email_id.trim();
+        const hasEmail = c.acc_person_email && c.acc_person_email.trim();
         return `<div style="display:flex;justify-content:space-between;align-items:center;
                             padding:5px 0;border-bottom:1px solid #f1f5f9;">
             <span style="font-weight:600;">${esc(c.customer_name)}</span>
             ${hasEmail
-                ? `<span style="font-size:0.78rem;color:#2563eb;">${esc(c.email_id)}</span>`
+                ? `<span style="font-size:0.78rem;color:#2563eb;">${esc(c.acc_person_email)}</span>`
                 : `<span style="font-size:0.78rem;color:#f97316;font-weight:600;">⚠ No email</span>`}
         </div>`;
     }).join('');
@@ -818,7 +818,7 @@ function closeSendModal() {
 
 async function sendBillEmails() {
     const selected  = allCustomers.filter(c => selectedIds.has(c.id));
-    const withEmail = selected.filter(c => c.email_id && c.email_id.trim());
+    const withEmail = selected.filter(c => c.acc_person_email && c.acc_person_email.trim());
     if (!withEmail.length) {
         showToast('None of the selected customers have an email address.', 'err');
         return;
