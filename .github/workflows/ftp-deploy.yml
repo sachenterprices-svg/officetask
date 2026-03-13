@@ -35,15 +35,15 @@ jobs:
           echo "set net:reconnect-interval-base 5" >> ~/.lftp/rc
           echo "set net:max-retries 3" >> ~/.lftp/rc
 
-      - name: Upload public/ → officetask/
+      - name: Upload public/ → officetask/ (FTP root)
         env:
           FTP_HOST: ${{ secrets.FTP_SERVER }}
         run: |
           lftp -e "
-            mirror -R --delete --no-perms --parallel=4 \
+            mirror -R --no-perms --parallel=4 \
               --exclude-glob .git* \
               --exclude-glob node_modules/ \
-              public/ officetask/;
+              public/ /;
             quit
           " ftp://$FTP_HOST
 
