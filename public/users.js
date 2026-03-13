@@ -1,18 +1,3 @@
-// Visual style toggle for Work Type checkboxes
-function updateWorkTypeStyle(type) {
-    const cb    = document.getElementById(`workType${type.charAt(0).toUpperCase()+type.slice(1)}`);
-    const label = document.getElementById(`wt-label-${type}`);
-    if (!cb || !label) return;
-    if (cb.checked) {
-        label.style.opacity = '1';
-        label.style.boxShadow = '0 0 0 2px currentColor';
-    } else {
-        label.style.opacity = '0.6';
-        label.style.boxShadow = 'none';
-    }
-}
-window.updateWorkTypeStyle = updateWorkTypeStyle;
-
 const MODULES_CONFIG = [
     { id: "proposals", label: "Proposals", actions: ["view", "add", "edit"] },
     { id: "customers", label: "Customers", actions: ["view", "add", "edit"] },
@@ -24,15 +9,47 @@ const MODULES_CONFIG = [
 
 let users = [];
 let selectedUserId = null;
+let _circleOaData = []; // cache circles+OAs
 
 // Initialize Page
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     loadUsers();
     renderDynamicPermissions();
-
-    // Form Submissions
+    await loadCircleOaData();
     document.getElementById('userForm').addEventListener('submit', saveUser);
 });
+
+// Load all circles (with nested OAs) — used by Circle/OA dropdowns in user modal
+async function loadCircleOaData() {
+    try {
+        const res = await window.apiFetch('/api/bsnl/circles');
+        if (!res.ok) return;
+        _circleOaData = await res.json();
+        const sel = document.getElementById('modalCircle');
+        if (!sel) return;
+        _circleOaData.forEach(c => {
+            const o = document.createElement('option');
+            o.value = c.name; o.textContent = c.name;
+            sel.appendChild(o);
+        });
+    } catch(e) { console.error('Circle load error', e); }
+}
+
+// When circle changes in user modal — populate OA dropdown
+function onUserCircleChange() {
+    const circleName = document.getElementById('modalCircle').value;
+    const oaSel = document.getElementById('modalOA');
+    oaSel.innerHTML = '<option value="">-- All OAs --</option>';
+    if (!circleName) return;
+    const circle = _circleOaData.find(c => c.name === circleName);
+    if (!circle || !circle.oas) return;
+    circle.oas.forEach(oa => {
+        const o = document.createElement('option');
+        o.value = oa.name; o.textContent = oa.name;
+        oaSel.appendChild(o);
+    });
+}
+window.onUserCircleChange = onUserCircleChange;
 
 async function loadUsers() {
     try {
@@ -97,10 +114,9 @@ function renderTable() {
                 <td>${u.manager_name || '<i style="color:#cbd5e1">No Manager</i>'}</td>
                 <td style="font-size:0.8rem; max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${rightsText}">${rightsText}</td>
                 <td style="text-align:center;">
-                    <div style="display:flex; gap:6px; justify-content:center; flex-wrap:wrap;">
-                        <button onclick="openEditModal(${u.id})" style="background:none; border:1px solid #e2e8f0; padding:6px 8px; border-radius:6px; cursor:pointer;" title="Edit Profile">&#9998;</button>
-                        <button onclick="openAdminPwdModal(${u.id},'${(u.name||u.username).replace(/'/g,"\\'")}','${u.username}')" style="background:#fef3c7; border:1px solid #fcd34d; padding:5px 8px; border-radius:6px; cursor:pointer; font-size:0.85rem;" title="Change Password">🔑</button>
-                        <button onclick="deleteUser(${u.id})" style="background:none; border:1px solid #fee2e2; padding:6px 8px; border-radius:6px; cursor:pointer; color:#ef4444;" title="Delete User">&#128465;</button>
+                    <div style="display:flex; gap:10px; justify-content:center;">
+                        <button onclick="openEditModal(${u.id})" style="background:none; border:1px solid #e2e8f0; padding:6px; border-radius:6px; cursor:pointer;" title="Edit Profile">&#9998;</button>
+                        <button onclick="deleteUser(${u.id})" style="background:none; border:1px solid #fee2e2; padding:6px; border-radius:6px; cursor:pointer; color:#ef4444;" title="Delete User">&#128465;</button>
                     </div>
                 </td>
             </tr>
@@ -160,18 +176,10 @@ function openEditModal(id) {
     document.getElementById('modalUsername').disabled = true;
     document.getElementById('modalRole').value = user.role || 'user';
     document.getElementById('modalCircle').value = user.allowed_circle || '';
+    onUserCircleChange(); // populate OA dropdown for this circle
     document.getElementById('modalOA').value = user.allowed_oa || '';
     document.getElementById('modalCustomers').value = user.allowed_customers || '';
     document.getElementById('modalBackdate').checked = user.backdate_rights || false;
-
-    // Set Work Types
-    let wt = user.work_types;
-    if (typeof wt === 'string') { try { wt = JSON.parse(wt); } catch(e) { wt = []; } }
-    wt = wt || [];
-    document.getElementById('workTypeEngineer').checked = wt.includes('engineer');
-    document.getElementById('workTypeClerical').checked  = wt.includes('clerical');
-    updateWorkTypeStyle('engineer');
-    updateWorkTypeStyle('clerical');
 
     // Set Permissions
     let perms = [];
@@ -216,8 +224,7 @@ async function saveUser(e) {
         allowed_oa: document.getElementById('modalOA').value || null,
         allowed_customers: document.getElementById('modalCustomers').value || null,
         permissions: permissions,
-        backdate_rights: document.getElementById('modalBackdate').checked,
-        work_types: ['engineer', 'clerical'].filter(wt => document.getElementById(`workType${wt.charAt(0).toUpperCase()+wt.slice(1)}`).checked)
+        backdate_rights: document.getElementById('modalBackdate').checked
     };
 
     if (!isEditing) {
@@ -260,59 +267,3 @@ async function deleteUser(id) {
         }
     } catch (err) { alert('Network error'); }
 }
-
-// ── Admin: Change Any User's Password ─────────────────────────
-let _adminPwdTargetId = null;
-
-function openAdminPwdModal(userId, displayName, username) {
-    _adminPwdTargetId = userId;
-    document.getElementById('adminPwdUserLabel').textContent = `${displayName}  (@${username})`;
-    document.getElementById('adminNewPwd').value = '';
-    document.getElementById('adminConfirmPwd').value = '';
-    const msgEl = document.getElementById('adminPwdMsg');
-    msgEl.style.display = 'none';
-    document.getElementById('adminPwdModal').style.display = 'flex';
-    setTimeout(() => document.getElementById('adminNewPwd').focus(), 100);
-}
-window.openAdminPwdModal = openAdminPwdModal;
-
-function closeAdminPwdModal() {
-    document.getElementById('adminPwdModal').style.display = 'none';
-    _adminPwdTargetId = null;
-}
-window.closeAdminPwdModal = closeAdminPwdModal;
-
-async function submitAdminPwdChange() {
-    const newPwd     = document.getElementById('adminNewPwd').value.trim();
-    const confirmPwd = document.getElementById('adminConfirmPwd').value.trim();
-    const msgEl      = document.getElementById('adminPwdMsg');
-
-    const showMsg = (txt, ok) => {
-        msgEl.textContent = txt;
-        msgEl.style.display = 'block';
-        msgEl.style.background = ok ? '#dcfce7' : '#fee2e2';
-        msgEl.style.color      = ok ? '#16a34a' : '#dc2626';
-        msgEl.style.border     = ok ? '1px solid #bbf7d0' : '1px solid #fecaca';
-    };
-
-    if (!newPwd || newPwd.length < 6) { showMsg('Password must be at least 6 characters.', false); return; }
-    if (newPwd !== confirmPwd)         { showMsg('Passwords do not match!', false); return; }
-    if (!_adminPwdTargetId)            { showMsg('No user selected.', false); return; }
-
-    try {
-        const res = await window.apiFetch(`/api/users/${_adminPwdTargetId}/password`, {
-            method: 'PUT',
-            body: JSON.stringify({ new_password: newPwd })
-        });
-        if (res.ok) {
-            showMsg('✅ Password updated successfully!', true);
-            setTimeout(() => closeAdminPwdModal(), 1600);
-        } else {
-            const err = await res.json();
-            showMsg(err.error || 'Failed to update password.', false);
-        }
-    } catch (e) {
-        showMsg('Connection error. Please try again.', false);
-    }
-}
-window.submitAdminPwdChange = submitAdminPwdChange;

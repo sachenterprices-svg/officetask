@@ -92,13 +92,28 @@
         .page-btn { padding:6px 12px; border:1px solid #e2e8f0; border-radius:7px; background:#fff; font-size:0.82rem; font-weight:600; cursor:pointer; color:#475569; transition:0.15s; }
         .page-btn:hover, .page-btn.active { background:#002d72; color:#fff; border-color:#002d72; }
         .page-info { font-size:0.82rem; color:#94a3b8; margin-left:8px; }
+
+        /* Pending Verification Section */
+        .verification-section { margin-bottom:28px; }
+        .section-heading { font-size:1rem; font-weight:800; color:#b45309; margin:0 0 12px; display:flex; align-items:center; gap:8px; }
+        .section-heading .badge-count { background:#f59e0b; color:#fff; font-size:0.72rem; padding:2px 8px; border-radius:20px; }
+        .verif-card { background:#fffbeb; border:1px solid #fde68a; border-radius:14px; padding:16px 20px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:10px; }
+        .verif-info { flex:1; min-width:200px; }
+        .verif-no { font-weight:800; color:#002d72; font-size:0.88rem; }
+        .verif-customer { font-size:0.9rem; font-weight:600; color:#0f172a; }
+        .verif-meta { font-size:0.78rem; color:#64748b; margin-top:3px; }
+        .verif-resolver { font-size:0.82rem; color:#7c3aed; font-weight:600; }
+        .btn-verify { background:#16a34a; color:#fff; border:none; padding:8px 18px; border-radius:8px; font-weight:700; font-size:0.82rem; cursor:pointer; transition:0.2s; }
+        .btn-verify:hover { background:#15803d; }
+        .btn-reject-v { background:#dc2626; color:#fff; border:none; padding:8px 18px; border-radius:8px; font-weight:700; font-size:0.82rem; cursor:pointer; transition:0.2s; }
+        .btn-reject-v:hover { background:#b91c1c; }
     </style>
 </head>
 <body>
     <header class="top-header">
         <div class="header-brand">
-            <span style="color:#002d72;">Coral</span> <span style="color:#f97316;">Infratel</span>
-        </div>
+                <img src="assets/Coral Infratel logo.jpg" alt="Coral Infratel Pvt. Ltd." height="46" style="display:block; object-fit:contain;">
+            </div>
         <div class="user-meta">
             <span id="userInfoDisplay" style="font-weight:600;"></span>
             <button onclick="window.logout()" class="logout-btn">Logout</button>
@@ -116,9 +131,19 @@
                 </div>
             </div>
 
+            <!-- Pending Verification Section (visible to seniors/admin) -->
+            <div class="verification-section" id="verificationSection" style="display:none;">
+                <div class="section-heading">
+                    🔔 Pending Verification
+                    <span class="badge-count" id="verifCount">0</span>
+                </div>
+                <div id="verifList"></div>
+            </div>
+
             <!-- Filter Bar -->
             <div class="filter-bar">
                 <select id="fStatus">
+                    <option value="active">--Active Only--</option>
                     <option value="">--All Status--</option>
                     <option>Pending</option>
                     <option>In Progress</option>
@@ -218,14 +243,10 @@
                 <div class="form-group">
                     <label>Fault At</label>
                     <select id="faultAt">
-                        <option value="">-- Select Fault Location --</option>
-                        <option>Exchange Side</option>
-                        <option>Customer Side</option>
-                        <option>Line / Cabling</option>
-                        <option>Software / Config Issue</option>
-                        <option>Hardware Failure</option>
-                        <option>Power Issue</option>
-                        <option>Under Investigation</option>
+                        <option value="">-- Select Fault At --</option>
+                        <option value="BSNL">BSNL</option>
+                        <option value="Customer">Customer</option>
+                        <option value="Coral">Coral</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -283,6 +304,8 @@
         { icon: '🏠', label: 'Dashboard', href: 'dashboard.html' },
         { icon: '🎫', label: 'Complaints', href: 'complaints_manage.html', active: true, perm: 'complaints' },
         { icon: '📊', label: 'Complaints Report', href: 'complaints_report.html', perm: 'complaints' },
+        { icon: '👤', label: 'Customer Assignment', href: 'customer_assignment.html', adminOnly: true },
+        { icon: '🗺️', label: 'Area Assignment', href: 'engineer_area_assignment.html', adminOnly: true },
         { icon: '👷', label: 'Engineers Master', href: 'engineers_master.html', adminOnly: true },
     ];
 
@@ -297,6 +320,7 @@
             await loadEngineers();
         }
         await loadComplaints();
+        await loadPendingVerification(); // Load verification section for seniors
     });
 
     function buildSidebar(user) {
@@ -315,11 +339,13 @@
 
     async function loadEngineers() {
         try {
-            const res = await window.apiFetch('/api/users');
+            // Only users with work_type=engineer appear in complaint assignment
+            const res = await window.apiFetch('/api/users/assignable?work_type=engineer');
             if (res.ok) {
                 const users = await res.json();
                 const sel = document.getElementById('assignEngineer');
-                users.filter(u => u.role !== 'admin').forEach(u => {
+                sel.innerHTML = '<option value="">-- Select Engineer --</option>';
+                users.forEach(u => {
                     const opt = document.createElement('option');
                     opt.value = u.id;
                     opt.textContent = u.name || u.username;
@@ -345,7 +371,12 @@
         const start = document.getElementById('fStart').value;
         const end = document.getElementById('fEnd').value;
         let data = allComplaints.filter(c => {
-            if (status && c.status !== status) return false;
+            // 'active' = only Pending & In Progress (default)
+            if (status === 'active') {
+                if (c.status === 'Resolved' || c.status === 'Cancelled') return false;
+            } else if (status) {
+                if (c.status !== status) return false;
+            }
             if (priority && c.priority !== priority) return false;
             const d = new Date(c.created_at);
             if (start && d < new Date(start)) return false;
@@ -375,7 +406,11 @@
         tbody.innerHTML = data.map(c => {
             const pClass = c.priority === 'High' ? 'priority-high' : c.priority === 'Medium' ? 'priority-medium' : 'priority-low';
             const sClass = c.status === 'Resolved' ? 'status-resolved' : c.status === 'In Progress' ? 'status-progress' : 'status-pending';
-            const date = new Date(c.created_at).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+            const _dt = new Date(c.created_at);
+            const date = _dt.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric', timeZone:'Asia/Kolkata' })
+                       + '<br><span style="font-size:0.75rem;color:#94a3b8;">'
+                       + _dt.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:true, timeZone:'Asia/Kolkata' })
+                       + '</span>';
             return `<tr>
                 <td><span class="complaint-no">${c.complaint_no || '-'}</span></td>
                 <td class="tel-cell">${c.std_code ? c.std_code + '-' : ''}${c.telephone_number || '-'}</td>
@@ -397,12 +432,12 @@
     }
 
     function resetFilters() {
-        document.getElementById('fStatus').value = '';
+        document.getElementById('fStatus').value = 'active';
         document.getElementById('fPriority').value = '';
         document.getElementById('fStart').value = '';
         document.getElementById('fEnd').value = '';
         document.getElementById('searchBox').value = '';
-        renderTable(allComplaints);
+        applyFilters();
     }
 
     function openPanel(id) {
@@ -469,6 +504,55 @@
         t.textContent = msg;
         t.className = `toast toast-${type} show`;
         setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    // ── VERIFICATION WORKFLOW ──────────────────────────────────────
+    async function loadPendingVerification() {
+        try {
+            const res = await window.apiFetch('/api/complaints/pending-verification');
+            if (!res.ok) return;
+            const list = await res.json();
+            const section = document.getElementById('verificationSection');
+            const verifList = document.getElementById('verifList');
+            const verifCount = document.getElementById('verifCount');
+
+            if (!list.length) { section.style.display = 'none'; return; }
+
+            section.style.display = 'block';
+            verifCount.textContent = list.length;
+            verifList.innerHTML = list.map(c => `
+                <div class="verif-card" id="vc-${c.id}">
+                    <div class="verif-info">
+                        <div class="verif-no">${c.complaint_no || `CRM-${String(c.id).padStart(4,'0')}`}</div>
+                        <div class="verif-customer">${c.customer_name}</div>
+                        <div class="verif-meta">${c.std_code ? c.std_code + '-' : ''}${c.telephone_number} &nbsp;|&nbsp; Status: <strong>${c.status}</strong></div>
+                        <div class="verif-resolver">Resolved by: ${c.resolved_by || '-'}</div>
+                    </div>
+                    <div style="display:flex; gap:8px; flex-shrink:0;">
+                        <button class="btn-verify" onclick="doVerify(${c.id},'Verified')">✅ Verify</button>
+                        <button class="btn-reject-v" onclick="doVerify(${c.id},'Rejected')">❌ Reject</button>
+                    </div>
+                </div>
+            `).join('');
+        } catch(e) { console.error('Verification load error', e); }
+    }
+
+    async function doVerify(id, action) {
+        try {
+            const res = await window.apiFetch(`/api/complaints/${id}/verify`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action })
+            });
+            if (res.ok) {
+                showToast(action === 'Verified' ? '✅ Complaint Verified!' : '❌ Rejected — Back to In Progress', action === 'Verified' ? 'success' : 'error');
+                document.getElementById(`vc-${id}`)?.remove();
+                const remaining = document.querySelectorAll('[id^="vc-"]').length;
+                if (!remaining) document.getElementById('verificationSection').style.display = 'none';
+                else document.getElementById('verifCount').textContent = remaining;
+                await loadComplaints();
+            }
+        } catch(e) { showToast('Network error', 'error'); }
     }
     </script>
 </body>
