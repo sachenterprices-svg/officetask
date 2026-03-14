@@ -1392,6 +1392,39 @@ app.put('/api/complaints/:id/verify', authenticateToken, async (req, res) => {
     }
 });
 
+// Bulk reassign active complaints from one engineer to another (leave/absence)
+app.post('/api/complaints/bulk-reassign', authenticateToken, async (req, res) => {
+    const currentUser = req.user;
+    try {
+        // Only admin or senior (user with subordinates) can do this
+        const [[subCnt]] = await pool.query('SELECT COUNT(*) as cnt FROM user_managers WHERE manager_id = ?', [currentUser.id]);
+        const isSeniorOrAdmin = currentUser.role === 'admin' || subCnt.cnt > 0;
+        if (!isSeniorOrAdmin) return res.status(403).json({ error: 'Only admin or senior engineer can reassign complaints.' });
+
+        const { from_id, to_id } = req.body;
+        if (!from_id || !to_id) return res.status(400).json({ error: 'from_id and to_id are required.' });
+        if (String(from_id) === String(to_id)) return res.status(400).json({ error: 'From and To engineer cannot be the same.' });
+
+        // Reassign only active (non-resolved/non-cancelled) complaints
+        const [result] = await pool.query(
+            `UPDATE complaints
+             SET assigned_to = ?
+             WHERE assigned_to = ?
+               AND status NOT IN ('Resolved', 'Cancelled')`,
+            [to_id, from_id]
+        );
+        const count = result.affectedRows;
+        res.json({
+            success: true,
+            reassigned: count,
+            message: `${count} active complaint(s) reassigned successfully.`
+        });
+    } catch (err) {
+        console.error('Bulk reassign error:', err);
+        res.status(500).json({ error: 'Bulk reassign failed: ' + err.message });
+    }
+});
+
 // Bulk auto-assign all unassigned complaints based on circle/OA mapping
 app.post('/api/complaints/bulk-auto-assign', authenticateToken, isAdmin, async (req, res) => {
     try {

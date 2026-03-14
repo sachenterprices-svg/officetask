@@ -97,6 +97,19 @@
         .page-btn:hover, .page-btn.active { background:#002d72; color:#fff; border-color:#002d72; }
         .page-info { font-size:0.82rem; color:#94a3b8; margin-left:8px; }
 
+        /* Reassign Engineer Section */
+        .reassign-bar { background:#fff7ed; border:1px solid #fed7aa; border-radius:14px; padding:14px 20px;
+                        display:none; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:20px; }
+        .reassign-bar.visible { display:flex; }
+        .reassign-bar-label { font-size:0.8rem; font-weight:800; color:#c2410c; white-space:nowrap; display:flex; align-items:center; gap:6px; }
+        .reassign-bar select { padding:8px 12px; border:1px solid #fed7aa; border-radius:8px; font-family:inherit;
+                               font-size:0.85rem; color:#334155; background:#fff; min-width:180px; }
+        .reassign-bar select:focus { border-color:#ea580c; outline:none; }
+        .btn-reassign { background:#ea580c; color:#fff; border:none; padding:8px 20px; border-radius:8px;
+                        font-weight:700; font-size:0.85rem; cursor:pointer; transition:0.2s; white-space:nowrap; }
+        .btn-reassign:hover { background:#c2410c; }
+        .reassign-hint { font-size:0.75rem; color:#92400e; flex-basis:100%; margin-top:2px; }
+
         /* Pending Verification Section */
         .verification-section { margin-bottom:28px; }
         .section-heading { font-size:1rem; font-weight:800; color:#b45309; margin:0 0 12px; display:flex; align-items:center; gap:8px; }
@@ -199,6 +212,20 @@
                 <input type="date" id="fEnd">
                 <button class="btn-search" onclick="loadComplaints()">Search</button>
                 <button class="btn-reset" onclick="resetFilters()">Reset</button>
+            </div>
+
+            <!-- Reassign Engineer Bar (Admin/Senior only) -->
+            <div class="reassign-bar" id="reassignBar">
+                <div class="reassign-bar-label">🔄 Reassign Engineer (On Leave):</div>
+                <select id="reassignFrom" title="Engineer going on leave">
+                    <option value="">-- From Engineer --</option>
+                </select>
+                <span style="font-size:0.85rem; font-weight:700; color:#64748b;">→</span>
+                <select id="reassignTo" title="Engineer who will handle">
+                    <option value="">-- Assign To --</option>
+                </select>
+                <button class="btn-reassign" onclick="bulkReassign()">Reassign All Active</button>
+                <div class="reassign-hint">⚠️ Only active (non-resolved) complaints will be reassigned. Resolved by name will show the engineer who actually resolved each complaint.</div>
             </div>
 
             <!-- Table -->
@@ -404,6 +431,8 @@
             const assignGroup = document.querySelector('.admin-only');
             if (_isSenior) {
                 if (assignGroup) assignGroup.style.display = '';
+
+                // Populate side-panel Assign Engineer
                 const sel = document.getElementById('assignEngineer');
                 sel.innerHTML = '<option value="">-- Select Engineer --</option>';
                 users.forEach(u => {
@@ -412,8 +441,22 @@
                     opt.textContent = u.name || u.username;
                     sel.appendChild(opt);
                 });
+
+                // Populate Reassign Bar dropdowns (From / To)
+                const fromSel = document.getElementById('reassignFrom');
+                const toSel   = document.getElementById('reassignTo');
+                if (fromSel && toSel) {
+                    const makeOpts = () => {
+                        let html = '';
+                        users.forEach(u => { html += `<option value="${u.id}">${u.name || u.username}</option>`; });
+                        return html;
+                    };
+                    fromSel.innerHTML = '<option value="">-- From Engineer (on leave) --</option>' + makeOpts();
+                    toSel.innerHTML   = '<option value="">-- Assign To Engineer --</option>' + makeOpts();
+                    document.getElementById('reassignBar').classList.add('visible');
+                }
             } else {
-                // Regular engineer — hide Assign Engineer, lock Priority
+                // Regular engineer — hide Assign Engineer + Reassign bar, lock Priority
                 if (assignGroup) assignGroup.style.display = 'none';
                 const prioritySel = document.getElementById('compPriority');
                 if (prioritySel) {
@@ -426,6 +469,39 @@
                 if (prNote) prNote.style.display = 'inline';
             }
         } catch (e) {}
+    }
+
+    async function bulkReassign() {
+        const fromId = document.getElementById('reassignFrom').value;
+        const toId   = document.getElementById('reassignTo').value;
+        if (!fromId) { showToast('Please select the engineer going on leave.', 'error'); return; }
+        if (!toId)   { showToast('Please select the engineer to assign to.', 'error'); return; }
+        if (fromId === toId) { showToast('From and To engineer cannot be the same.', 'error'); return; }
+
+        const fromName = document.getElementById('reassignFrom').selectedOptions[0]?.text || 'selected engineer';
+        const toName   = document.getElementById('reassignTo').selectedOptions[0]?.text || 'selected engineer';
+        if (!confirm(`Reassign all active complaints from "${fromName}" to "${toName}"?\n\nOnly Pending / In Progress complaints will be moved.`)) return;
+
+        const btn = document.querySelector('.btn-reassign');
+        const orig = btn.textContent;
+        btn.textContent = '⏳ Reassigning...';
+        btn.disabled = true;
+        try {
+            const res = await window.apiFetch('/api/complaints/bulk-reassign', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ from_id: parseInt(fromId), to_id: parseInt(toId) })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showToast(`✅ ${data.reassigned} complaint(s) reassigned from ${fromName} to ${toName}.`, 'success');
+                await loadComplaints();
+            } else {
+                showToast(data.error || 'Reassign failed.', 'error');
+            }
+        } catch(e) { showToast('Network error.', 'error'); }
+        btn.textContent = orig;
+        btn.disabled = false;
     }
 
     function onStatusChange() {
