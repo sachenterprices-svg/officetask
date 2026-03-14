@@ -3553,12 +3553,11 @@ app.post('/api/bulk-match-customers', authenticateToken, async (req, res) => {
             );
             const cust = rows2[0] || null;
             if (cust) {
-                const circleAbbr = (cust.circle||'UNKNW').replace(/\s/g,'').toUpperCase().substring(0,5);
-                const oaAbbr     = (cust.oa_name||'UNKNW').replace(/\s/g,'').toUpperCase().substring(0,5);
-                const telClean   = telNo.replace(/[/\\?%*:|"<>]/g,'-');
+                const custNameClean = cust.customer_name.replace(/[/\\?%*:|"<>]/g,'_').replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,'');
+                const telClean     = telNo.replace(/[/\\?%*:|"<>]/g,'-');
                 results.push({ telNo, pdfUrl, customerName: cust.customer_name,
                     email: cust.email||'', circle: cust.circle, oa_name: cust.oa_name,
-                    suggestedFilename: `Coral_${telClean}_${circleAbbr}_${oaAbbr}.pdf`,
+                    suggestedFilename: `${custNameClean}_${telClean}.pdf`,
                     status: 'matched' });
             } else {
                 results.push({ telNo, pdfUrl, status: 'not_found' });
