@@ -285,9 +285,18 @@
                         Customers with active (non-closed) telephone lines — filter by Circle / OA, then send bill emails.
                     </p>
                 </div>
-                <button class="btn-send-bill" onclick="openSendModal()">
-                    📧 Send Bill Email
-                </button>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <button onclick="openBulkPdfModal()"
+                        style="background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;border:none;
+                               padding:10px 22px;border-radius:10px;font-family:'Inter',sans-serif;
+                               font-weight:700;font-size:0.88rem;cursor:pointer;transition:.2s;
+                               box-shadow:0 2px 8px rgba(220,38,38,0.3);">
+                        📥 Bulk PDF
+                    </button>
+                    <button class="btn-send-bill" onclick="openSendModal()">
+                        📧 Send Bill Email
+                    </button>
+                </div>
             </div>
 
             <!-- Billing Period Selector -->
@@ -383,6 +392,110 @@
 
         </div>
     </main>
+</div>
+
+<!-- ── Bulk PDF Modal ── -->
+<div id="bulkPdfModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+     background:rgba(0,0,0,0.5);z-index:3000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:18px;padding:28px;width:92%;max-width:620px;
+                position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.18);max-height:90vh;overflow-y:auto;">
+
+        <!-- Close button -->
+        <button onclick="closeBulkPdfModal()" style="position:absolute;top:14px;right:16px;background:none;
+                border:none;font-size:1.4rem;cursor:pointer;color:#94a3b8;">&times;</button>
+
+        <h2 style="margin:0 0 2px;color:#0f172a;font-size:1.1rem;font-weight:800;">📥 Bulk PDF Downloader</h2>
+        <p style="color:#64748b;font-size:0.82rem;margin:0 0 16px;">
+            Excel upload &rarr; Server downloads &amp; renames PDFs &rarr; ZIP download
+        </p>
+
+        <!-- Excel format hint -->
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 14px;
+                    margin-bottom:14px;font-size:0.82rem;color:#1e40af;font-weight:600;">
+            📋 Column A: Telephone Number &nbsp;|&nbsp; Column B: PDF Link (URL)
+        </div>
+
+        <!-- Upload section (shown initially) -->
+        <div id="bpUploadSection">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;">
+                <label style="background:#f59e0b;color:#fff;padding:10px 20px;border-radius:8px;
+                              font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">
+                    📁 Choose Excel
+                    <input type="file" id="bpExcelFile" accept=".xlsx,.xls" style="display:none"
+                           onchange="onBpExcelSelected()">
+                </label>
+                <span id="bpFileName" style="font-size:0.85rem;color:#64748b;font-weight:600;">No file selected</span>
+            </div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <button onclick="closeBulkPdfModal()"
+                        style="background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;padding:10px 20px;
+                               border-radius:8px;font-family:'Inter',sans-serif;font-weight:700;cursor:pointer;">
+                    Close
+                </button>
+                <button id="bpStartBtn" onclick="startBulkPdf()" disabled
+                        style="background:#059669;color:#fff;border:none;padding:10px 26px;border-radius:8px;
+                               font-family:'Inter',sans-serif;font-weight:700;cursor:pointer;transition:.2s;
+                               opacity:0.5;">
+                    🚀 Start Processing
+                </button>
+            </div>
+        </div>
+
+        <!-- Progress section (shown during processing) -->
+        <div id="bpProgressSection" style="display:none;">
+            <div style="margin-bottom:12px;">
+                <div style="font-size:0.78rem;font-weight:800;color:#64748b;text-transform:uppercase;
+                            letter-spacing:0.6px;margin-bottom:6px;">Status</div>
+                <div id="bpPhaseLabel" style="font-size:0.95rem;font-weight:700;color:#0f172a;">Starting...</div>
+            </div>
+
+            <!-- Progress bar -->
+            <div style="background:#e2e8f0;border-radius:8px;height:10px;overflow:hidden;margin-bottom:12px;">
+                <div id="bpProgressBar" style="background:linear-gradient(90deg,#059669,#10b981);height:100%;
+                     width:0%;transition:width 0.4s;border-radius:8px;"></div>
+            </div>
+
+            <!-- Stats chips -->
+            <div id="bpStats" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+                <span class="stat-chip" id="bpStatTotal">Total: 0</span>
+                <span class="stat-chip green" id="bpStatMatched">Matched: 0</span>
+                <span class="stat-chip orange" id="bpStatNotFound">Not found: 0</span>
+                <span class="stat-chip" id="bpStatDownloaded" style="background:#dcfce7;color:#166534;">Downloaded: 0</span>
+                <span class="stat-chip" id="bpStatFailed" style="background:#fef2f2;color:#dc2626;display:none;">Failed: 0</span>
+            </div>
+
+            <!-- Row details (collapsible) -->
+            <details style="margin-bottom:14px;">
+                <summary style="font-size:0.82rem;font-weight:700;color:#475569;cursor:pointer;">
+                    View file details
+                </summary>
+                <div id="bpRowDetails" style="max-height:200px;overflow-y:auto;margin-top:8px;
+                     font-size:0.78rem;border:1px solid #e2e8f0;border-radius:8px;"></div>
+            </details>
+
+            <!-- Download ZIP button (hidden until ready) -->
+            <div id="bpZipSection" style="display:none;background:#f0fdf4;border:1px solid #bbf7d0;
+                 border-radius:10px;padding:14px;text-align:center;margin-bottom:14px;">
+                <div style="font-size:0.95rem;font-weight:800;color:#166534;margin-bottom:8px;">
+                    ZIP Ready!
+                </div>
+                <button id="bpDownloadZip" onclick="downloadBulkZip()"
+                        style="background:#002d72;color:#fff;border:none;padding:12px 30px;border-radius:10px;
+                               font-family:'Inter',sans-serif;font-weight:700;font-size:0.92rem;cursor:pointer;
+                               transition:.2s;">
+                    📥 Download ZIP
+                </button>
+            </div>
+
+            <div style="text-align:right;">
+                <button onclick="closeBulkPdfModal()"
+                        style="background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;padding:10px 20px;
+                               border-radius:8px;font-family:'Inter',sans-serif;font-weight:700;cursor:pointer;">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Send Bill Modal -->
@@ -853,6 +966,157 @@ async function sendBillEmails() {
         btn.disabled    = false;
     }
 }
+
+// ═══════════════════════════════════════════════════════
+//  BULK PDF DOWNLOADER
+// ═══════════════════════════════════════════════════════
+let _bpJobId = null;
+let _bpPollTimer = null;
+
+function openBulkPdfModal() {
+    document.getElementById('bpUploadSection').style.display = '';
+    document.getElementById('bpProgressSection').style.display = 'none';
+    document.getElementById('bpExcelFile').value = '';
+    document.getElementById('bpFileName').textContent = 'No file selected';
+    document.getElementById('bpStartBtn').disabled = true;
+    document.getElementById('bpStartBtn').style.opacity = '0.5';
+    document.getElementById('bulkPdfModal').style.display = 'flex';
+}
+
+function closeBulkPdfModal() {
+    document.getElementById('bulkPdfModal').style.display = 'none';
+    if (_bpPollTimer) { clearInterval(_bpPollTimer); _bpPollTimer = null; }
+}
+
+function onBpExcelSelected() {
+    const f = document.getElementById('bpExcelFile').files[0];
+    if (f) {
+        document.getElementById('bpFileName').innerHTML =
+            '<span style="color:#059669;">&#10003; ' + esc(f.name) + '</span>';
+        document.getElementById('bpStartBtn').disabled = false;
+        document.getElementById('bpStartBtn').style.opacity = '1';
+    }
+}
+
+async function startBulkPdf() {
+    const fileInput = document.getElementById('bpExcelFile');
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    // Convert to base64
+    const base64 = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.readAsDataURL(file);
+    });
+
+    // Show progress section, hide upload
+    document.getElementById('bpUploadSection').style.display = 'none';
+    document.getElementById('bpProgressSection').style.display = '';
+    document.getElementById('bpZipSection').style.display = 'none';
+    document.getElementById('bpPhaseLabel').textContent = 'Starting...';
+    document.getElementById('bpProgressBar').style.width = '0%';
+
+    try {
+        const resp = await window.apiFetch('/api/bulk-pdf-job/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ excelBase64: base64 })
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Failed to start job');
+
+        _bpJobId = data.jobId;
+        // Start polling
+        _bpPollTimer = setInterval(pollBulkPdfStatus, 1500);
+        pollBulkPdfStatus();
+    } catch(e) {
+        document.getElementById('bpPhaseLabel').textContent = 'Error: ' + e.message;
+        showToast(e.message, 'err');
+    }
+}
+
+async function pollBulkPdfStatus() {
+    if (!_bpJobId) return;
+    try {
+        const resp = await window.apiFetch('/api/bulk-pdf-job/' + _bpJobId + '/status');
+        const d = await resp.json();
+        if (!resp.ok) throw new Error(d.error || 'Status check failed');
+
+        // Update phase label
+        document.getElementById('bpPhaseLabel').textContent = d.phaseLabel || d.phase;
+
+        // Update stats
+        document.getElementById('bpStatTotal').textContent = 'Total: ' + d.total;
+        document.getElementById('bpStatMatched').textContent = 'Matched: ' + d.matched;
+        document.getElementById('bpStatNotFound').textContent = 'Not found: ' + d.notFound;
+        document.getElementById('bpStatDownloaded').textContent = 'Downloaded: ' + d.downloaded;
+        if (d.dlFailed > 0) {
+            document.getElementById('bpStatFailed').style.display = '';
+            document.getElementById('bpStatFailed').textContent = 'Failed: ' + d.dlFailed;
+        }
+
+        // Progress bar
+        let pct = 0;
+        if (d.phase === 'matching') pct = 10;
+        else if (d.phase === 'downloading') pct = 10 + (d.matched > 0 ? (d.downloaded / d.matched) * 70 : 0);
+        else if (d.phase === 'zipping') pct = 85;
+        else if (d.phase === 'complete') pct = 100;
+        document.getElementById('bpProgressBar').style.width = Math.round(pct) + '%';
+
+        // Row details table
+        if (d.rowSummary && d.rowSummary.length) {
+            let html = '<table style="width:100%;border-collapse:collapse;">';
+            html += '<tr style="background:#f8fafc;"><th style="padding:4px 8px;text-align:left;border-bottom:1px solid #e2e8f0;">Tel No</th>' +
+                    '<th style="padding:4px 8px;text-align:left;border-bottom:1px solid #e2e8f0;">Customer</th>' +
+                    '<th style="padding:4px 8px;text-align:left;border-bottom:1px solid #e2e8f0;">File Name</th>' +
+                    '<th style="padding:4px 8px;text-align:center;border-bottom:1px solid #e2e8f0;">Status</th></tr>';
+            d.rowSummary.forEach(r => {
+                const statusBadge = r.dlStatus === 'done'
+                    ? '<span style="color:#059669;font-weight:700;">&#10003;</span>'
+                    : r.dlStatus === 'failed'
+                    ? '<span style="color:#dc2626;font-weight:700;" title="' + esc(r.dlError) + '">&#10007;</span>'
+                    : r.status === 'not_found'
+                    ? '<span style="color:#f59e0b;font-weight:700;">Not found</span>'
+                    : '<span style="color:#94a3b8;">Pending</span>';
+                html += '<tr style="border-bottom:1px solid #f1f5f9;">' +
+                    '<td style="padding:4px 8px;">' + esc(r.telNo) + '</td>' +
+                    '<td style="padding:4px 8px;">' + esc(r.customerName) + '</td>' +
+                    '<td style="padding:4px 8px;font-size:0.75rem;color:#475569;">' + esc(r.filename) + '</td>' +
+                    '<td style="padding:4px 8px;text-align:center;">' + statusBadge + '</td></tr>';
+            });
+            html += '</table>';
+            document.getElementById('bpRowDetails').innerHTML = html;
+        }
+
+        // ZIP ready
+        if (d.zipReady) {
+            document.getElementById('bpZipSection').style.display = '';
+        }
+
+        // Stop polling when done or error
+        if (d.status === 'done' || d.status === 'error') {
+            clearInterval(_bpPollTimer); _bpPollTimer = null;
+            if (d.status === 'done' && d.downloaded > 0) {
+                document.getElementById('bpPhaseLabel').innerHTML =
+                    '<span style="color:#059669;">&#10003; ' + d.downloaded + ' PDFs downloaded and renamed. ZIP is ready!</span>';
+            }
+        }
+    } catch(e) {
+        console.error('Poll error:', e);
+    }
+}
+
+function downloadBulkZip() {
+    if (!_bpJobId) return;
+    const token = localStorage.getItem('crm_token');
+    const url = '/api/bulk-pdf-job/' + _bpJobId + '/zip?token=' + encodeURIComponent(token);
+    window.open(url, '_blank');
+}
+
+document.getElementById('bulkPdfModal').addEventListener('click', function(e) {
+    if (e.target === this) closeBulkPdfModal();
+});
 
 // ═══════════════════════════════════════════════════════
 //  UTILITIES

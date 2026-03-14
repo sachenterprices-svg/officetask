@@ -3538,7 +3538,7 @@ function downloadPdfBuffer(url, redirectCount = 0) {
     });
 }
 
-// ── BULK PDF: ASYNC JOB RUNNER ────────────────────────────────────────────────
+// ── BULK PDF: ASYNC JOB RUNNER (Step 1: Download + Rename + ZIP only, no email) ──
 async function runBulkPdfJob(jobId, excelBase64) {
     const job = bulkPdfJobs.get(jobId);
 
@@ -3577,14 +3577,14 @@ async function runBulkPdfJob(jobId, excelBase64) {
                 const telClean  = telNo.replace(/[/\\?%*:|"<>&]/g,'-');
                 job.rows.push({ telNo, pdfUrl, customerName: cust.customer_name, email: cust.email||'',
                     filename: `${nameClean}_${telClean}.pdf`,
-                    status: 'matched', dlStatus: 'pending', emailStatus: 'pending' });
+                    status: 'matched', dlStatus: 'pending' });
                 job.matched++;
             } else {
-                job.rows.push({ telNo, pdfUrl, status: 'not_found', dlStatus: 'skipped', emailStatus: 'skipped' });
+                job.rows.push({ telNo, pdfUrl, status: 'not_found', dlStatus: 'skipped' });
                 job.notFound++;
             }
         } catch(e) {
-            job.rows.push({ telNo, pdfUrl, status: 'error', dlStatus: 'skipped', emailStatus: 'skipped' });
+            job.rows.push({ telNo, pdfUrl, status: 'error', dlStatus: 'skipped' });
         }
     }
 
@@ -3594,10 +3594,11 @@ async function runBulkPdfJob(jobId, excelBase64) {
     fs.mkdirSync(tempDir, { recursive: true });
 
     const matchedRows = job.rows.filter(r => r.status === 'matched');
-    for (const row of matchedRows) {
+    for (let i = 0; i < matchedRows.length; i++) {
+        const row = matchedRows[i];
+        job.phaseLabel = `Downloading ${i+1} of ${matchedRows.length}...`;
         try {
             const buf = await downloadPdfBuffer(row.pdfUrl);
-            // Validate: first 4 bytes must be %PDF
             if (!buf || buf.length < 100 || buf.slice(0,4).toString('ascii') !== '%PDF') {
                 row.dlStatus = 'failed'; row.dlError = 'Not a valid PDF';
                 job.dlFailed++; continue;
@@ -3634,35 +3635,9 @@ async function runBulkPdfJob(jobId, excelBase64) {
         } catch(e) { job.errors.push('ZIP failed: ' + e.message); }
     }
 
-    // Step 4: 30-second countdown before emailing
-    job.phase = 'waiting'; job.phaseLabel = 'ZIP ready! Starting emails in...';
-    for (let i = 30; i >= 0; i--) {
-        job.countdownSec = i;
-        await new Promise(r => setTimeout(r, 1000));
-    }
-
-    // Step 5: Send emails one by one
-    job.phase = 'emailing'; job.phaseLabel = 'Sending emails...';
-    const toEmail = matchedRows.filter(r => r.dlStatus === 'done' && r.email && r.localPath);
-    for (const row of toEmail) {
-        try {
-            const pdfBuf = fs.readFileSync(row.localPath);
-            await billMailTransporter.sendMail({
-                from: '"Coral Infratel Pvt. Ltd." <bsnlpribill@gmail.com>',
-                to: row.email.trim(),
-                subject: `Your Bill - ${row.customerName}`,
-                text: `Dear ${row.customerName},\n\nPlease find your bill attached.\n\nRegards,\nCoral Infratel Pvt. Ltd.`,
-                attachments: [{ filename: row.filename, content: pdfBuf, contentType: 'application/pdf' }]
-            });
-            row.emailStatus = 'sent'; job.emailsSent++;
-        } catch(e) {
-            row.emailStatus = 'failed'; row.emailError = e.message; job.emailsFailed++;
-        }
-        await new Promise(r => setTimeout(r, 1500)); // 1.5s gap between emails
-    }
-
+    // Done — no email in this step
     job.phase = 'complete'; job.status = 'done';
-    job.phaseLabel = `Done! ${job.emailsSent} emailed, ${job.downloaded} PDFs in ZIP.`;
+    job.phaseLabel = `Done! ${job.downloaded} PDFs downloaded, ${job.dlFailed} failed.`;
 
     // Cleanup temp files after 2 hours
     setTimeout(() => {
@@ -3681,8 +3656,7 @@ app.post('/api/bulk-pdf-job/start', authenticateToken, async (req, res) => {
         jobId, status: 'running', phase: 'matching', phaseLabel: 'Matching customers...',
         total: 0, matched: 0, notFound: 0,
         downloaded: 0, dlFailed: 0,
-        emailsSent: 0, emailsFailed: 0,
-        countdownSec: 30, zipReady: false, zipPath: null,
+        zipReady: false, zipPath: null,
         rows: [], errors: [], createdAt: Date.now()
     };
     bulkPdfJobs.set(jobId, job);
@@ -3699,20 +3673,25 @@ app.get('/api/bulk-pdf-job/:jobId/status', authenticateToken, (req, res) => {
     const rowSummary = job.rows.map(r => ({
         telNo: r.telNo, customerName: r.customerName||'', filename: r.filename||'',
         email: r.email||'', status: r.status, dlStatus: r.dlStatus,
-        emailStatus: r.emailStatus, dlError: r.dlError||'', emailError: r.emailError||''
+        dlError: r.dlError||''
     }));
     res.json({
         jobId: job.jobId, status: job.status, phase: job.phase, phaseLabel: job.phaseLabel,
         total: job.total, matched: job.matched, notFound: job.notFound,
         downloaded: job.downloaded, dlFailed: job.dlFailed,
-        emailsSent: job.emailsSent, emailsFailed: job.emailsFailed,
-        countdownSec: job.countdownSec, zipReady: job.zipReady,
+        zipReady: job.zipReady,
         rowSummary
     });
 });
 
-// ── BULK PDF JOB: DOWNLOAD ZIP ────────────────────────────────────────────────
-app.get('/api/bulk-pdf-job/:jobId/zip', authenticateToken, (req, res) => {
+// ── BULK PDF JOB: DOWNLOAD ZIP (supports ?token= for browser download) ───────
+app.get('/api/bulk-pdf-job/:jobId/zip', (req, res, next) => {
+    // Allow token via query string for direct browser download (window.open)
+    if (!req.headers['authorization'] && req.query.token) {
+        req.headers['authorization'] = 'Bearer ' + req.query.token;
+    }
+    authenticateToken(req, res, next);
+}, (req, res) => {
     const job = bulkPdfJobs.get(req.params.jobId);
     if (!job || !job.zipPath || !fs.existsSync(job.zipPath))
         return res.status(404).json({ error: 'ZIP not ready or expired.' });
