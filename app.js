@@ -251,18 +251,20 @@ async function initializeAreaEngineerMappingTables() {
     }
 }
 
-// Helper: auto-assign engineer based on priority (Customer > OA > Circle)
+// Helper: auto-assign engineer based on priority
+// Priority: Customer-specific > OA mapping table > Circle mapping table
+//           > users.allowed_oas (multi-select) > users.allowed_circles (multi-select)
 async function autoAssignEngineer(circle, oa_name, telephone_number, std_code) {
     try {
-        // Priority 1: specific customer assignment
+        // Priority 1: specific customer assignment (use telephone_code column, std_code is complaint field)
         const [custRows] = await pool.query(
             `SELECT assigned_engineer_id FROM customers
-             WHERE telephone_number=? AND std_code=? AND assigned_engineer_id IS NOT NULL LIMIT 1`,
+             WHERE telephone_number=? AND telephone_code=? AND assigned_engineer_id IS NOT NULL LIMIT 1`,
             [telephone_number, std_code]
-        );
+        ).catch(() => [[]]);
         if (custRows.length && custRows[0].assigned_engineer_id) return custRows[0].assigned_engineer_id;
 
-        // Priority 2: OA-wise
+        // Priority 2: OA mapping table (engineer_area_assignment.html)
         if (oa_name) {
             const [oaRows] = await pool.query(
                 'SELECT engineer_id FROM oa_engineer_mapping WHERE circle=? AND oa_name=? LIMIT 1',
@@ -271,7 +273,7 @@ async function autoAssignEngineer(circle, oa_name, telephone_number, std_code) {
             if (oaRows.length) return oaRows[0].engineer_id;
         }
 
-        // Priority 3: Circle-wise
+        // Priority 3: Circle mapping table
         if (circle) {
             const [circleRows] = await pool.query(
                 'SELECT engineer_id FROM circle_engineer_mapping WHERE circle=? LIMIT 1',
@@ -279,8 +281,37 @@ async function autoAssignEngineer(circle, oa_name, telephone_number, std_code) {
             );
             if (circleRows.length) return circleRows[0].engineer_id;
         }
+
+        // Priority 4: users.allowed_oas JSON column (set via users.html multi-select)
+        if (oa_name && circle) {
+            const [uOaRows] = await pool.query(
+                `SELECT id FROM users
+                 WHERE work_types LIKE '%engineer%'
+                   AND JSON_CONTAINS(IFNULL(allowed_oas,'[]'), JSON_QUOTE(?))
+                   AND JSON_CONTAINS(IFNULL(allowed_circles,'[]'), JSON_QUOTE(?))
+                 ORDER BY id LIMIT 1`,
+                [oa_name, circle]
+            );
+            if (uOaRows.length) return uOaRows[0].id;
+        }
+
+        // Priority 5: users.allowed_circles only (circle-level fallback)
+        if (circle) {
+            const [uCirRows] = await pool.query(
+                `SELECT id FROM users
+                 WHERE work_types LIKE '%engineer%'
+                   AND JSON_CONTAINS(IFNULL(allowed_circles,'[]'), JSON_QUOTE(?))
+                 ORDER BY id LIMIT 1`,
+                [circle]
+            );
+            if (uCirRows.length) return uCirRows[0].id;
+        }
+
         return null; // Unassigned
-    } catch(e) { return null; }
+    } catch(e) {
+        console.error('[autoAssignEngineer] error:', e.message);
+        return null;
+    }
 }
 
 async function initializeCustomersTable() {
@@ -1272,8 +1303,39 @@ app.put('/api/complaints/:id/verify', authenticateToken, async (req, res) => {
     }
 });
 
+// Bulk auto-assign all unassigned complaints based on circle/OA mapping
+app.post('/api/complaints/bulk-auto-assign', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const [unassigned] = await pool.query(
+            `SELECT id, circle, oa_name, telephone_number, std_code
+             FROM complaints WHERE assigned_to IS NULL`
+        );
+        let assigned = 0, skipped = 0;
+        for (const c of unassigned) {
+            const engineerId = await autoAssignEngineer(c.circle, c.oa_name, c.telephone_number, c.std_code);
+            if (engineerId) {
+                await pool.query('UPDATE complaints SET assigned_to=? WHERE id=?', [engineerId, c.id]);
+                assigned++;
+            } else {
+                skipped++;
+            }
+        }
+        res.json({
+            success: true,
+            total: unassigned.length,
+            assigned,
+            skipped,
+            message: `${assigned} complaints auto-assigned, ${skipped} could not be matched.`
+        });
+    } catch (err) {
+        console.error('Bulk auto-assign error:', err);
+        res.status(500).json({ error: 'Bulk auto-assign failed: ' + err.message });
+    }
+});
+
 app.post('/api/complaints', async (req, res) => {
-    const { customer_name, complainee_name, mobile, email, issue_type, description, std_code, telephone_number } = req.body;
+    const { customer_name, complainee_name, mobile, email, issue_type, description, std_code, telephone_number,
+            circle: circleFromBody, oa_name: oaFromBody } = req.body;
     try {
         // Check for existing active complaint for this telephone number
         const [existing] = await pool.query(
@@ -1294,7 +1356,8 @@ app.post('/api/complaints', async (req, res) => {
         }
 
         // Lookup circle and OA from customers table (try multiple formats)
-        let circle = '', oa_name = '', company_name = '';
+        // Use values from request body as fallback if customer record not found
+        let circle = circleFromBody || '', oa_name = oaFromBody || '', company_name = '';
         try {
             const fullNumber = `${std_code}-${telephone_number}`;
             const [custRows] = await pool.query(
@@ -1305,8 +1368,8 @@ app.post('/api/complaints', async (req, res) => {
                 [telephone_number, std_code, fullNumber, `${std_code}${telephone_number}`]
             );
             if (custRows.length > 0) {
-                circle = custRows[0].circle || '';
-                oa_name = custRows[0].oa_name || '';
+                circle = custRows[0].circle || circle;
+                oa_name = custRows[0].oa_name || oa_name;
                 company_name = custRows[0].company_name || '';
             }
         } catch (e) { /* ignore */ }
