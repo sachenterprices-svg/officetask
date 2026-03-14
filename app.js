@@ -34,6 +34,14 @@ const supportMailTransporter = nodemailer.createTransport({
     auth: { user: 'bsnlpbxhelp@gmail.com', pass: 'yfpp apmh dnds lytr' }
 });
 
+// ── WEBSITE INQUIRY MAILER ─────────────────────────────────────────────────────
+const inquiryMailTransporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
+    auth: { user: 'info@coralinfratel.com', pass: 'afib kkds uqcy htbc' }
+});
+
 // multer: memory storage for PDF attachments (max 10 MB per file)
 const pdfUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -2658,6 +2666,40 @@ app.post('/api/website/content', authenticateToken, isAdmin, async (req, res) =>
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'CMS Update failed' });
+    }
+});
+
+// ── WEBSITE INQUIRY FORM (public, no auth) ─────────────────────────────────────
+app.post('/api/website/inquiry', async (req, res) => {
+    const { name, email, mobile, interest, message } = req.body;
+    if (!name || !mobile) return res.status(400).json({ error: 'Name and mobile are required' });
+
+    try {
+        // Send inquiry email to company
+        await inquiryMailTransporter.sendMail({
+            from: '"BSNL PBX BILL" <info@coralinfratel.com>',
+            to: 'info@coralinfratel.com',
+            replyTo: email || undefined,
+            subject: `New Website Inquiry from ${name}`,
+            html: `
+                <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+                    <h2 style="color:#e31837;border-bottom:2px solid #e31837;padding-bottom:10px;">New Website Inquiry</h2>
+                    <table style="width:100%;border-collapse:collapse;">
+                        <tr><td style="padding:8px;font-weight:bold;width:140px;">Name:</td><td style="padding:8px;">${name}</td></tr>
+                        <tr style="background:#f8fafc;"><td style="padding:8px;font-weight:bold;">Email:</td><td style="padding:8px;">${email || 'Not provided'}</td></tr>
+                        <tr><td style="padding:8px;font-weight:bold;">Mobile:</td><td style="padding:8px;">${mobile}</td></tr>
+                        <tr style="background:#f8fafc;"><td style="padding:8px;font-weight:bold;">Interested In:</td><td style="padding:8px;">${interest || 'Not specified'}</td></tr>
+                        <tr><td style="padding:8px;font-weight:bold;">Message:</td><td style="padding:8px;">${message || 'No message'}</td></tr>
+                    </table>
+                    <p style="color:#64748b;font-size:12px;margin-top:20px;">Sent from Coral Infratel website contact form</p>
+                </div>
+            `
+        });
+
+        res.json({ message: 'Inquiry sent successfully!' });
+    } catch (err) {
+        console.error('Inquiry mail error:', err);
+        res.status(500).json({ error: 'Failed to send inquiry. Please try again.' });
     }
 });
 

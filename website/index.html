@@ -608,66 +608,72 @@
         </div>
     </section>
 
-    <!-- Inquiry Form -->
-    <section class="section" id="inquiry" style="background: var(--bg-alt); padding: 80px 0;">
+    <!-- Contact & Inquiry (Merged) -->
+    <section class="section" id="contact" style="background: var(--bg-alt); padding: 80px 0;">
         <div class="container">
+            <span class="tag">Get in Touch</span>
+            <h2 class="title" style="margin-bottom: 40px;">Contact Us</h2>
             <div class="inquiry-grid">
                 <div>
-                    <span class="tag">Inquiry Now</span>
-                    <h2 style="font-size: 2.2rem; margin-bottom: 20px;">Ready to optimize your communication?</h2>
+                    <h3 style="font-size: 1.5rem; margin-bottom: 20px;">We'd love to hear from you</h3>
                     <p style="color: var(--text-muted); margin-bottom: 30px;">Fill out the form and our experts will
                         reach out within 2 business hours with a custom proposal.</p>
-                    <div style="background: var(--secondary); color: white; padding: 30px; border-radius: 20px;">
-                        <h4 style="margin-bottom: 15px;">Why choose us?</h4>
-                        <ul style="list-style: none; font-size: 0.9rem; opacity: 0.8;">
+
+                    <!-- Address -->
+                    <div style="margin-bottom: 20px; display: flex; align-items: flex-start; gap: 12px;">
+                        <span style="font-size: 1.3rem;">📍</span>
+                        <div>
+                            <strong>Our Office</strong>
+                            <p id="footer_addr" style="color: var(--text-muted); font-size: 0.9rem;">144, Subhash nagar, Rohtak, Haryana, 124001, India</p>
+                        </div>
+                    </div>
+
+                    <!-- Call / WhatsApp -->
+                    <div style="margin-bottom: 20px; display: flex; align-items: flex-start; gap: 12px;">
+                        <span style="font-size: 1.3rem;">📞</span>
+                        <div>
+                            <strong>Call / WhatsApp</strong>
+                            <p style="color: var(--text-muted); font-size: 0.9rem;"><a id="footer_wa" href="tel:+917015997383" style="color: var(--primary); text-decoration: none;">+91 70159 97383</a></p>
+                            <p style="font-size: 0.8rem; color: var(--text-muted);">Mon - Sat: 9:00 AM - 6:30 PM</p>
+                        </div>
+                    </div>
+
+                    <!-- Email -->
+                    <div style="margin-bottom: 30px; display: flex; align-items: flex-start; gap: 12px;">
+                        <span style="font-size: 1.3rem;">✉️</span>
+                        <div>
+                            <strong>Email Us</strong>
+                            <p style="color: var(--text-muted); font-size: 0.9rem;"><a id="footer_email" href="mailto:info@coralinfratel.com" style="color: var(--primary); text-decoration: none;">info@coralinfratel.com</a></p>
+                            <p style="font-size: 0.8rem; color: var(--text-muted);">Sales: sales@coralinfratel.com</p>
+                        </div>
+                    </div>
+
+                    <!-- Why Choose Us -->
+                    <div style="background: var(--secondary); color: white; padding: 25px; border-radius: 16px;">
+                        <h4 style="margin-bottom: 12px;">Why choose us?</h4>
+                        <ul style="list-style: none; font-size: 0.9rem; opacity: 0.85;">
                             <li style="margin-bottom: 8px;">✅ Certified BSNL Channel Partner</li>
                             <li style="margin-bottom: 8px;">✅ 15+ Years Industry Experience</li>
                             <li>✅ Pan-India Support Coverage</li>
                         </ul>
                     </div>
                 </div>
-                <form id="inquiryForm"
-                    onsubmit="event.preventDefault(); alert('Inquiry Sent! We will contact you soon.');">
-                    <input type="text" class="form-input" placeholder="Full Name" required>
-                    <input type="email" class="form-input" placeholder="Work Email" required>
-                    <input type="tel" class="form-input" placeholder="Mobile Number" required>
-                    <select class="form-input" required>
+
+                <!-- Inquiry Form -->
+                <form id="inquiryForm" onsubmit="submitInquiry(event)">
+                    <input type="text" id="inq_name" class="form-input" placeholder="Full Name" required>
+                    <input type="email" id="inq_email" class="form-input" placeholder="Work Email">
+                    <input type="tel" id="inq_mobile" class="form-input" placeholder="Mobile Number" required>
+                    <select id="inq_interest" class="form-input">
                         <option value="">Interested in...</option>
                         <option>BSNL Free IPPBX Scheme</option>
                         <option>PRI to SIP Media Converter</option>
                         <option>Call Center Solution</option>
                         <option>Cloud Voice / SIP</option>
                     </select>
-                    <textarea class="form-input" rows="4" placeholder="How can we help?"></textarea>
-                    <button type="submit" class="btn btn-primary" style="width: 100%; border: none;">Send
-                        Inquiry</button>
+                    <textarea id="inq_message" class="form-input" rows="4" placeholder="How can we help?"></textarea>
+                    <button type="submit" id="inq_btn" class="btn btn-primary" style="width: 100%; border: none;">Send Inquiry</button>
                 </form>
-            </div>
-        </div>
-    </section>
-
-    <section class="section" id="contact">
-        <div class="container">
-            <span class="tag">Get in touch</span>
-            <h2 class="title">Contact Details</h2>
-            <div class="grid">
-                <div class="card" style="text-align: center;">
-                    <span class="icon">📍</span>
-                    <h3>Our Office</h3>
-                    <p id="footer_addr">144, Subhash nagar, Rohtak, Haryana, 124001, India</p>
-                </div>
-                <div class="card" style="text-align: center;">
-                    <span class="icon">📞</span>
-                    <h3>Call / WhatsApp</h3>
-                    <p id="footer_wa">+91 70159 97383</p>
-                    <p style="font-size: 0.8rem; color: var(--text-muted);">Mon - Sat: 9:00 AM - 6:30 PM</p>
-                </div>
-                <div class="card" style="text-align: center;">
-                    <span class="icon">✉️</span>
-                    <h3>Email Us</h3>
-                    <p id="footer_email">info@coralinfratel.com</p>
-                    <p style="font-size: 0.8rem; color: var(--text-muted);">Inquiries: sales@coralinfratel.com</p>
-                </div>
             </div>
         </div>
     </section>
@@ -827,6 +833,38 @@
                 console.error('CMS Sync failed. Displaying default content.');
             }
         })();
+
+        // ── Inquiry Form Submit ──
+        async function submitInquiry(e) {
+            e.preventDefault();
+            const btn = document.getElementById('inq_btn');
+            btn.disabled = true;
+            btn.textContent = 'Sending...';
+            try {
+                const res = await fetch('https://officetask-roan.vercel.app/api/website/inquiry', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: document.getElementById('inq_name').value,
+                        email: document.getElementById('inq_email').value,
+                        mobile: document.getElementById('inq_mobile').value,
+                        interest: document.getElementById('inq_interest').value,
+                        message: document.getElementById('inq_message').value
+                    })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    alert('Thank you! Your inquiry has been sent. We will contact you soon.');
+                    document.getElementById('inquiryForm').reset();
+                } else {
+                    alert(data.error || 'Something went wrong. Please try again.');
+                }
+            } catch (err) {
+                alert('Network error. Please try again later.');
+            }
+            btn.disabled = false;
+            btn.textContent = 'Send Inquiry';
+        }
 
         function toggleWa() {
             const win = document.getElementById('waWindow');
