@@ -1073,11 +1073,11 @@ async function pollBulkPdfStatus() {
                     '<th style="padding:4px 8px;text-align:center;border-bottom:1px solid #e2e8f0;">Status</th></tr>';
             d.rowSummary.forEach(r => {
                 const statusBadge = r.dlStatus === 'done'
-                    ? '<span style="color:#059669;font-weight:700;">&#10003;</span>'
+                    ? '<span style="color:#059669;font-weight:700;">&#10003; Done</span>'
                     : r.dlStatus === 'failed'
-                    ? '<span style="color:#dc2626;font-weight:700;" title="' + esc(r.dlError) + '">&#10007;</span>'
+                    ? '<span style="color:#dc2626;font-weight:700;">&#10007; ' + esc(r.dlError || 'Failed') + '</span>'
                     : r.status === 'not_found'
-                    ? '<span style="color:#f59e0b;font-weight:700;">Not found</span>'
+                    ? '<span style="color:#f59e0b;font-weight:700;">Not found in DB</span>'
                     : '<span style="color:#94a3b8;">Pending</span>';
                 html += '<tr style="border-bottom:1px solid #f1f5f9;">' +
                     '<td style="padding:4px 8px;">' + esc(r.telNo) + '</td>' +
