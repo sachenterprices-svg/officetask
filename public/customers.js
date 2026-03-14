@@ -263,6 +263,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('revLevel').value = d.revenue_level || '';
         document.getElementById('epabxModel').value = d.epabx_model || '';
         document.getElementById('prodStartDate').value = d.product_start_date ? d.product_start_date.split('T')[0] : '';
+        const dpEl = document.getElementById('defaultComplaintPriority');
+        if (dpEl) dpEl.value = d.default_complaint_priority || 'Low';
     }
 
     // --- Helper: Render Orders History Table ---
@@ -474,6 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     revenue_level: getVal('revLevel'),
                     epabx_model: getVal('epabxModel'),
                     product_start_date: getVal('prodStartDate'),
+                    default_complaint_priority: getVal('defaultComplaintPriority') || 'Low',
                     lines: lineData,
                     is_extension: form.dataset.isExtension === 'true',
                     order_id: form.dataset.orderId || null

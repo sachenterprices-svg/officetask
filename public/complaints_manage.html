@@ -28,6 +28,10 @@
         table { width:100%; border-collapse:collapse; }
         thead { background:#f8fafc; }
         th { padding:12px 16px; text-align:left; font-size:0.72rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.8px; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
+        th.sortable { cursor:pointer; user-select:none; }
+        th.sortable:hover { background:#e2e8f0; color:#334155; }
+        th.sort-asc::after { content:' ▲'; color:#0ea5e9; font-size:0.65rem; }
+        th.sort-desc::after { content:' ▼'; color:#0ea5e9; font-size:0.65rem; }
         td { padding:14px 16px; border-bottom:1px solid #f8fafc; font-size:0.88rem; color:#334155; vertical-align:middle; }
         tr:hover td { background:#fafbff; }
 
@@ -37,9 +41,9 @@
         .mobile-cell { font-size:0.85rem; color:#64748b; }
 
         .priority-badge { padding:4px 10px; border-radius:20px; font-size:0.72rem; font-weight:700; display:inline-block; }
-        .priority-low { background:#fef9c3; color:#854d0e; border:1px solid #fde68a; }
-        .priority-medium { background:#fed7aa; color:#9a3412; border:1px solid #fdba74; }
-        .priority-high { background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; }
+        .priority-low    { background:#dcfce7; color:#16a34a; border:1px solid #86efac; }
+        .priority-medium { background:#ffedd5; color:#ea580c; border:1px solid #fdba74; }
+        .priority-high   { background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; }
 
         .status-badge { padding:4px 12px; border-radius:20px; font-size:0.72rem; font-weight:700; display:inline-block; }
         .status-pending { background:#fee2e2; color:#dc2626; border:1px solid #fca5a5; }
@@ -97,26 +101,52 @@
         .verification-section { margin-bottom:28px; }
         .section-heading { font-size:1rem; font-weight:800; color:#b45309; margin:0 0 12px; display:flex; align-items:center; gap:8px; }
         .section-heading .badge-count { background:#f59e0b; color:#fff; font-size:0.72rem; padding:2px 8px; border-radius:20px; }
-        .verif-card { background:#fffbeb; border:1px solid #fde68a; border-radius:14px; padding:16px 20px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:10px; }
+        .verif-card { background:#fffbeb; border:1px solid #fde68a; border-radius:14px; padding:16px 20px; margin-bottom:10px; }
+        .verif-card-top { display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
         .verif-info { flex:1; min-width:200px; }
         .verif-no { font-weight:800; color:#002d72; font-size:0.88rem; }
         .verif-customer { font-size:0.9rem; font-weight:600; color:#0f172a; }
         .verif-meta { font-size:0.78rem; color:#64748b; margin-top:3px; }
         .verif-resolver { font-size:0.82rem; color:#7c3aed; font-weight:600; }
+        .verif-details-panel { display:none; margin-top:12px; background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; }
+        .verif-details-panel.open { display:block; }
+        .verif-detail-row { display:flex; gap:8px; margin-bottom:7px; font-size:0.82rem; }
+        .verif-detail-row label { font-weight:700; color:#64748b; min-width:110px; }
+        .verif-detail-row span { color:#0f172a; line-height:1.4; }
+        .btn-details { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; padding:7px 14px; border-radius:8px; font-weight:700; font-size:0.78rem; cursor:pointer; }
+        .btn-details:hover { background:#e2e8f0; }
         .btn-verify { background:#16a34a; color:#fff; border:none; padding:8px 18px; border-radius:8px; font-weight:700; font-size:0.82rem; cursor:pointer; transition:0.2s; }
         .btn-verify:hover { background:#15803d; }
         .btn-reject-v { background:#dc2626; color:#fff; border:none; padding:8px 18px; border-radius:8px; font-weight:700; font-size:0.82rem; cursor:pointer; transition:0.2s; }
         .btn-reject-v:hover { background:#b91c1c; }
+        .verif-action-row { margin-top:12px; padding:12px 14px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; display:flex; flex-direction:column; gap:10px; }
+        .verif-email-row { display:flex; align-items:center; gap:8px; font-size:0.82rem; font-weight:600; color:#166534; }
+        .verif-email-row input[type=checkbox] { width:16px; height:16px; accent-color:#16a34a; cursor:pointer; }
+        .verif-remarks-label { font-size:0.78rem; font-weight:700; color:#64748b; margin-bottom:4px; }
+        .verif-remarks-input { width:100%; padding:8px 10px; border:1px solid #e2e8f0; border-radius:8px; font-family:inherit; font-size:0.82rem; color:#334155; resize:vertical; min-height:60px; box-sizing:border-box; }
+        .verif-remarks-input:focus { border-color:#16a34a; outline:none; }
     </style>
 </head>
 <body>
     <header class="top-header">
-        <div class="header-brand">
+        <div class="header-left" style="display: flex; align-items: center; gap: 20px;">
+            <div class="header-brand">
                 <img src="assets/Coral Infratel logo.jpg" alt="Coral Infratel Pvt. Ltd." height="46" style="display:block; object-fit:contain;">
             </div>
+            <div style="width: 2px; height: 30px; background: rgba(15, 23, 42, 0.1); border-radius: 2px;"></div>
+            <div style="color: var(--text-muted); font-weight: 700; font-size: 1rem; text-transform: uppercase; letter-spacing: 2px;">Complaints</div>
+        </div>
         <div class="user-meta">
-            <span id="userInfoDisplay" style="font-weight:600;"></span>
-            <button onclick="window.logout()" class="logout-btn">Logout</button>
+            <div class="header-row">
+                <button onclick="window.open('reset_pwd.html', '_blank', 'width=450,height=600')" class="logout-btn"
+                    style="background: #f59e0b; border-color: #f59e0b; display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 1.1rem;">🔑</span> Change Pwd</button>
+            </div>
+            <div class="header-row">
+                <span id="userInfoDisplay" style="color: var(--primary); font-weight:700;"></span>
+                <button onclick="window.logout()" class="logout-btn"
+                    style="background: #64748b; padding: 4px 12px; font-size: 0.85rem;">Logout</button>
+            </div>
         </div>
     </header>
 
@@ -128,6 +158,15 @@
                 <div>
                     <h1 class="page-title">Complaints</h1>
                     <p class="page-sub">Manage and resolve customer complaints</p>
+                </div>
+                <div id="adminAutoAssignBtn" style="display:none;">
+                    <button onclick="bulkAutoAssign()"
+                        style="background:#0f766e;color:#fff;border:none;padding:9px 18px;border-radius:8px;
+                               font-family:'Inter',sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer;
+                               display:inline-flex;align-items:center;gap:7px;"
+                        onmouseover="this.style.background='#115e59'" onmouseout="this.style.background='#0f766e'">
+                        🔁 Auto-Assign Unassigned
+                    </button>
                 </div>
             </div>
 
@@ -174,15 +213,15 @@
                     <table>
                         <thead>
                             <tr>
-                                <th>Complaint No</th>
-                                <th>Telephone No</th>
-                                <th>Customer Name</th>
-                                <th>Complainee</th>
+                                <th class="sortable" onclick="sortComplaints('complaint_no')">Complaint No</th>
+                                <th class="sortable" onclick="sortComplaints('telephone_number')">Telephone No</th>
+                                <th class="sortable" onclick="sortComplaints('customer_name')">Customer Name</th>
+                                <th class="sortable" onclick="sortComplaints('complainee_name')">Complainee</th>
                                 <th>Mobile No</th>
-                                <th>Engineer</th>
-                                <th>Priority</th>
-                                <th>Status</th>
-                                <th>Date</th>
+                                <th class="sortable" onclick="sortComplaints('assigned_username')">Engineer</th>
+                                <th class="sortable" onclick="sortComplaints('priority')">Priority</th>
+                                <th class="sortable" onclick="sortComplaints('status')">Status</th>
+                                <th class="sortable" onclick="sortComplaints('created_at')">Date</th>
                                 <th>Action</th>
                             </tr>
                         </thead>
@@ -238,6 +277,14 @@
                 </div>
             </div>
 
+            <!-- Validation error banner -->
+            <div id="validationError" style="display:none; background:#fef2f2; border:1px solid #fca5a5;
+                 border-radius:8px; padding:10px 14px; margin-bottom:14px;
+                 font-size:0.84rem; font-weight:700; color:#dc2626;
+                 display:none; align-items:center; gap:8px;">
+                <span>🚫</span><span id="validationMsg"></span>
+            </div>
+
             <div class="form-section">
                 <h4>Update Action</h4>
                 <div class="form-group">
@@ -251,16 +298,17 @@
                 </div>
                 <div class="form-group">
                     <label>Complaint Status</label>
-                    <select id="compStatus">
+                    <select id="compStatus" onchange="onStatusChange()">
                         <option value="">-- Select Status --</option>
                         <option>Pending</option>
                         <option>In Progress</option>
                         <option>Resolved</option>
                         <option>Cancelled</option>
+                        <option value="Forward to Senior">⬆️ Forward to Senior</option>
                     </select>
                 </div>
-                <div class="form-group">
-                    <label>Priority</label>
+                <div class="form-group" id="priorityGroup">
+                    <label>Priority <span id="priorityReadonlyNote" style="display:none;font-weight:400;color:#94a3b8;font-size:0.75rem;">(view only)</span></label>
                     <select id="compPriority">
                         <option value="">-- Select Priority --</option>
                         <option>Low</option>
@@ -300,6 +348,7 @@
     <script>
     let allComplaints = [];
     let currentId = null;
+    let _sortCol = 'created_at', _sortDir = -1; // default: newest first
     const SIDEBAR_ITEMS = [
         { icon: '🏠', label: 'Dashboard', href: 'dashboard.html' },
         { icon: '🎫', label: 'Complaints', href: 'complaints_manage.html', active: true, perm: 'complaints' },
@@ -309,18 +358,24 @@
         { icon: '👷', label: 'Engineers Master', href: 'engineers_master.html', adminOnly: true },
     ];
 
+    let _isSenior = false; // true if current user has any subordinates
+
     document.addEventListener('DOMContentLoaded', async () => {
         const user = JSON.parse(localStorage.getItem('crm_user'));
         if (!user) { window.location.href = 'login.html'; return; }
         document.getElementById('userInfoDisplay').textContent = `${user.name || user.username} (${user.role === 'admin' ? 'Admin' : 'Engineer'})`;
         buildSidebar(user);
-        if (user.role !== 'admin') {
-            document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
-        } else {
-            await loadEngineers();
+
+        // Show Auto-Assign button for admin only
+        if (user.role === 'admin') {
+            document.getElementById('adminAutoAssignBtn').style.display = '';
         }
+
+        // Load engineers for ALL users — determines if current user is a senior
+        await loadEngineers(user);
+
         await loadComplaints();
-        await loadPendingVerification(); // Load verification section for seniors
+        await loadPendingVerification();
     });
 
     function buildSidebar(user) {
@@ -337,12 +392,18 @@
         });
     }
 
-    async function loadEngineers() {
+    async function loadEngineers(user) {
         try {
-            // Only users with work_type=engineer appear in complaint assignment
             const res = await window.apiFetch('/api/users/assignable?work_type=engineer');
-            if (res.ok) {
-                const users = await res.json();
+            if (!res.ok) return;
+            const users = await res.json();
+
+            // Admin always sees Assign Engineer; non-admin sees it only if they have subordinates
+            _isSenior = (user && user.role === 'admin') || users.length > 0;
+
+            const assignGroup = document.querySelector('.admin-only');
+            if (_isSenior) {
+                if (assignGroup) assignGroup.style.display = '';
                 const sel = document.getElementById('assignEngineer');
                 sel.innerHTML = '<option value="">-- Select Engineer --</option>';
                 users.forEach(u => {
@@ -351,8 +412,53 @@
                     opt.textContent = u.name || u.username;
                     sel.appendChild(opt);
                 });
+            } else {
+                // Regular engineer — hide Assign Engineer, lock Priority
+                if (assignGroup) assignGroup.style.display = 'none';
+                const prioritySel = document.getElementById('compPriority');
+                if (prioritySel) {
+                    prioritySel.disabled = true;
+                    prioritySel.style.background = '#f1f5f9';
+                    prioritySel.style.cursor = 'not-allowed';
+                    prioritySel.style.opacity = '0.75';
+                }
+                const prNote = document.getElementById('priorityReadonlyNote');
+                if (prNote) prNote.style.display = 'inline';
             }
         } catch (e) {}
+    }
+
+    function onStatusChange() {
+        const status = document.getElementById('compStatus').value;
+        const faultGroup = document.getElementById('faultAt').closest('.form-group');
+        const remarkEl = document.getElementById('engineerRemark');
+
+        if (status === 'Forward to Senior') {
+            // Fault At NOT required — grey it out
+            faultGroup.style.opacity = '0.5';
+            faultGroup.style.pointerEvents = 'none';
+            // Highlight remarks as required
+            remarkEl.placeholder = 'REQUIRED: Explain why forwarding to senior...';
+            remarkEl.style.borderColor = '#f59e0b';
+        } else {
+            faultGroup.style.opacity = '';
+            faultGroup.style.pointerEvents = '';
+            remarkEl.placeholder = 'Action taken / resolution notes...';
+            remarkEl.style.borderColor = '';
+        }
+        hideValidationError();
+    }
+
+    function showValidationError(msg) {
+        const el = document.getElementById('validationError');
+        document.getElementById('validationMsg').textContent = msg;
+        el.style.display = 'flex';
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function hideValidationError() {
+        const el = document.getElementById('validationError');
+        el.style.display = 'none';
     }
 
     async function loadComplaints() {
@@ -365,11 +471,24 @@
         } catch (e) { console.error(e); }
     }
 
+    function sortComplaints(col) {
+        if (_sortCol === col) _sortDir *= -1; else { _sortCol = col; _sortDir = 1; }
+        // Update header classes
+        document.querySelectorAll('thead th.sortable').forEach(th => {
+            th.classList.remove('sort-asc','sort-desc');
+            if (th.getAttribute('onclick') === `sortComplaints('${col}')`) {
+                th.classList.add(_sortDir === 1 ? 'sort-asc' : 'sort-desc');
+            }
+        });
+        applyFilters();
+    }
+
     function applyFilters() {
         const status = document.getElementById('fStatus').value;
         const priority = document.getElementById('fPriority').value;
         const start = document.getElementById('fStart').value;
         const end = document.getElementById('fEnd').value;
+        const q = document.getElementById('searchBox').value.toLowerCase();
         let data = allComplaints.filter(c => {
             // 'active' = only Pending & In Progress (default)
             if (status === 'active') {
@@ -381,19 +500,21 @@
             const d = new Date(c.created_at);
             if (start && d < new Date(start)) return false;
             if (end && d > new Date(end + 'T23:59:59')) return false;
+            if (q && !((c.customer_name||'').toLowerCase().includes(q) || (c.complaint_no||'').toLowerCase().includes(q) || (c.telephone_number||'').includes(q))) return false;
             return true;
+        });
+        // Sort
+        data.sort((a, b) => {
+            let av = a[_sortCol] ?? '', bv = b[_sortCol] ?? '';
+            if (_sortCol === 'created_at') return _sortDir * (new Date(av) - new Date(bv));
+            if (_sortCol === 'priority') { const o = {High:3,Medium:2,Low:1}; return _sortDir * ((o[av]||0) - (o[bv]||0)); }
+            return _sortDir * String(av).localeCompare(String(bv));
         });
         renderTable(data);
     }
 
     function filterLocal() {
-        const q = document.getElementById('searchBox').value.toLowerCase();
-        const data = allComplaints.filter(c =>
-            (c.customer_name || '').toLowerCase().includes(q) ||
-            (c.complaint_no || '').toLowerCase().includes(q) ||
-            (c.telephone_number || '').includes(q)
-        );
-        renderTable(data);
+        applyFilters();
     }
 
     function renderTable(data) {
@@ -457,8 +578,10 @@
         document.getElementById('compPriority').value = c.priority || '';
         document.getElementById('assignerComments').value = c.assigner_comments || '';
         document.getElementById('engineerRemark').value = c.remark || '';
-        if (c.assigned_to) document.getElementById('assignEngineer').value = c.assigned_to;
+        if (_isSenior && c.assigned_to) document.getElementById('assignEngineer').value = c.assigned_to;
         countWords(document.getElementById('engineerRemark'), 'wordCount');
+        hideValidationError();
+        onStatusChange(); // Apply visual state based on current status
         document.getElementById('panelOverlay').classList.add('open');
         document.getElementById('sidePanel').classList.add('open');
     }
@@ -471,23 +594,57 @@
 
     async function submitUpdate() {
         if (!currentId) return;
+        hideValidationError();
+
+        const status    = document.getElementById('compStatus').value;
+        const faultAt   = document.getElementById('faultAt').value;
+        const remark    = document.getElementById('engineerRemark').value.trim();
+        const isForward = status === 'Forward to Senior';
+
+        // ── Validation ────────────────────────────────────────────────────────
+        if (!status) {
+            showValidationError('Please select a Complaint Status before saving.');
+            return;
+        }
+        if (!isForward && !faultAt) {
+            showValidationError('Please select "Fault At" before saving.');
+            return;
+        }
+        if (!remark) {
+            showValidationError('Engineer Remark is required before saving. Please describe the action taken.');
+            return;
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
         const payload = {
-            fault_at: document.getElementById('faultAt').value,
-            status: document.getElementById('compStatus').value || undefined,
-            priority: document.getElementById('compPriority').value || undefined,
-            remark: document.getElementById('engineerRemark').value,
-            assigner_comments: document.getElementById('assignerComments').value,
+            status,
+            fault_at:           isForward ? undefined : faultAt,
+            priority:           document.getElementById('compPriority').value || undefined,
+            remark:             remark || undefined,
+            assigner_comments:  document.getElementById('assignerComments').value || undefined,
         };
-        const eng = document.getElementById('assignEngineer').value;
-        if (eng) payload.assigned_to = eng;
+        if (_isSenior) {
+            const eng = document.getElementById('assignEngineer').value;
+            if (eng) payload.assigned_to = parseInt(eng);
+        }
+
         try {
-            const res = await window.apiFetch(`/api/complaints/${currentId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+            const res = await window.apiFetch(`/api/complaints/${currentId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
             if (res.ok) {
-                showToast('Complaint updated successfully!', 'success');
+                showToast(
+                    isForward ? 'Complaint forwarded to senior successfully!' : 'Complaint updated successfully!',
+                    'success'
+                );
                 closePanel();
-                await loadComplaints();
+                // Refresh both lists immediately — no manual page reload needed
+                await Promise.all([loadComplaints(), loadPendingVerification()]);
             } else {
-                showToast('Update failed. Try again.', 'error');
+                const err = await res.json().catch(() => ({}));
+                showValidationError(err.error || 'Update failed. Try again.');
             }
         } catch (e) { showToast('Network error.', 'error'); }
     }
@@ -522,35 +679,92 @@
             verifCount.textContent = list.length;
             verifList.innerHTML = list.map(c => `
                 <div class="verif-card" id="vc-${c.id}">
-                    <div class="verif-info">
-                        <div class="verif-no">${c.complaint_no || `CRM-${String(c.id).padStart(4,'0')}`}</div>
-                        <div class="verif-customer">${c.customer_name}</div>
-                        <div class="verif-meta">${c.std_code ? c.std_code + '-' : ''}${c.telephone_number} &nbsp;|&nbsp; Status: <strong>${c.status}</strong></div>
-                        <div class="verif-resolver">Resolved by: ${c.resolved_by || '-'}</div>
+                    <div class="verif-card-top">
+                        <div class="verif-info">
+                            <div class="verif-no">${c.complaint_no || `CRM-${String(c.id).padStart(4,'0')}`}</div>
+                            <div class="verif-customer">${c.customer_name || '-'}</div>
+                            <div class="verif-meta">${c.std_code ? c.std_code + '-' : ''}${c.telephone_number || '-'} &nbsp;|&nbsp; <strong>${c.issue_type || 'General'}</strong> &nbsp;|&nbsp; Priority: <strong>${c.priority || 'Low'}</strong></div>
+                            <div class="verif-resolver">Resolved by: <strong>${c.resolved_by || '-'}</strong> &nbsp;|&nbsp; Fault At: <strong>${c.fault_at || '-'}</strong></div>
+                        </div>
+                        <div style="display:flex; gap:8px; flex-shrink:0; align-items:center; flex-wrap:wrap;">
+                            <button class="btn-details" onclick="toggleVerifDetails(${c.id})">📋 View Details</button>
+                            <button class="btn-verify" onclick="doVerify(${c.id},'Verified')">✅ Verify</button>
+                            <button class="btn-reject-v" onclick="doVerify(${c.id},'Rejected')">❌ Reject</button>
+                        </div>
                     </div>
-                    <div style="display:flex; gap:8px; flex-shrink:0;">
-                        <button class="btn-verify" onclick="doVerify(${c.id},'Verified')">✅ Verify</button>
-                        <button class="btn-reject-v" onclick="doVerify(${c.id},'Rejected')">❌ Reject</button>
+                    <!-- Engineer details panel (expandable) -->
+                    <div class="verif-details-panel" id="vd-${c.id}">
+                        <div class="verif-detail-row"><label>Complaint Msg:</label><span>${c.description || '-'}</span></div>
+                        <div class="verif-detail-row"><label>Engineer Remark:</label><span style="color:${c.remark ? '#0f172a' : '#94a3b8'}; font-style:${c.remark ? 'normal' : 'italic'}">${c.remark || 'No remark entered'}</span></div>
+                        <div class="verif-detail-row"><label>Assigner Notes:</label><span>${c.assigner_comments || '-'}</span></div>
+                        <div class="verif-detail-row"><label>Fault At:</label><span>${c.fault_at || '-'}</span></div>
+                        <div class="verif-detail-row"><label>Assigned To:</label><span>${c.assigned_username || '-'}</span></div>
+                    </div>
+                    <!-- Verification action area (senior/admin) -->
+                    <div class="verif-action-row">
+                        <div class="verif-email-row">
+                            <input type="checkbox" id="verifEmail-${c.id}" checked>
+                            <label for="verifEmail-${c.id}">Send Resolution Email to Customer</label>
+                        </div>
+                        <div>
+                            <div class="verif-remarks-label">Resolution Remarks (optional — sent in email if any delay/note):</div>
+                            <textarea class="verif-remarks-input" id="verifRemarks-${c.id}" placeholder="e.g. Complaint was delayed due to hardware replacement at BSNL exchange..."></textarea>
+                        </div>
                     </div>
                 </div>
             `).join('');
         } catch(e) { console.error('Verification load error', e); }
     }
 
+    async function bulkAutoAssign() {
+        const btn = document.querySelector('#adminAutoAssignBtn button');
+        const orig = btn.textContent;
+        btn.textContent = '⏳ Processing...';
+        btn.disabled = true;
+        try {
+            const res = await window.apiFetch('/api/complaints/bulk-auto-assign', { method: 'POST' });
+            const data = await res.json();
+            if (res.ok) {
+                showToast(`✅ ${data.assigned} assigned, ${data.skipped} unmatched.`, 'success');
+                await loadComplaints();
+            } else {
+                showToast(data.error || 'Auto-assign failed.', 'error');
+            }
+        } catch(e) { showToast('Network error.', 'error'); }
+        btn.textContent = orig;
+        btn.disabled = false;
+    }
+
+    function toggleVerifDetails(id) {
+        const panel = document.getElementById(`vd-${id}`);
+        if (!panel) return;
+        panel.classList.toggle('open');
+        const btn = panel.previousElementSibling?.querySelector('.btn-details');
+        if (btn) btn.textContent = panel.classList.contains('open') ? '🔼 Hide Details' : '📋 View Details';
+    }
+
     async function doVerify(id, action) {
         try {
+            const sendEmailEl = document.getElementById(`verifEmail-${id}`);
+            const verifRemarksEl = document.getElementById(`verifRemarks-${id}`);
+            const payload = {
+                action,
+                send_email: sendEmailEl ? sendEmailEl.checked : true,
+                verif_remarks: verifRemarksEl ? verifRemarksEl.value.trim() : ''
+            };
             const res = await window.apiFetch(`/api/complaints/${id}/verify`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action })
+                body: JSON.stringify(payload)
             });
             if (res.ok) {
-                showToast(action === 'Verified' ? '✅ Complaint Verified!' : '❌ Rejected — Back to In Progress', action === 'Verified' ? 'success' : 'error');
-                document.getElementById(`vc-${id}`)?.remove();
-                const remaining = document.querySelectorAll('[id^="vc-"]').length;
-                if (!remaining) document.getElementById('verificationSection').style.display = 'none';
-                else document.getElementById('verifCount').textContent = remaining;
-                await loadComplaints();
+                const emailMsg = (action === 'Verified' && payload.send_email) ? ' (Email sent to customer)' : '';
+                showToast(
+                    action === 'Verified' ? `✅ Complaint Verified!${emailMsg}` : '❌ Rejected — Back to In Progress',
+                    action === 'Verified' ? 'success' : 'error'
+                );
+                // Refresh both lists immediately
+                await Promise.all([loadComplaints(), loadPendingVerification()]);
             }
         } catch(e) { showToast('Network error', 'error'); }
     }

@@ -705,7 +705,8 @@ async function upgradeCustomersTableAdvanced() {
             { name: 'product_start_date', type: 'DATE' },
             { name: 'product_plan', type: 'VARCHAR(255)' },
             { name: 'monthly_rent', type: 'DECIMAL(10,2) DEFAULT 0' },
-            { name: 'channels', type: 'INT DEFAULT 0' }
+            { name: 'channels', type: 'INT DEFAULT 0' },
+            { name: 'default_complaint_priority', type: "VARCHAR(10) DEFAULT 'Low'" }
         ];
 
         for (const col of columns) {
@@ -1188,6 +1189,21 @@ app.put('/api/complaints/:id', authenticateToken, async (req, res) => {
     const { fault_at, status, remark, assigner_comments, priority, assigned_to } = req.body;
     const currentUser = req.user;
     try {
+        // ── Server-side validation: fault_at + remark are mandatory ────────
+        if (status && status !== 'Forward to Senior') {
+            if (!fault_at || String(fault_at).trim() === '') {
+                return res.status(400).json({ error: 'Fault At is required before saving.' });
+            }
+            if (!remark || String(remark).trim() === '') {
+                return res.status(400).json({ error: 'Engineer Remark is required before saving.' });
+            }
+        } else if (status === 'Forward to Senior') {
+            if (!remark || String(remark).trim() === '') {
+                return res.status(400).json({ error: 'Remarks are required when forwarding to senior.' });
+            }
+        }
+        // ──────────────────────────────────────────────────────────────────
+
         const fields = [];
         const params = [];
 
@@ -1238,6 +1254,28 @@ app.put('/api/complaints/:id', authenticateToken, async (req, res) => {
         if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
         params.push(req.params.id);
         await pool.query(`UPDATE complaints SET ${fields.join(',')} WHERE id=?`, params);
+
+        // ── Send resolution email if senior/admin directly resolves (no verification queue) ──
+        if (status === 'Resolved') {
+            const [[subCnt]] = await pool.query('SELECT COUNT(*) as cnt FROM user_managers WHERE manager_id = ?', [currentUser.id]);
+            const resolverIsSeniorOrAdmin = currentUser.role === 'admin' || subCnt.cnt > 0;
+            if (resolverIsSeniorOrAdmin) {
+                // Fetch complaint details for email
+                const [[comp]] = await pool.query('SELECT * FROM complaints WHERE id=?', [req.params.id]);
+                if (comp && comp.email) {
+                    sendResolutionEmail({
+                        email: comp.email,
+                        complaint_no: comp.complaint_no,
+                        customer_name: comp.customer_name,
+                        complainee_name: comp.complainee_name,
+                        telephone_number: comp.telephone_number,
+                        std_code: comp.std_code,
+                        company_name: comp.customer_name
+                    }).catch(err => console.error('Resolution mail error:', err.message));
+                }
+            }
+        }
+
         res.json({ message: 'Complaint updated' });
     } catch (err) {
         console.error('Update complaint error:', err);
@@ -1281,7 +1319,7 @@ app.get('/api/complaints/pending-verification', authenticateToken, async (req, r
 
 // PUT verify/reject a complaint
 app.put('/api/complaints/:id/verify', authenticateToken, async (req, res) => {
-    const { action } = req.body; // 'Verified' or 'Rejected'
+    const { action, send_email, verif_remarks } = req.body; // 'Verified' or 'Rejected'
     const currentUser = req.user;
     try {
         if (action === 'Verified') {
@@ -1289,6 +1327,22 @@ app.put('/api/complaints/:id/verify', authenticateToken, async (req, res) => {
                 `UPDATE complaints SET verification_status='Verified', verified_by=? WHERE id=?`,
                 [currentUser.name || currentUser.username, req.params.id]
             );
+            // Send resolution email if send_email is not explicitly false
+            if (send_email !== false) {
+                const [[comp]] = await pool.query('SELECT * FROM complaints WHERE id=?', [req.params.id]);
+                if (comp && comp.email) {
+                    sendResolutionEmail({
+                        email: comp.email,
+                        complaint_no: comp.complaint_no,
+                        customer_name: comp.customer_name,
+                        complainee_name: comp.complainee_name,
+                        telephone_number: comp.telephone_number,
+                        std_code: comp.std_code,
+                        company_name: comp.customer_name,
+                        verif_remarks: verif_remarks || ''
+                    }).catch(err => console.error('Resolution mail (verify) error:', err.message));
+                }
+            }
         } else if (action === 'Rejected') {
             // Reject → back to In Progress, clear verification
             await pool.query(
@@ -1377,9 +1431,25 @@ app.post('/api/complaints', async (req, res) => {
         const complaint_no = await generateComplaintNo(circle, oa_name);
         // Auto-assign engineer (Customer > OA > Circle priority)
         const autoEngineerId = await autoAssignEngineer(circle, oa_name, telephone_number, std_code);
+
+        // Fetch customer's default complaint priority
+        let autoPriority = 'Low';
+        try {
+            const [[custPriRow]] = await pool.query(
+                `SELECT default_complaint_priority FROM customers
+                 WHERE (telephone_number=? AND telephone_code=?)
+                 OR id IN (SELECT customer_id FROM customer_lines WHERE telephone_number=? OR telephone_number=?)
+                 LIMIT 1`,
+                [telephone_number, std_code, telephone_number, `${std_code}-${telephone_number}`]
+            ).catch(() => [[null]]);
+            if (custPriRow && custPriRow.default_complaint_priority) {
+                autoPriority = custPriRow.default_complaint_priority;
+            }
+        } catch(e) {}
+
         const [result] = await pool.query(
-            'INSERT INTO complaints (complaint_no, customer_name, complainee_name, mobile, email, issue_type, description, std_code, telephone_number, circle, oa_name, assigner_comments, assigned_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [complaint_no, customer_name, complainee_name || customer_name, mobile, email, issue_type || 'Auto-Support', description, std_code, telephone_number, circle, oa_name, 'System Auto Assign', autoEngineerId]
+            'INSERT INTO complaints (complaint_no, customer_name, complainee_name, mobile, email, issue_type, description, std_code, telephone_number, circle, oa_name, assigner_comments, assigned_to, priority) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [complaint_no, customer_name, complainee_name || customer_name, mobile, email, issue_type || 'Auto-Support', description, std_code, telephone_number, circle, oa_name, 'System Auto Assign', autoEngineerId, autoPriority]
         );
 
         const ticketId = `CRM-${String(result.insertId).padStart(4, '0')}`;
@@ -1550,6 +1620,38 @@ async function sendEmailNotification(data) {
 async function sendWhatsAppNotification(data) {
     console.log(`[NOTIFY] Sending WhatsApp to ${data.mobile} with Ticket ID: ${data.ticket_id}`);
     // TODO: Implement WhatsApp API logic when credentials provided
+}
+
+// Send resolution email to customer when complaint is resolved/verified
+async function sendResolutionEmail(data) {
+    if (!data.email || !data.email.trim()) return;
+    const telephone = data.std_code ? `${data.std_code}-${data.telephone_number}` : (data.telephone_number || '');
+    const delaySection = (data.verif_remarks && data.verif_remarks.trim()) ? `
+        <div style="background:#fefce8;border-left:4px solid #f59e0b;padding:12px 18px;margin:18px 0;border-radius:4px;">
+            <strong style="color:#92400e;">Resolution Note from Support Team:</strong>
+            <p style="margin:8px 0 0;color:#78350f;">${data.verif_remarks}</p>
+        </div>` : '';
+    await supportMailTransporter.sendMail({
+        from: '"BSNL EPABX SUPPORT" <bsnlpbxhelp@gmail.com>',
+        to: data.email.trim(),
+        subject: `Complaint Resolved — Ticket ${data.complaint_no}`,
+        html: `<div style="font-family:Arial,sans-serif;max-width:620px;padding:20px;color:#222;">
+            <h2 style="color:#16a34a;margin-bottom:4px;">Your Complaint Has Been Resolved</h2>
+            <p style="color:#555;margin:0 0 18px;">Ticket: <strong>${data.complaint_no}</strong></p>
+            <p>Dear ${data.complainee_name || data.customer_name},</p>
+            <p>We are pleased to inform you that your complaint registered under <strong>${data.company_name || data.customer_name}</strong> for telephone number <strong>${telephone}</strong> has been successfully resolved.</p>
+            <div style="background:#f0fdf4;border-left:4px solid #16a34a;padding:12px 18px;margin:18px 0;border-radius:4px;">
+                <strong style="color:#16a34a;">Ticket Number: ${data.complaint_no} — Resolved ✅</strong>
+            </div>
+            ${delaySection}
+            <p>If you face any further issues, please feel free to register a new complaint or contact our support team. Thank you for your patience and cooperation.</p>
+            <br>
+            <p style="margin:0;">Warm regards,<br><strong>Customer Support Team</strong></p>
+            <hr style="border:none;border-top:1px solid #e2e8f0;margin:18px 0;">
+            <p style="font-size:0.78rem;color:#94a3b8;">This is an auto-generated email. Please do not reply directly to this message.</p>
+        </div>`
+    });
+    console.log(`[RESOLUTION MAIL] Sent to ${data.email} — Ticket: ${data.complaint_no}`);
 }
 
 // --- CUSTOMERS ROUTES ---
@@ -1980,7 +2082,7 @@ app.put('/api/customers/:id', authenticateToken, async (req, res) => {
         // --- END DUPLICATE VALIDATION ---
 
         await connection.query(
-            `UPDATE customers SET 
+            `UPDATE customers SET
                 circle = ?, ssa = ?, oa_name = ?, customer_name = ?, order_date = ?,
                 acc_person_name = ?, acc_person_mobile = ?, acc_person_email = ?,
                 tech_person_name = ?, tech_person_mobile = ?, tech_person_email = ?,
@@ -1989,7 +2091,8 @@ app.put('/api/customers/:id', authenticateToken, async (req, res) => {
                 analog_line = ?, digital_line = ?, vas_line = ?, ip_line = ?,
                 analog_rent = ?, digital_rent = ?, vas_rent = ?, ip_rent = ?,
                 rg_port = ?, rg_rent = ?, plan_charge = ?,
-                revenue_level = ?, epabx_model = ?, product_start_date = ?
+                revenue_level = ?, epabx_model = ?, product_start_date = ?,
+                default_complaint_priority = ?
             WHERE id = ?`,
             [
                 data.circle, data.ssa, data.oa_name, data.customer_name, data.order_date || null,
@@ -2001,6 +2104,7 @@ app.put('/api/customers/:id', authenticateToken, async (req, res) => {
                 data.analog_rent || 0, data.digital_rent || 0, data.vas_rent || 0, data.ip_rent || 0,
                 data.rg_port || 0, data.rg_rent || 0, data.plan_charge || 0,
                 data.revenue_level, data.epabx_model, data.product_start_date || null,
+                data.default_complaint_priority || 'Low',
                 id
             ]
         );

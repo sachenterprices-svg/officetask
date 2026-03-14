@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Customer Master - Coral Infratel</title>
     <link rel="stylesheet" href="styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="auth.js"></script>
     <style>
         /* Customers Page Specific */
@@ -262,10 +262,19 @@
 <body>
 
     <header class="top-header">
-        <div class="header-brand">
-            <span style="color: #002d72;">Coral</span> <span style="color: #f97316;">Infratel</span>
+        <div class="header-left" style="display: flex; align-items: center; gap: 20px;">
+            <div class="header-brand">
+                <img src="assets/Coral Infratel logo.jpg" alt="Coral Infratel Pvt. Ltd." height="46" style="display:block; object-fit:contain;">
+            </div>
+            <div style="width: 2px; height: 30px; background: rgba(15, 23, 42, 0.1); border-radius: 2px;"></div>
+            <div style="color: var(--text-muted); font-weight: 700; font-size: 1rem; text-transform: uppercase; letter-spacing: 2px;">Customer Master</div>
         </div>
         <div class="user-meta">
+            <div class="header-row">
+                <button onclick="window.open('reset_pwd.html', '_blank', 'width=450,height=600')" class="logout-btn"
+                    style="background: #f59e0b; border-color: #f59e0b; display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 1.1rem;">🔑</span> Change Pwd</button>
+            </div>
             <div class="header-row">
                 <span id="userInfoDisplay" style="color: var(--primary); font-weight:700;"></span>
                 <button onclick="window.logout()" class="logout-btn"
@@ -541,7 +550,15 @@
 
                         <div class="form-row"><label>17. START DATE</label><input type="date" id="prodStartDate"
                                 class="product-field"></div>
-                        <div class="form-row"></div>
+                        <div class="form-row">
+                            <label>18. DEFAULT COMPLAINT PRIORITY</label>
+                            <select id="defaultComplaintPriority" class="product-field"
+                                style="padding:8px 10px; border:1px solid #e2e8f0; border-radius:8px; font-family:inherit; font-size:0.88rem; background:#fff; width:100%;">
+                                <option value="Low">Low (Green)</option>
+                                <option value="Medium">Medium (Orange)</option>
+                                <option value="High">High (Red)</option>
+                            </select>
+                        </div>
                         <div class="form-row"></div>
                         <div class="form-row"></div>
                     </div>
