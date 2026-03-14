@@ -6,7 +6,17 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const multer = require('multer');
+const xlsx = require('xlsx');
+const archiver = require('archiver');
+const os = require('os');
+const fs = require('fs');
+const http = require('http');
+const https = require('https');
 require('dotenv').config();
+
+// ── BULK PDF JOB STORE ────────────────────────────────────────────────────────
+// jobId -> { zipPath, createdAt }
+const bulkPdfJobs = new Map();
 
 // ── BILLING MAILER (SMTP via Gmail SSL) ───────────────────────────────────────
 const billMailTransporter = nodemailer.createTransport({
@@ -1061,18 +1071,49 @@ app.get('/api/complaints/check', async (req, res) => {
 app.get('/api/complaints', authenticateToken, async (req, res) => {
     try {
         const user = req.user;
-        let query = `
-            SELECT c.*, u.name as assigned_username, u.username as assigned_user
-            FROM complaints c
-            LEFT JOIN users u ON c.assigned_to = u.id
-        `;
-        const params = [];
-        // Engineers only see their assigned complaints
-        if (user.role !== 'admin') {
-            query += ' WHERE c.assigned_to = ?';
-            params.push(user.id);
+        let query, params = [];
+
+        if (user.role === 'admin') {
+            // Admin sees all complaints
+            query = `SELECT c.*, u.name as assigned_username, u.username as assigned_user
+                     FROM complaints c LEFT JOIN users u ON c.assigned_to = u.id
+                     ORDER BY c.created_at DESC`;
+        } else {
+            // Get user's own DB row (for allowed_circles)
+            const [[meRow]] = await pool.query(
+                'SELECT id, allowed_circles FROM users WHERE id = ?', [user.id]
+            );
+            const myId = meRow?.id || user.id;
+
+            // Parse allowed circles
+            let myCircles = [];
+            try { myCircles = JSON.parse(meRow?.allowed_circles || '[]'); } catch (e) {}
+
+            // Get subordinates (engineers managed by this user)
+            const [subs] = await pool.query(
+                'SELECT user_id FROM user_managers WHERE manager_id = ?', [myId]
+            );
+            const subIds = subs.map(s => s.user_id);
+            const allIds = [myId, ...subIds]; // self + subordinates
+
+            // WHERE: assigned to self or subordinates
+            const idPlaceholders = allIds.map(() => '?').join(',');
+            let where = `c.assigned_to IN (${idPlaceholders})`;
+            params = [...allIds];
+
+            // Also: unassigned complaints from user's assigned circles
+            if (myCircles.length > 0) {
+                const circlePH = myCircles.map(() => '?').join(',');
+                where += ` OR (c.assigned_to IS NULL AND c.circle IN (${circlePH}))`;
+                params.push(...myCircles);
+            }
+
+            query = `SELECT c.*, u.name as assigned_username, u.username as assigned_user
+                     FROM complaints c LEFT JOIN users u ON c.assigned_to = u.id
+                     WHERE (${where})
+                     ORDER BY c.created_at DESC`;
         }
-        query += ' ORDER BY c.created_at DESC';
+
         const [rows] = await pool.query(query, params);
         res.json(rows);
     } catch (err) {
@@ -1118,19 +1159,39 @@ app.put('/api/complaints/:id', authenticateToken, async (req, res) => {
     try {
         const fields = [];
         const params = [];
-        if (fault_at !== undefined) { fields.push('fault_at=?'); params.push(fault_at); }
-        if (status !== undefined) {
-            fields.push('status=?'); params.push(status);
-            // When Resolved or Cancelled → set resolved_by + verification_status
-            if (status === 'Resolved' || status === 'Cancelled') {
-                fields.push('resolved_by=?'); params.push(currentUser.name || currentUser.username);
-                fields.push('verification_status=?'); params.push('Pending Verification');
+
+        // ── Forward to Senior ──────────────────────────────────────────────
+        if (status === 'Forward to Senior') {
+            // Find current user's manager
+            const [[meRow]] = await pool.query('SELECT id FROM users WHERE id = ?', [currentUser.id]);
+            const myId = meRow?.id || currentUser.id;
+            const [managers] = await pool.query(
+                'SELECT manager_id FROM user_managers WHERE user_id = ? LIMIT 1', [myId]
+            );
+            if (!managers.length) {
+                return res.status(400).json({ error: 'No senior/manager assigned to your account. Contact admin.' });
             }
+            const managerId = managers[0].manager_id;
+            fields.push('status=?');        params.push('Forward to Senior');
+            fields.push('assigned_to=?');   params.push(managerId);
+            fields.push('remark=?');        params.push(remark || '');
+            if (assigner_comments !== undefined) { fields.push('assigner_comments=?'); params.push(assigner_comments); }
+        } else {
+            // ── Normal update ────────────────────────────────────────────
+            if (fault_at !== undefined) { fields.push('fault_at=?'); params.push(fault_at); }
+            if (status !== undefined) {
+                fields.push('status=?'); params.push(status);
+                if (status === 'Resolved' || status === 'Cancelled') {
+                    fields.push('resolved_by=?'); params.push(currentUser.name || currentUser.username);
+                    fields.push('verification_status=?'); params.push('Pending Verification');
+                }
+            }
+            if (remark !== undefined) { fields.push('remark=?'); params.push(remark); }
+            if (assigner_comments !== undefined) { fields.push('assigner_comments=?'); params.push(assigner_comments); }
+            if (priority !== undefined) { fields.push('priority=?'); params.push(priority); }
+            if (assigned_to !== undefined) { fields.push('assigned_to=?'); params.push(assigned_to); }
         }
-        if (remark !== undefined) { fields.push('remark=?'); params.push(remark); }
-        if (assigner_comments !== undefined) { fields.push('assigner_comments=?'); params.push(assigner_comments); }
-        if (priority !== undefined) { fields.push('priority=?'); params.push(priority); }
-        if (assigned_to !== undefined) { fields.push('assigned_to=?'); params.push(assigned_to); }
+
         if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
         params.push(req.params.id);
         await pool.query(`UPDATE complaints SET ${fields.join(',')} WHERE id=?`, params);
@@ -2851,6 +2912,19 @@ app.post('/api/admin/maintenance/run', authenticateToken, isAdmin, async (req, r
     }
 });
 
+// ── BULK PDF DOWNLOAD ─────────────────────────────────────────────────────────
+// NOTE: Must be BEFORE the catch-all route below
+app.get('/api/bulk-pdf-download/:jobId', authenticateToken, (req, res) => {
+    const job = bulkPdfJobs.get(req.params.jobId);
+    if (!job) return res.status(404).json({ success: false, error: 'ZIP not found or expired.' });
+    if (!fs.existsSync(job.zipPath)) return res.status(410).json({ success: false, error: 'ZIP file no longer available.' });
+
+    const zipFilename = `Coral_Bills_${new Date().toISOString().slice(0,10)}.zip`;
+    res.download(job.zipPath, zipFilename, (err) => {
+        if (err) console.error('Bulk PDF download error:', err.message);
+    });
+});
+
 // Catch-all route to serve the frontend
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -2956,6 +3030,198 @@ app.post('/api/admin/import-sql',
         }
     }
 );
+
+// ── BULK PDF HELPERS ──────────────────────────────────────────────────────────
+
+/**
+ * Download a file from a URL (http or https) to destPath.
+ * Follows single-level redirects (301/302).
+ */
+function downloadFile(url, destPath) {
+    return new Promise((resolve, reject) => {
+        const doRequest = (targetUrl) => {
+            const proto = targetUrl.startsWith('https') ? https : http;
+            proto.get(targetUrl, (res) => {
+                if (res.statusCode === 301 || res.statusCode === 302) {
+                    doRequest(res.headers.location);
+                    return;
+                }
+                if (res.statusCode !== 200) {
+                    reject(new Error(`HTTP ${res.statusCode} for ${targetUrl}`));
+                    return;
+                }
+                const out = fs.createWriteStream(destPath);
+                res.pipe(out);
+                out.on('finish', () => { out.close(); resolve(); });
+                out.on('error', reject);
+            }).on('error', reject);
+        };
+        doRequest(url);
+    });
+}
+
+/**
+ * Zip all files in srcDir into destZip using archiver.
+ */
+function createZip(srcDir, destZip) {
+    return new Promise((resolve, reject) => {
+        const output = fs.createWriteStream(destZip);
+        const archive = archiver('zip', { zlib: { level: 6 } });
+        output.on('close', resolve);
+        archive.on('error', reject);
+        archive.pipe(output);
+        archive.directory(srcDir, false);
+        archive.finalize();
+    });
+}
+
+// ── BULK PDF PROCESS ──────────────────────────────────────────────────────────
+const excelUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+app.post('/api/bulk-pdf-process', authenticateToken, excelUpload.single('excelFile'), async (req, res) => {
+    if (!req.file) return res.status(400).json({ success: false, error: 'No Excel file uploaded.' });
+
+    // Clean up old jobs (> 1 hour)
+    const ONE_HOUR = 60 * 60 * 1000;
+    for (const [jid, job] of bulkPdfJobs.entries()) {
+        if (Date.now() - job.createdAt > ONE_HOUR) {
+            try { fs.rmSync(path.dirname(job.zipPath), { recursive: true, force: true }); } catch (_) {}
+            bulkPdfJobs.delete(jid);
+        }
+    }
+
+    let workbook;
+    try {
+        workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+    } catch (e) {
+        return res.status(400).json({ success: false, error: 'Could not parse Excel file.' });
+    }
+
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+
+    // Skip header row if first cell looks non-numeric (e.g. "Telephone Number")
+    const dataRows = rows.filter((r, idx) => {
+        if (idx === 0) {
+            const firstCell = String(r[0] || '').trim();
+            return /^\d/.test(firstCell); // keep if starts with digit
+        }
+        return r[0] && r[1]; // keep rows with both columns
+    });
+
+    if (!dataRows.length) {
+        return res.status(400).json({ success: false, error: 'No valid data rows found in Excel.' });
+    }
+
+    // Create a temp directory for this job
+    const jobId = `bulk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const tmpDir = path.join(os.tmpdir(), jobId);
+    const pdfDir = path.join(tmpDir, 'pdfs');
+    fs.mkdirSync(pdfDir, { recursive: true });
+
+    const results = [];
+    let matched = 0, notFound = 0, failed = 0, emailed = 0;
+
+    for (const row of dataRows) {
+        const telNo = String(row[0] || '').trim();
+        const pdfUrl = String(row[1] || '').trim();
+
+        if (!telNo || !pdfUrl) continue;
+
+        let customer = null;
+        try {
+            // Look up customer via customer_lines table (telephone_number column)
+            const [rows2] = await pool.query(
+                `SELECT c.id, c.customer_name, c.circle, c.oa_name,
+                        COALESCE(c.acc_person_email, c.email_id) AS email
+                 FROM customers c
+                 INNER JOIN customer_lines cl ON cl.customer_id = c.id
+                 WHERE cl.telephone_number = ?
+                    OR CONCAT(cl.telephone_code, cl.telephone_number) = ?
+                    OR REPLACE(cl.telephone_number, '-', '') = REPLACE(?, '-', '')
+                 LIMIT 1`,
+                [telNo, telNo, telNo]
+            );
+            customer = rows2[0] || null;
+        } catch (e) {
+            results.push({ telNo, status: 'failed', reason: 'DB error: ' + e.message });
+            failed++;
+            continue;
+        }
+
+        if (!customer) {
+            results.push({ telNo, status: 'not_found' });
+            notFound++;
+            continue;
+        }
+
+        matched++;
+
+        // Build filename
+        const circleAbbr = (customer.circle || 'UNKNW').replace(/\s/g, '').toUpperCase().substring(0, 5);
+        const oaAbbr     = (customer.oa_name || 'UNKNW').replace(/\s/g, '').toUpperCase().substring(0, 5);
+        const telClean   = telNo.replace(/[/\\?%*:|"<>]/g, '-'); // sanitize for filename
+        const filename   = `Coral_${telClean}_${circleAbbr}_${oaAbbr}.pdf`;
+        const destPath   = path.join(pdfDir, filename);
+
+        // Download PDF
+        try {
+            await downloadFile(pdfUrl, destPath);
+        } catch (e) {
+            results.push({ telNo, customerName: customer.customer_name, status: 'failed', reason: 'Download failed: ' + e.message });
+            failed++;
+            continue;
+        }
+
+        // Email PDF
+        let emailedOk = false;
+        const recipientEmail = (customer.email || '').trim();
+        if (recipientEmail) {
+            try {
+                await billMailTransporter.sendMail({
+                    from: '"Coral Infratel Pvt. Ltd." <bsnlpribill@gmail.com>',
+                    to: recipientEmail,
+                    subject: `Bill - ${customer.customer_name}`,
+                    text: `Dear ${customer.customer_name},\n\nPlease find your bill attached.\n\nRegards,\nCoral Infratel Pvt. Ltd.`,
+                    attachments: [{ filename, path: destPath }]
+                });
+                emailedOk = true;
+                emailed++;
+            } catch (e) {
+                // email failed — file still downloaded; log but don't fail the row
+            }
+        }
+
+        results.push({
+            telNo,
+            customerName: customer.customer_name,
+            filename,
+            status: 'success',
+            emailed: emailedOk
+        });
+    }
+
+    // Create ZIP of all downloaded PDFs
+    const zipPath = path.join(tmpDir, `Coral_Bills_${new Date().toISOString().slice(0,10)}.zip`);
+    try {
+        await createZip(pdfDir, zipPath);
+    } catch (e) {
+        return res.status(500).json({ success: false, error: 'Failed to create ZIP: ' + e.message });
+    }
+
+    bulkPdfJobs.set(jobId, { zipPath, createdAt: Date.now() });
+
+    return res.json({
+        success: true,
+        jobId,
+        total: dataRows.length,
+        matched,
+        notFound,
+        failed,
+        emailed,
+        results
+    });
+});
 
 // Support for both local development and Vercel Serverless Functions
 if (require.main === module) {
