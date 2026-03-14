@@ -968,10 +968,9 @@ async function sendBillEmails() {
 }
 
 // ═══════════════════════════════════════════════════════
-//  BULK PDF DOWNLOADER
+//  BULK PDF DOWNLOADER (synchronous — single request)
 // ═══════════════════════════════════════════════════════
 let _bpJobId = null;
-let _bpPollTimer = null;
 
 function openBulkPdfModal() {
     document.getElementById('bpUploadSection').style.display = '';
@@ -985,7 +984,6 @@ function openBulkPdfModal() {
 
 function closeBulkPdfModal() {
     document.getElementById('bulkPdfModal').style.display = 'none';
-    if (_bpPollTimer) { clearInterval(_bpPollTimer); _bpPollTimer = null; }
 }
 
 function onBpExcelSelected() {
@@ -1003,19 +1001,25 @@ async function startBulkPdf() {
     const file = fileInput.files[0];
     if (!file) return;
 
-    // Convert to base64
     const base64 = await new Promise((resolve) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result.split(',')[1]);
         reader.readAsDataURL(file);
     });
 
-    // Show progress section, hide upload
+    // Show progress, hide upload
     document.getElementById('bpUploadSection').style.display = 'none';
     document.getElementById('bpProgressSection').style.display = '';
     document.getElementById('bpZipSection').style.display = 'none';
-    document.getElementById('bpPhaseLabel').textContent = 'Starting...';
-    document.getElementById('bpProgressBar').style.width = '0%';
+    document.getElementById('bpPhaseLabel').textContent = 'Processing... please wait (downloading PDFs from BSNL)';
+    document.getElementById('bpProgressBar').style.width = '30%';
+    document.getElementById('bpProgressBar').style.background = 'linear-gradient(90deg,#059669,#10b981)';
+    document.getElementById('bpStatTotal').textContent = 'Total: ...';
+    document.getElementById('bpStatMatched').textContent = 'Matched: ...';
+    document.getElementById('bpStatNotFound').textContent = 'Not found: ...';
+    document.getElementById('bpStatDownloaded').textContent = 'Downloaded: ...';
+    document.getElementById('bpStatFailed').style.display = 'none';
+    document.getElementById('bpRowDetails').innerHTML = '';
 
     try {
         const resp = await window.apiFetch('/api/bulk-pdf-job/start', {
@@ -1023,28 +1027,11 @@ async function startBulkPdf() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ excelBase64: base64 })
         });
-        const data = await resp.json();
-        if (!resp.ok) throw new Error(data.error || 'Failed to start job');
-
-        _bpJobId = data.jobId;
-        // Start polling
-        _bpPollTimer = setInterval(pollBulkPdfStatus, 1500);
-        pollBulkPdfStatus();
-    } catch(e) {
-        document.getElementById('bpPhaseLabel').textContent = 'Error: ' + e.message;
-        showToast(e.message, 'err');
-    }
-}
-
-async function pollBulkPdfStatus() {
-    if (!_bpJobId) return;
-    try {
-        const resp = await window.apiFetch('/api/bulk-pdf-job/' + _bpJobId + '/status');
         const d = await resp.json();
-        if (!resp.ok) throw new Error(d.error || 'Status check failed');
+        if (!resp.ok) throw new Error(d.error || 'Failed');
 
-        // Update phase label
-        document.getElementById('bpPhaseLabel').textContent = d.phaseLabel || d.phase;
+        _bpJobId = d.jobId;
+        document.getElementById('bpProgressBar').style.width = '100%';
 
         // Update stats
         document.getElementById('bpStatTotal').textContent = 'Total: ' + d.total;
@@ -1056,21 +1043,13 @@ async function pollBulkPdfStatus() {
             document.getElementById('bpStatFailed').textContent = 'Failed: ' + d.dlFailed;
         }
 
-        // Progress bar
-        let pct = 0;
-        if (d.phase === 'matching') pct = 10;
-        else if (d.phase === 'downloading') pct = 10 + (d.matched > 0 ? (d.downloaded / d.matched) * 70 : 0);
-        else if (d.phase === 'zipping') pct = 85;
-        else if (d.phase === 'complete') pct = 100;
-        document.getElementById('bpProgressBar').style.width = Math.round(pct) + '%';
-
-        // Row details table
+        // Row details
         if (d.rowSummary && d.rowSummary.length) {
             let html = '<table style="width:100%;border-collapse:collapse;">';
             html += '<tr style="background:#f8fafc;"><th style="padding:4px 8px;text-align:left;border-bottom:1px solid #e2e8f0;">Tel No</th>' +
                     '<th style="padding:4px 8px;text-align:left;border-bottom:1px solid #e2e8f0;">Customer</th>' +
                     '<th style="padding:4px 8px;text-align:left;border-bottom:1px solid #e2e8f0;">File Name</th>' +
-                    '<th style="padding:4px 8px;text-align:center;border-bottom:1px solid #e2e8f0;">Status</th></tr>';
+                    '<th style="padding:4px 8px;text-align:left;border-bottom:1px solid #e2e8f0;">Status</th></tr>';
             d.rowSummary.forEach(r => {
                 const statusBadge = r.dlStatus === 'done'
                     ? '<span style="color:#059669;font-weight:700;">&#10003; Done</span>'
@@ -1078,32 +1057,32 @@ async function pollBulkPdfStatus() {
                     ? '<span style="color:#dc2626;font-weight:700;">&#10007; ' + esc(r.dlError || 'Failed') + '</span>'
                     : r.status === 'not_found'
                     ? '<span style="color:#f59e0b;font-weight:700;">Not found in DB</span>'
-                    : '<span style="color:#94a3b8;">Pending</span>';
+                    : '<span style="color:#94a3b8;">—</span>';
                 html += '<tr style="border-bottom:1px solid #f1f5f9;">' +
                     '<td style="padding:4px 8px;">' + esc(r.telNo) + '</td>' +
                     '<td style="padding:4px 8px;">' + esc(r.customerName) + '</td>' +
                     '<td style="padding:4px 8px;font-size:0.75rem;color:#475569;">' + esc(r.filename) + '</td>' +
-                    '<td style="padding:4px 8px;text-align:center;">' + statusBadge + '</td></tr>';
+                    '<td style="padding:4px 8px;">' + statusBadge + '</td></tr>';
             });
             html += '</table>';
             document.getElementById('bpRowDetails').innerHTML = html;
         }
 
-        // ZIP ready
-        if (d.zipReady) {
+        // Result
+        if (d.downloaded > 0 && d.zipReady) {
             document.getElementById('bpZipSection').style.display = '';
-        }
-
-        // Stop polling when done or error
-        if (d.status === 'done' || d.status === 'error') {
-            clearInterval(_bpPollTimer); _bpPollTimer = null;
-            if (d.status === 'done' && d.downloaded > 0) {
-                document.getElementById('bpPhaseLabel').innerHTML =
-                    '<span style="color:#059669;">&#10003; ' + d.downloaded + ' PDFs downloaded and renamed. ZIP is ready!</span>';
-            }
+            document.getElementById('bpPhaseLabel').innerHTML =
+                '<span style="color:#059669;">&#10003; ' + d.downloaded + ' PDFs downloaded and renamed. ZIP is ready!</span>';
+        } else {
+            document.getElementById('bpPhaseLabel').innerHTML =
+                '<span style="color:#dc2626;">Done. ' + d.downloaded + ' downloaded, ' + d.dlFailed + ' failed.</span>';
         }
     } catch(e) {
-        console.error('Poll error:', e);
+        document.getElementById('bpPhaseLabel').innerHTML =
+            '<span style="color:#dc2626;">Error: ' + esc(e.message) + '</span>';
+        document.getElementById('bpProgressBar').style.width = '100%';
+        document.getElementById('bpProgressBar').style.background = '#dc2626';
+        showToast(e.message, 'err');
     }
 }
 
