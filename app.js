@@ -1156,10 +1156,42 @@ app.get('/api/complaints', authenticateToken, async (req, res) => {
 
 // Complaints Report with filters
 app.get('/api/complaints/report', authenticateToken, async (req, res) => {
+    const currentUser = req.user;
     try {
         const { circle, oa, status, engineer, search, start, end, limit = 40, offset = 0 } = req.query;
         let where = [];
         const params = [];
+
+        // ── Access control: non-admin sees only own area ───────────────────
+        if (currentUser.role !== 'admin') {
+            const [[meRow]] = await pool.query(
+                'SELECT id, allowed_circles, allowed_oas FROM users WHERE id = ?', [currentUser.id]
+            );
+            const myId = meRow?.id || currentUser.id;
+
+            // Subordinates
+            const [subs] = await pool.query(
+                'SELECT user_id FROM user_managers WHERE manager_id = ?', [myId]
+            );
+            const subIds = subs.map(r => r.user_id);
+            const allIds = [myId, ...subIds];
+
+            // Allowed circles
+            let myCircles = [];
+            try { myCircles = JSON.parse(meRow?.allowed_circles || '[]'); } catch(e) {}
+
+            const idPH = allIds.map(() => '?').join(',');
+            if (myCircles.length > 0) {
+                const cirPH = myCircles.map(() => '?').join(',');
+                where.push(`(c.assigned_to IN (${idPH}) OR (c.assigned_to IS NULL AND c.circle IN (${cirPH})))`);
+                params.push(...allIds, ...myCircles);
+            } else {
+                where.push(`c.assigned_to IN (${idPH})`);
+                params.push(...allIds);
+            }
+        }
+        // ──────────────────────────────────────────────────────────────────
+
         if (circle) { where.push('c.circle = ?'); params.push(circle); }
         if (oa) { where.push('c.oa_name = ?'); params.push(oa); }
         if (status && status !== '--All--') { where.push('c.status = ?'); params.push(status); }
@@ -1176,7 +1208,10 @@ app.get('/api/complaints/report', authenticateToken, async (req, res) => {
             ORDER BY c.created_at DESC
             LIMIT ? OFFSET ?
         `, [...params, parseInt(limit), parseInt(offset)]);
-        const [[{ total }]] = await pool.query(`SELECT COUNT(*) as total FROM complaints c LEFT JOIN users u ON c.assigned_to = u.id ${whereStr}`, params);
+        const [[{ total }]] = await pool.query(
+            `SELECT COUNT(*) as total FROM complaints c LEFT JOIN users u ON c.assigned_to = u.id ${whereStr}`,
+            params
+        );
         res.json({ rows, total });
     } catch (err) {
         console.error('Complaints report error:', err);
