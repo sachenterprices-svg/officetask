@@ -3451,19 +3451,22 @@ app.post('/api/bulk-pdf-process', authenticateToken, async (req, res) => {
         });
     }
 
-    // Create ZIP of all downloaded PDFs
+    // Create ZIP of all downloaded PDFs (non-blocking — emails already sent)
+    let zipJobId = null;
     const zipPath = path.join(tmpDir, `Coral_Bills_${new Date().toISOString().slice(0,10)}.zip`);
     try {
         await createZip(pdfDir, zipPath);
+        bulkPdfJobs.set(jobId, { zipPath, createdAt: Date.now() });
+        zipJobId = jobId;
     } catch (e) {
-        return res.status(500).json({ success: false, error: 'Failed to create ZIP: ' + e.message });
+        // ZIP failed — not critical, emails already sent, just skip download option
+        console.error('[bulk-pdf] ZIP creation failed:', e.message);
     }
-
-    bulkPdfJobs.set(jobId, { zipPath, createdAt: Date.now() });
 
     return res.json({
         success: true,
-        jobId,
+        jobId: zipJobId, // null if ZIP failed (download button hidden in UI)
+        zipAvailable: !!zipJobId,
         total: dataRows.length,
         matched,
         notFound,
