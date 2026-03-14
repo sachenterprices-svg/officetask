@@ -3520,29 +3520,54 @@ app.post('/api/bulk-pdf-process', authenticateToken, async (req, res) => {
     });
 });
 
-// ── BULK PDF PHASE 1: MATCH CUSTOMERS FROM EXCEL ─────────────────────────────
-app.post('/api/bulk-match-customers', authenticateToken, async (req, res) => {
-    const { excelBase64 } = req.body || {};
-    if (!excelBase64) return res.status(400).json({ error: 'No Excel file.' });
+// ── BULK PDF: HELPER — Download PDF to Buffer ────────────────────────────────
+function downloadPdfBuffer(url, redirectCount = 0) {
+    return new Promise((resolve, reject) => {
+        if (redirectCount > 5) return reject(new Error('Too many redirects'));
+        const proto = url.startsWith('https') ? https : http;
+        const req = proto.get(url, { timeout: 30000 }, (res) => {
+            if (res.statusCode === 301 || res.statusCode === 302) {
+                return downloadPdfBuffer(res.headers.location, redirectCount + 1).then(resolve).catch(reject);
+            }
+            if (res.statusCode !== 200) {
+                res.resume();
+                return reject(new Error(`HTTP ${res.statusCode}`));
+            }
+            const chunks = [];
+            res.on('data', chunk => chunks.push(chunk));
+            res.on('end', () => resolve(Buffer.concat(chunks)));
+            res.on('error', reject);
+        });
+        req.on('error', reject);
+        req.on('timeout', () => { req.destroy(); reject(new Error('Timeout (30s)')); });
+    });
+}
+
+// ── BULK PDF: ASYNC JOB RUNNER ────────────────────────────────────────────────
+async function runBulkPdfJob(jobId, excelBase64) {
+    const job = bulkPdfJobs.get(jobId);
+
+    // Step 1: Parse Excel + Match customers
+    job.phase = 'matching'; job.phaseLabel = 'Matching customers...';
     let workbook;
     try { workbook = xlsx.read(Buffer.from(excelBase64, 'base64'), { type: 'buffer' }); }
-    catch(e) { return res.status(400).json({ error: 'Invalid Excel file.' }); }
+    catch(e) { job.status = 'error'; job.phaseLabel = 'Invalid Excel file.'; return; }
+
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = xlsx.utils.sheet_to_json(sheet, { header: 1 });
-    const dataRows = rows.filter((r, idx) => {
-        if (idx === 0) return /^\d/.test(String(r[0]||'').trim());
-        return r[0] && r[1];
+    const allRows = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+    const dataRows = allRows.filter(r => {
+        const tel = String(r[0]||'').trim();
+        const url = String(r[1]||'').trim();
+        return tel && url && /^\d/.test(tel);
     });
-    if (!dataRows.length) return res.status(400).json({ error: 'No valid data rows found.' });
-    const results = [];
+
+    job.total = dataRows.length;
     for (const row of dataRows) {
-        const telNo = String(row[0]||'').trim();
+        const telNo  = String(row[0]||'').trim();
         const pdfUrl = String(row[1]||'').trim();
-        if (!telNo) continue;
         try {
             const [rows2] = await pool.query(
-                `SELECT c.id, c.customer_name, c.circle, c.oa_name,
-                        COALESCE(c.acc_person_email, c.email_id) AS email
+                `SELECT c.customer_name, COALESCE(c.acc_person_email, c.email_id) AS email
                  FROM customers c
                  INNER JOIN customer_lines cl ON cl.customer_id = c.id
                  WHERE cl.telephone_number = ?
@@ -3553,69 +3578,153 @@ app.post('/api/bulk-match-customers', authenticateToken, async (req, res) => {
             );
             const cust = rows2[0] || null;
             if (cust) {
-                const custNameClean = cust.customer_name.replace(/[/\\?%*:|"<>]/g,'_').replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,'');
-                const telClean     = telNo.replace(/[/\\?%*:|"<>]/g,'-');
-                results.push({ telNo, pdfUrl, customerName: cust.customer_name,
-                    email: cust.email||'', circle: cust.circle, oa_name: cust.oa_name,
-                    suggestedFilename: `${custNameClean}_${telClean}.pdf`,
-                    status: 'matched' });
+                const nameClean = cust.customer_name.replace(/[/\\?%*:|"<>&]/g,'_').replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,'');
+                const telClean  = telNo.replace(/[/\\?%*:|"<>&]/g,'-');
+                job.rows.push({ telNo, pdfUrl, customerName: cust.customer_name, email: cust.email||'',
+                    filename: `${nameClean}_${telClean}.pdf`,
+                    status: 'matched', dlStatus: 'pending', emailStatus: 'pending' });
+                job.matched++;
             } else {
-                results.push({ telNo, pdfUrl, status: 'not_found' });
+                job.rows.push({ telNo, pdfUrl, status: 'not_found', dlStatus: 'skipped', emailStatus: 'skipped' });
+                job.notFound++;
             }
-        } catch(e) { results.push({ telNo, pdfUrl, status: 'error', reason: e.message }); }
-    }
-    res.json({ success: true, total: dataRows.length, results });
-});
-
-// ── BULK PDF PHASE 2: PROXY PDF DOWNLOAD ─────────────────────────────────────
-app.get('/api/proxy-pdf', authenticateToken, (req, res) => {
-    const { url } = req.query;
-    if (!url) return res.status(400).json({ error: 'URL required.' });
-    const doReq = (targetUrl) => {
-        const proto = targetUrl.startsWith('https') ? https : http;
-        const request = proto.get(targetUrl, { timeout: 30000 }, (response) => {
-            if (response.statusCode === 301 || response.statusCode === 302) {
-                doReq(response.headers.location); return;
-            }
-            if (response.statusCode !== 200) {
-                res.status(502).json({ error: `Server returned ${response.statusCode}` }); return;
-            }
-            res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', 'attachment');
-            response.pipe(res);
-        });
-        request.on('error', (e) => { if (!res.headersSent) res.status(502).json({ error: e.message }); });
-        request.on('timeout', () => { request.destroy(); if (!res.headersSent) res.status(504).json({ error: 'Download timeout (30s)' }); });
-    };
-    doReq(url);
-});
-
-// ── BULK PDF PHASE 3: BATCH EMAIL SEND ────────────────────────────────────────
-app.post('/api/bulk-send-batch', authenticateToken, async (req, res) => {
-    const { items } = req.body || {};
-    if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'No items.' });
-    if (items.length > 10) return res.status(400).json({ error: 'Max 10 items per batch.' });
-    const results = [];
-    for (const item of items) {
-        const { email, customerName, filename, pdfBase64 } = item;
-        if (!email || !pdfBase64) {
-            results.push({ telNo: item.telNo, emailStatus: 'skipped', reason: !email ? 'No email address' : 'No PDF data' });
-            continue;
+        } catch(e) {
+            job.rows.push({ telNo, pdfUrl, status: 'error', dlStatus: 'skipped', emailStatus: 'skipped' });
         }
+    }
+
+    // Step 2: Download PDFs to temp folder
+    job.phase = 'downloading'; job.phaseLabel = 'Downloading PDFs...';
+    const tempDir = path.join(os.tmpdir(), `bulk_${jobId}`);
+    fs.mkdirSync(tempDir, { recursive: true });
+
+    const matchedRows = job.rows.filter(r => r.status === 'matched');
+    for (const row of matchedRows) {
         try {
+            const buf = await downloadPdfBuffer(row.pdfUrl);
+            // Validate: first 4 bytes must be %PDF
+            if (!buf || buf.length < 100 || buf.slice(0,4).toString('ascii') !== '%PDF') {
+                row.dlStatus = 'failed'; row.dlError = 'Not a valid PDF';
+                job.dlFailed++; continue;
+            }
+            const filePath = path.join(tempDir, row.filename);
+            fs.writeFileSync(filePath, buf);
+            row.localPath = filePath;
+            row.dlStatus = 'done';
+            job.downloaded++;
+        } catch(e) {
+            row.dlStatus = 'failed'; row.dlError = e.message;
+            job.dlFailed++;
+        }
+    }
+
+    // Step 3: Create ZIP
+    job.phase = 'zipping'; job.phaseLabel = 'Creating ZIP...';
+    if (job.downloaded > 0) {
+        try {
+            const zipPath = path.join(os.tmpdir(), `Coral_Bills_${jobId}.zip`);
+            await new Promise((resolve, reject) => {
+                const output = fs.createWriteStream(zipPath);
+                const archive = archiver('zip', { zlib: { level: 6 } });
+                output.on('close', resolve);
+                archive.on('error', reject);
+                archive.pipe(output);
+                for (const r of matchedRows.filter(x => x.dlStatus === 'done')) {
+                    archive.file(r.localPath, { name: r.filename });
+                }
+                archive.finalize();
+            });
+            job.zipPath = zipPath;
+            job.zipReady = true;
+        } catch(e) { job.errors.push('ZIP failed: ' + e.message); }
+    }
+
+    // Step 4: 30-second countdown before emailing
+    job.phase = 'waiting'; job.phaseLabel = 'ZIP ready! Starting emails in...';
+    for (let i = 30; i >= 0; i--) {
+        job.countdownSec = i;
+        await new Promise(r => setTimeout(r, 1000));
+    }
+
+    // Step 5: Send emails one by one
+    job.phase = 'emailing'; job.phaseLabel = 'Sending emails...';
+    const toEmail = matchedRows.filter(r => r.dlStatus === 'done' && r.email && r.localPath);
+    for (const row of toEmail) {
+        try {
+            const pdfBuf = fs.readFileSync(row.localPath);
             await billMailTransporter.sendMail({
                 from: '"Coral Infratel Pvt. Ltd." <bsnlpribill@gmail.com>',
-                to: email.trim(),
-                subject: `Bill - ${customerName || ''}`,
-                text: `Dear ${customerName || 'Customer'},\n\nPlease find your bill attached.\n\nRegards,\nCoral Infratel Pvt. Ltd.`,
-                attachments: [{ filename: filename || 'bill.pdf', content: Buffer.from(pdfBase64, 'base64'), contentType: 'application/pdf' }]
+                to: row.email.trim(),
+                subject: `Your Bill - ${row.customerName}`,
+                text: `Dear ${row.customerName},\n\nPlease find your bill attached.\n\nRegards,\nCoral Infratel Pvt. Ltd.`,
+                attachments: [{ filename: row.filename, content: pdfBuf, contentType: 'application/pdf' }]
             });
-            results.push({ telNo: item.telNo, emailStatus: 'sent' });
+            row.emailStatus = 'sent'; job.emailsSent++;
         } catch(e) {
-            results.push({ telNo: item.telNo, emailStatus: 'failed', reason: e.message });
+            row.emailStatus = 'failed'; row.emailError = e.message; job.emailsFailed++;
         }
+        await new Promise(r => setTimeout(r, 1500)); // 1.5s gap between emails
     }
-    res.json({ success: true, results });
+
+    job.phase = 'complete'; job.status = 'done';
+    job.phaseLabel = `Done! ${job.emailsSent} emailed, ${job.downloaded} PDFs in ZIP.`;
+
+    // Cleanup temp files after 2 hours
+    setTimeout(() => {
+        try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch(e) {}
+        try { if (job.zipPath) fs.unlinkSync(job.zipPath); } catch(e) {}
+        bulkPdfJobs.delete(jobId);
+    }, 7200000);
+}
+
+// ── BULK PDF JOB: START ───────────────────────────────────────────────────────
+app.post('/api/bulk-pdf-job/start', authenticateToken, async (req, res) => {
+    const { excelBase64 } = req.body || {};
+    if (!excelBase64) return res.status(400).json({ error: 'No Excel file.' });
+    const jobId = `bulk_${Date.now()}_${Math.random().toString(36).substr(2,6)}`;
+    const job = {
+        jobId, status: 'running', phase: 'matching', phaseLabel: 'Matching customers...',
+        total: 0, matched: 0, notFound: 0,
+        downloaded: 0, dlFailed: 0,
+        emailsSent: 0, emailsFailed: 0,
+        countdownSec: 30, zipReady: false, zipPath: null,
+        rows: [], errors: [], createdAt: Date.now()
+    };
+    bulkPdfJobs.set(jobId, job);
+    runBulkPdfJob(jobId, excelBase64).catch(err => {
+        job.status = 'error'; job.phaseLabel = 'Fatal: ' + err.message;
+    });
+    res.json({ success: true, jobId });
+});
+
+// ── BULK PDF JOB: STATUS ──────────────────────────────────────────────────────
+app.get('/api/bulk-pdf-job/:jobId/status', authenticateToken, (req, res) => {
+    const job = bulkPdfJobs.get(req.params.jobId);
+    if (!job) return res.status(404).json({ error: 'Job not found.' });
+    const rowSummary = job.rows.map(r => ({
+        telNo: r.telNo, customerName: r.customerName||'', filename: r.filename||'',
+        email: r.email||'', status: r.status, dlStatus: r.dlStatus,
+        emailStatus: r.emailStatus, dlError: r.dlError||'', emailError: r.emailError||''
+    }));
+    res.json({
+        jobId: job.jobId, status: job.status, phase: job.phase, phaseLabel: job.phaseLabel,
+        total: job.total, matched: job.matched, notFound: job.notFound,
+        downloaded: job.downloaded, dlFailed: job.dlFailed,
+        emailsSent: job.emailsSent, emailsFailed: job.emailsFailed,
+        countdownSec: job.countdownSec, zipReady: job.zipReady,
+        rowSummary
+    });
+});
+
+// ── BULK PDF JOB: DOWNLOAD ZIP ────────────────────────────────────────────────
+app.get('/api/bulk-pdf-job/:jobId/zip', authenticateToken, (req, res) => {
+    const job = bulkPdfJobs.get(req.params.jobId);
+    if (!job || !job.zipPath || !fs.existsSync(job.zipPath))
+        return res.status(404).json({ error: 'ZIP not ready or expired.' });
+    const zipName = `Coral_Bills_${new Date().toISOString().slice(0,10)}.zip`;
+    res.setHeader('Content-Disposition', `attachment; filename="${zipName}"`);
+    res.setHeader('Content-Type', 'application/zip');
+    fs.createReadStream(job.zipPath).pipe(res);
 });
 
 // Support for both local development and Vercel Serverless Functions
