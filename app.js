@@ -3214,11 +3214,6 @@ app.get('/api/bulk-pdf-download/:jobId', authenticateToken, (req, res) => {
     });
 });
 
-// Catch-all route to serve the frontend
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
 // Test database connection on startup
 async function startupChecks() {
     try {
@@ -3725,6 +3720,11 @@ app.get('/api/bulk-pdf-job/:jobId/zip', authenticateToken, (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${zipName}"`);
     res.setHeader('Content-Type', 'application/zip');
     fs.createReadStream(job.zipPath).pipe(res);
+});
+
+// Catch-all route to serve the frontend — MUST be LAST
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Support for both local development and Vercel Serverless Functions
