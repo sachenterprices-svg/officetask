@@ -1183,7 +1183,19 @@ app.put('/api/complaints/:id', authenticateToken, async (req, res) => {
                 fields.push('status=?'); params.push(status);
                 if (status === 'Resolved' || status === 'Cancelled') {
                     fields.push('resolved_by=?'); params.push(currentUser.name || currentUser.username);
-                    fields.push('verification_status=?'); params.push('Pending Verification');
+                    // Only set Pending Verification if resolver is a subordinate (not admin/senior)
+                    // Senior = has at least one subordinate in user_managers
+                    const [[subCnt]] = await pool.query(
+                        'SELECT COUNT(*) as cnt FROM user_managers WHERE manager_id = ?', [currentUser.id]
+                    );
+                    const resolverIsSeniorOrAdmin = currentUser.role === 'admin' || subCnt.cnt > 0;
+                    if (!resolverIsSeniorOrAdmin) {
+                        fields.push('verification_status=?'); params.push('Pending Verification');
+                    } else {
+                        // Senior/Admin resolves directly → mark as auto-verified
+                        fields.push('verification_status=?'); params.push('Verified');
+                        fields.push('verified_by=?'); params.push(currentUser.name || currentUser.username);
+                    }
                 }
             }
             if (remark !== undefined) { fields.push('remark=?'); params.push(remark); }
