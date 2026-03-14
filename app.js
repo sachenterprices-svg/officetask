@@ -3519,22 +3519,39 @@ app.post('/api/bulk-pdf-process', authenticateToken, async (req, res) => {
 function downloadPdfBuffer(url, redirectCount = 0) {
     return new Promise((resolve, reject) => {
         if (redirectCount > 5) return reject(new Error('Too many redirects'));
-        const proto = url.startsWith('https') ? https : http;
-        const req = proto.get(url, { timeout: 30000 }, (res) => {
+        const parsedUrl = new URL(url);
+        const proto = parsedUrl.protocol === 'https:' ? https : http;
+        const opts = {
+            hostname: parsedUrl.hostname,
+            port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
+            path: parsedUrl.pathname + parsedUrl.search,
+            timeout: 45000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                'Accept': 'application/pdf,*/*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Connection': 'keep-alive'
+            }
+        };
+        const req = proto.get(opts, (res) => {
             if (res.statusCode === 301 || res.statusCode === 302) {
-                return downloadPdfBuffer(res.headers.location, redirectCount + 1).then(resolve).catch(reject);
+                res.resume();
+                const loc = res.headers.location;
+                if (!loc) return reject(new Error('Redirect without location'));
+                const nextUrl = loc.startsWith('http') ? loc : new URL(loc, url).href;
+                return downloadPdfBuffer(nextUrl, redirectCount + 1).then(resolve).catch(reject);
             }
             if (res.statusCode !== 200) {
                 res.resume();
-                return reject(new Error(`HTTP ${res.statusCode}`));
+                return reject(new Error(`HTTP ${res.statusCode} from ${parsedUrl.hostname}`));
             }
             const chunks = [];
             res.on('data', chunk => chunks.push(chunk));
             res.on('end', () => resolve(Buffer.concat(chunks)));
             res.on('error', reject);
         });
-        req.on('error', reject);
-        req.on('timeout', () => { req.destroy(); reject(new Error('Timeout (30s)')); });
+        req.on('error', (e) => reject(new Error(`${e.message} (${parsedUrl.hostname})`)));
+        req.on('timeout', () => { req.destroy(); reject(new Error(`Timeout 45s (${parsedUrl.hostname})`)); });
     });
 }
 
