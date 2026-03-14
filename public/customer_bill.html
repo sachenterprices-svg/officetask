@@ -400,32 +400,56 @@
     <div style="background:#fff;border-radius:18px;padding:28px;width:92%;max-width:620px;
                 position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.18);max-height:90vh;overflow-y:auto;">
 
-        <!-- Close button -->
         <button onclick="closeBulkPdfModal()" style="position:absolute;top:14px;right:16px;background:none;
                 border:none;font-size:1.4rem;cursor:pointer;color:#94a3b8;">&times;</button>
 
-        <h2 style="margin:0 0 2px;color:#0f172a;font-size:1.1rem;font-weight:800;">📥 Bulk PDF Downloader</h2>
+        <h2 style="margin:0 0 2px;color:#0f172a;font-size:1.1rem;font-weight:800;">📥 Bulk PDF Rename &amp; ZIP</h2>
         <p style="color:#64748b;font-size:0.82rem;margin:0 0 16px;">
-            Excel upload &rarr; Server downloads &amp; renames PDFs &rarr; ZIP download
+            Upload Excel + PDFs &rarr; Auto-match &amp; rename &rarr; Download ZIP
         </p>
 
-        <!-- Excel format hint -->
-        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 14px;
-                    margin-bottom:14px;font-size:0.82rem;color:#1e40af;font-weight:600;">
-            📋 Column A: Telephone Number &nbsp;|&nbsp; Column B: PDF Link (URL)
-        </div>
-
-        <!-- Upload section (shown initially) -->
+        <!-- Upload section -->
         <div id="bpUploadSection">
-            <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;">
-                <label style="background:#f59e0b;color:#fff;padding:10px 20px;border-radius:8px;
-                              font-weight:700;font-size:0.88rem;cursor:pointer;font-family:'Inter',sans-serif;">
-                    📁 Choose Excel
-                    <input type="file" id="bpExcelFile" accept=".xlsx,.xls" style="display:none"
-                           onchange="onBpExcelSelected()">
-                </label>
-                <span id="bpFileName" style="font-size:0.85rem;color:#64748b;font-weight:600;">No file selected</span>
+            <!-- Step 1: Excel -->
+            <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 14px;
+                        margin-bottom:12px;">
+                <div style="font-size:0.78rem;font-weight:800;color:#1e40af;text-transform:uppercase;
+                            letter-spacing:0.5px;margin-bottom:8px;">Step 1: Excel File</div>
+                <div style="font-size:0.8rem;color:#475569;margin-bottom:8px;">
+                    Column A: Telephone Number (for customer matching)
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <label style="background:#f59e0b;color:#fff;padding:8px 16px;border-radius:8px;
+                                  font-weight:700;font-size:0.84rem;cursor:pointer;font-family:'Inter',sans-serif;
+                                  white-space:nowrap;">
+                        📁 Choose Excel
+                        <input type="file" id="bpExcelFile" accept=".xlsx,.xls" style="display:none"
+                               onchange="onBpExcelSelected()">
+                    </label>
+                    <span id="bpFileName" style="font-size:0.83rem;color:#64748b;font-weight:600;">No file</span>
+                </div>
             </div>
+
+            <!-- Step 2: PDFs -->
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px;
+                        margin-bottom:16px;">
+                <div style="font-size:0.78rem;font-weight:800;color:#166534;text-transform:uppercase;
+                            letter-spacing:0.5px;margin-bottom:8px;">Step 2: PDF Files</div>
+                <div style="font-size:0.8rem;color:#475569;margin-bottom:8px;">
+                    Select all bill PDFs (downloaded from BSNL). Filename must contain telephone number.
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <label style="background:#059669;color:#fff;padding:8px 16px;border-radius:8px;
+                                  font-weight:700;font-size:0.84rem;cursor:pointer;font-family:'Inter',sans-serif;
+                                  white-space:nowrap;">
+                        📄 Choose PDFs
+                        <input type="file" id="bpPdfFiles" accept=".pdf" multiple style="display:none"
+                               onchange="onBpPdfsSelected()">
+                    </label>
+                    <span id="bpPdfCount" style="font-size:0.83rem;color:#64748b;font-weight:600;">No files</span>
+                </div>
+            </div>
+
             <div style="display:flex;gap:10px;justify-content:flex-end;">
                 <button onclick="closeBulkPdfModal()"
                         style="background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;padding:10px 20px;
@@ -433,7 +457,7 @@
                     Close
                 </button>
                 <button id="bpStartBtn" onclick="startBulkPdf()" disabled
-                        style="background:#059669;color:#fff;border:none;padding:10px 26px;border-radius:8px;
+                        style="background:#002d72;color:#fff;border:none;padding:10px 26px;border-radius:8px;
                                font-family:'Inter',sans-serif;font-weight:700;cursor:pointer;transition:.2s;
                                opacity:0.5;">
                     🚀 Start Processing
@@ -441,7 +465,7 @@
             </div>
         </div>
 
-        <!-- Progress section (shown during processing) -->
+        <!-- Progress section -->
         <div id="bpProgressSection" style="display:none;">
             <div style="margin-bottom:12px;">
                 <div style="font-size:0.78rem;font-weight:800;color:#64748b;text-transform:uppercase;
@@ -449,22 +473,19 @@
                 <div id="bpPhaseLabel" style="font-size:0.95rem;font-weight:700;color:#0f172a;">Starting...</div>
             </div>
 
-            <!-- Progress bar -->
             <div style="background:#e2e8f0;border-radius:8px;height:10px;overflow:hidden;margin-bottom:12px;">
                 <div id="bpProgressBar" style="background:linear-gradient(90deg,#059669,#10b981);height:100%;
                      width:0%;transition:width 0.4s;border-radius:8px;"></div>
             </div>
 
-            <!-- Stats chips -->
             <div id="bpStats" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
                 <span class="stat-chip" id="bpStatTotal">Total: 0</span>
                 <span class="stat-chip green" id="bpStatMatched">Matched: 0</span>
                 <span class="stat-chip orange" id="bpStatNotFound">Not found: 0</span>
-                <span class="stat-chip" id="bpStatDownloaded" style="background:#dcfce7;color:#166534;">Downloaded: 0</span>
-                <span class="stat-chip" id="bpStatFailed" style="background:#fef2f2;color:#dc2626;display:none;">Failed: 0</span>
+                <span class="stat-chip" id="bpStatRenamed" style="background:#dcfce7;color:#166534;">Renamed: 0</span>
+                <span class="stat-chip" id="bpStatNoFile" style="background:#fef2f2;color:#dc2626;display:none;">No PDF: 0</span>
             </div>
 
-            <!-- Row details (collapsible) -->
             <details style="margin-bottom:14px;">
                 <summary style="font-size:0.82rem;font-weight:700;color:#475569;cursor:pointer;">
                     View file details
@@ -473,16 +494,14 @@
                      font-size:0.78rem;border:1px solid #e2e8f0;border-radius:8px;"></div>
             </details>
 
-            <!-- Download ZIP button (hidden until ready) -->
             <div id="bpZipSection" style="display:none;background:#f0fdf4;border:1px solid #bbf7d0;
                  border-radius:10px;padding:14px;text-align:center;margin-bottom:14px;">
                 <div style="font-size:0.95rem;font-weight:800;color:#166534;margin-bottom:8px;">
                     ZIP Ready!
                 </div>
-                <button id="bpDownloadZip" onclick="downloadBulkZip()"
+                <button onclick="downloadBulkZip()"
                         style="background:#002d72;color:#fff;border:none;padding:12px 30px;border-radius:10px;
-                               font-family:'Inter',sans-serif;font-weight:700;font-size:0.92rem;cursor:pointer;
-                               transition:.2s;">
+                               font-family:'Inter',sans-serif;font-weight:700;font-size:0.92rem;cursor:pointer;">
                     📥 Download ZIP
                 </button>
             </div>
@@ -968,7 +987,7 @@ async function sendBillEmails() {
 }
 
 // ═══════════════════════════════════════════════════════
-//  BULK PDF DOWNLOADER (synchronous — single request)
+//  BULK PDF: Upload PDFs + Excel → Match + Rename + ZIP
 // ═══════════════════════════════════════════════════════
 let _bpJobId = null;
 
@@ -976,7 +995,9 @@ function openBulkPdfModal() {
     document.getElementById('bpUploadSection').style.display = '';
     document.getElementById('bpProgressSection').style.display = 'none';
     document.getElementById('bpExcelFile').value = '';
-    document.getElementById('bpFileName').textContent = 'No file selected';
+    document.getElementById('bpPdfFiles').value = '';
+    document.getElementById('bpFileName').textContent = 'No file';
+    document.getElementById('bpPdfCount').textContent = 'No files';
     document.getElementById('bpStartBtn').disabled = true;
     document.getElementById('bpStartBtn').style.opacity = '0.5';
     document.getElementById('bulkPdfModal').style.display = 'flex';
@@ -986,96 +1007,120 @@ function closeBulkPdfModal() {
     document.getElementById('bulkPdfModal').style.display = 'none';
 }
 
+function checkBpReady() {
+    const hasExcel = document.getElementById('bpExcelFile').files.length > 0;
+    const hasPdfs  = document.getElementById('bpPdfFiles').files.length > 0;
+    const btn = document.getElementById('bpStartBtn');
+    btn.disabled = !(hasExcel && hasPdfs);
+    btn.style.opacity = (hasExcel && hasPdfs) ? '1' : '0.5';
+}
+
 function onBpExcelSelected() {
     const f = document.getElementById('bpExcelFile').files[0];
     if (f) {
         document.getElementById('bpFileName').innerHTML =
             '<span style="color:#059669;">&#10003; ' + esc(f.name) + '</span>';
-        document.getElementById('bpStartBtn').disabled = false;
-        document.getElementById('bpStartBtn').style.opacity = '1';
     }
+    checkBpReady();
+}
+
+function onBpPdfsSelected() {
+    const files = document.getElementById('bpPdfFiles').files;
+    if (files.length) {
+        document.getElementById('bpPdfCount').innerHTML =
+            '<span style="color:#059669;">&#10003; ' + files.length + ' PDF files selected</span>';
+    }
+    checkBpReady();
 }
 
 async function startBulkPdf() {
-    const fileInput = document.getElementById('bpExcelFile');
-    const file = fileInput.files[0];
-    if (!file) return;
+    const excelFile = document.getElementById('bpExcelFile').files[0];
+    const pdfFiles  = document.getElementById('bpPdfFiles').files;
+    if (!excelFile || !pdfFiles.length) return;
 
-    const base64 = await new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.readAsDataURL(file);
-    });
-
-    // Show progress, hide upload
+    // Show progress
     document.getElementById('bpUploadSection').style.display = 'none';
     document.getElementById('bpProgressSection').style.display = '';
     document.getElementById('bpZipSection').style.display = 'none';
-    document.getElementById('bpPhaseLabel').textContent = 'Processing... please wait (downloading PDFs from BSNL)';
+    document.getElementById('bpPhaseLabel').textContent = 'Uploading files & processing...';
     document.getElementById('bpProgressBar').style.width = '30%';
     document.getElementById('bpProgressBar').style.background = 'linear-gradient(90deg,#059669,#10b981)';
     document.getElementById('bpStatTotal').textContent = 'Total: ...';
     document.getElementById('bpStatMatched').textContent = 'Matched: ...';
     document.getElementById('bpStatNotFound').textContent = 'Not found: ...';
-    document.getElementById('bpStatDownloaded').textContent = 'Downloaded: ...';
-    document.getElementById('bpStatFailed').style.display = 'none';
+    document.getElementById('bpStatRenamed').textContent = 'Renamed: ...';
+    document.getElementById('bpStatNoFile').style.display = 'none';
     document.getElementById('bpRowDetails').innerHTML = '';
 
     try {
-        const resp = await window.apiFetch('/api/bulk-pdf-job/start', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ excelBase64: base64 })
-        });
+        // Build FormData with excel + all PDFs
+        const fd = new FormData();
+        fd.append('excel', excelFile);
+        for (let i = 0; i < pdfFiles.length; i++) {
+            fd.append('pdfs', pdfFiles[i]);
+        }
+
+        const resp = await fetch(
+            (window.API_BASE_URL || '') + '/api/bulk-pdf-job/start',
+            {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + localStorage.getItem('crm_token') },
+                body: fd
+            }
+        );
         const d = await resp.json();
         if (!resp.ok) throw new Error(d.error || 'Failed');
 
         _bpJobId = d.jobId;
         document.getElementById('bpProgressBar').style.width = '100%';
 
-        // Update stats
+        // Stats
         document.getElementById('bpStatTotal').textContent = 'Total: ' + d.total;
         document.getElementById('bpStatMatched').textContent = 'Matched: ' + d.matched;
         document.getElementById('bpStatNotFound').textContent = 'Not found: ' + d.notFound;
-        document.getElementById('bpStatDownloaded').textContent = 'Downloaded: ' + d.downloaded;
-        if (d.dlFailed > 0) {
-            document.getElementById('bpStatFailed').style.display = '';
-            document.getElementById('bpStatFailed').textContent = 'Failed: ' + d.dlFailed;
+        document.getElementById('bpStatRenamed').textContent = 'Renamed: ' + d.renamed;
+        if (d.noFile > 0) {
+            document.getElementById('bpStatNoFile').style.display = '';
+            document.getElementById('bpStatNoFile').textContent = 'No PDF: ' + d.noFile;
         }
 
-        // Row details
+        // Row details table
         if (d.rowSummary && d.rowSummary.length) {
             let html = '<table style="width:100%;border-collapse:collapse;">';
-            html += '<tr style="background:#f8fafc;"><th style="padding:4px 8px;text-align:left;border-bottom:1px solid #e2e8f0;">Tel No</th>' +
-                    '<th style="padding:4px 8px;text-align:left;border-bottom:1px solid #e2e8f0;">Customer</th>' +
-                    '<th style="padding:4px 8px;text-align:left;border-bottom:1px solid #e2e8f0;">File Name</th>' +
-                    '<th style="padding:4px 8px;text-align:left;border-bottom:1px solid #e2e8f0;">Status</th></tr>';
+            html += '<tr style="background:#f8fafc;">' +
+                '<th style="padding:4px 8px;text-align:left;border-bottom:1px solid #e2e8f0;">Tel No</th>' +
+                '<th style="padding:4px 8px;text-align:left;border-bottom:1px solid #e2e8f0;">Customer</th>' +
+                '<th style="padding:4px 8px;text-align:left;border-bottom:1px solid #e2e8f0;">New Name</th>' +
+                '<th style="padding:4px 8px;text-align:left;border-bottom:1px solid #e2e8f0;">Status</th></tr>';
             d.rowSummary.forEach(r => {
-                const statusBadge = r.dlStatus === 'done'
-                    ? '<span style="color:#059669;font-weight:700;">&#10003; Done</span>'
-                    : r.dlStatus === 'failed'
-                    ? '<span style="color:#dc2626;font-weight:700;">&#10007; ' + esc(r.dlError || 'Failed') + '</span>'
-                    : r.status === 'not_found'
-                    ? '<span style="color:#f59e0b;font-weight:700;">Not found in DB</span>'
-                    : '<span style="color:#94a3b8;">—</span>';
+                let badge = '';
+                if (r.fileStatus === 'found') {
+                    badge = '<span style="color:#059669;font-weight:700;">&#10003; ' + esc(r.originalPdf) + ' &rarr; renamed</span>';
+                } else if (r.fileStatus === 'no_pdf') {
+                    badge = '<span style="color:#f59e0b;font-weight:700;">No matching PDF</span>';
+                } else if (r.status === 'not_found') {
+                    badge = '<span style="color:#dc2626;font-weight:700;">Not in DB</span>';
+                } else {
+                    badge = '<span style="color:#94a3b8;">—</span>';
+                }
                 html += '<tr style="border-bottom:1px solid #f1f5f9;">' +
                     '<td style="padding:4px 8px;">' + esc(r.telNo) + '</td>' +
                     '<td style="padding:4px 8px;">' + esc(r.customerName) + '</td>' +
                     '<td style="padding:4px 8px;font-size:0.75rem;color:#475569;">' + esc(r.filename) + '</td>' +
-                    '<td style="padding:4px 8px;">' + statusBadge + '</td></tr>';
+                    '<td style="padding:4px 8px;">' + badge + '</td></tr>';
             });
             html += '</table>';
             document.getElementById('bpRowDetails').innerHTML = html;
         }
 
         // Result
-        if (d.downloaded > 0 && d.zipReady) {
+        if (d.renamed > 0 && d.zipReady) {
             document.getElementById('bpZipSection').style.display = '';
             document.getElementById('bpPhaseLabel').innerHTML =
-                '<span style="color:#059669;">&#10003; ' + d.downloaded + ' PDFs downloaded and renamed. ZIP is ready!</span>';
+                '<span style="color:#059669;">&#10003; ' + d.renamed + ' PDFs matched & renamed. ZIP is ready!</span>';
         } else {
             document.getElementById('bpPhaseLabel').innerHTML =
-                '<span style="color:#dc2626;">Done. ' + d.downloaded + ' downloaded, ' + d.dlFailed + ' failed.</span>';
+                '<span style="color:#dc2626;">Done. ' + (d.renamed||0) + ' renamed, ' + (d.noFile||0) + ' had no matching PDF.</span>';
         }
     } catch(e) {
         document.getElementById('bpPhaseLabel').innerHTML =
@@ -1089,7 +1134,8 @@ async function startBulkPdf() {
 function downloadBulkZip() {
     if (!_bpJobId) return;
     const token = localStorage.getItem('crm_token');
-    const url = '/api/bulk-pdf-job/' + _bpJobId + '/zip?token=' + encodeURIComponent(token);
+    const base = (typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '');
+    const url = base + '/api/bulk-pdf-job/' + _bpJobId + '/zip?token=' + encodeURIComponent(token);
     window.open(url, '_blank');
 }
 

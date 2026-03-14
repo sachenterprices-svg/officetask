@@ -3555,37 +3555,68 @@ function downloadPdfBuffer(url, redirectCount = 0) {
     });
 }
 
-// ── BULK PDF JOB: Download + Rename + ZIP (synchronous, Vercel compatible) ──
-app.post('/api/bulk-pdf-job/start', authenticateToken, async (req, res) => {
-    const { excelBase64 } = req.body || {};
-    if (!excelBase64) return res.status(400).json({ error: 'No Excel file.' });
-    const jobId = `bulk_${Date.now()}_${Math.random().toString(36).substr(2,6)}`;
+// ── BULK PDF: Upload PDFs + Excel → Match + Rename + ZIP (Vercel compatible) ──
+// multer for bulk: excel (1 file) + pdfs (up to 500 files, 10MB each)
+const bulkPdfUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024, files: 510 }
+}).fields([
+    { name: 'excel', maxCount: 1 },
+    { name: 'pdfs', maxCount: 500 }
+]);
+
+app.post('/api/bulk-pdf-job/start', authenticateToken, (req, res, next) => {
+    bulkPdfUpload(req, res, (err) => {
+        if (err) return res.status(400).json({ error: 'Upload error: ' + err.message });
+        next();
+    });
+}, async (req, res) => {
     try {
-        // Run entire job synchronously within this request
+        const excelFile = req.files && req.files['excel'] && req.files['excel'][0];
+        const pdfFiles  = req.files && req.files['pdfs'] || [];
+        if (!excelFile) return res.status(400).json({ error: 'No Excel file uploaded.' });
+        if (!pdfFiles.length) return res.status(400).json({ error: 'No PDF files uploaded.' });
+
+        const jobId = `bulk_${Date.now()}_${Math.random().toString(36).substr(2,6)}`;
         const job = {
             jobId, total: 0, matched: 0, notFound: 0,
-            downloaded: 0, dlFailed: 0,
+            renamed: 0, noFile: 0,
             zipReady: false, zipPath: null,
             rows: [], errors: []
         };
 
-        // Step 1: Parse Excel + Match customers
+        // Step 1: Parse Excel — Column A = Telephone Number
         let workbook;
-        try { workbook = xlsx.read(Buffer.from(excelBase64, 'base64'), { type: 'buffer' }); }
+        try { workbook = xlsx.read(excelFile.buffer, { type: 'buffer' }); }
         catch(e) { return res.status(400).json({ error: 'Invalid Excel file.' }); }
 
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const allRows = xlsx.utils.sheet_to_json(sheet, { header: 1 });
         const dataRows = allRows.filter(r => {
             const tel = String(r[0]||'').trim();
-            const url = String(r[1]||'').trim();
-            return tel && url && /^\d/.test(tel);
+            return tel && /^\d/.test(tel);
         });
         job.total = dataRows.length;
 
+        // Build a lookup map: normalize tel number → PDF buffer
+        // PDF filenames from BSNL usually contain the telephone number
+        const pdfMap = new Map(); // normalized tel → { buffer, originalName }
+        for (const pf of pdfFiles) {
+            // Extract digits from filename to find tel number
+            const nameNoExt = (pf.originalname || '').replace(/\.pdf$/i, '');
+            const digits = nameNoExt.replace(/[^0-9-]/g, '').replace(/^-+|-+$/g, '');
+            if (digits) {
+                pdfMap.set(digits, { buffer: pf.buffer, originalName: pf.originalname });
+                // Also store without dashes
+                const noDash = digits.replace(/-/g, '');
+                if (noDash !== digits) pdfMap.set(noDash, { buffer: pf.buffer, originalName: pf.originalname });
+            }
+        }
+
+        // Step 2: Match each Excel row with DB + find matching PDF
         for (const row of dataRows) {
-            const telNo  = String(row[0]||'').trim();
-            const pdfUrl = String(row[1]||'').trim();
+            const telNo = String(row[0]||'').trim();
+            const telNoDash = telNo.replace(/-/g, '');
             try {
                 const [rows2] = await pool.query(
                     `SELECT c.customer_name, COALESCE(c.acc_person_email, c.email_id) AS email
@@ -3601,82 +3632,84 @@ app.post('/api/bulk-pdf-job/start', authenticateToken, async (req, res) => {
                 if (cust) {
                     const nameClean = cust.customer_name.replace(/[/\\?%*:|"<>&]/g,'_').replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,'');
                     const telClean  = telNo.replace(/[/\\?%*:|"<>&]/g,'-');
-                    job.rows.push({ telNo, pdfUrl, customerName: cust.customer_name, email: cust.email||'',
-                        filename: `${nameClean}_${telClean}.pdf`,
-                        status: 'matched', dlStatus: 'pending' });
-                    job.matched++;
+                    // Find matching PDF
+                    const pdf = pdfMap.get(telNo) || pdfMap.get(telNoDash);
+                    if (pdf) {
+                        job.rows.push({
+                            telNo, customerName: cust.customer_name, email: cust.email||'',
+                            filename: `${nameClean}_${telClean}.pdf`,
+                            originalPdf: pdf.originalName,
+                            pdfBuffer: pdf.buffer,
+                            status: 'matched', fileStatus: 'found'
+                        });
+                        job.matched++;
+                        job.renamed++;
+                    } else {
+                        job.rows.push({
+                            telNo, customerName: cust.customer_name, email: cust.email||'',
+                            filename: `${nameClean}_${telClean}.pdf`,
+                            status: 'matched', fileStatus: 'no_pdf'
+                        });
+                        job.matched++;
+                        job.noFile++;
+                    }
                 } else {
-                    job.rows.push({ telNo, pdfUrl, status: 'not_found', dlStatus: 'skipped' });
+                    job.rows.push({ telNo, status: 'not_found', fileStatus: 'skipped' });
                     job.notFound++;
                 }
             } catch(e) {
-                job.rows.push({ telNo, pdfUrl, status: 'error', dlStatus: 'skipped', dlError: e.message });
+                job.rows.push({ telNo, status: 'error', fileStatus: 'skipped', error: e.message });
             }
         }
 
-        // Step 2: Download PDFs to temp folder
+        // Step 3: Create ZIP of renamed PDFs
         const tempDir = path.join(os.tmpdir(), `bulk_${jobId}`);
         fs.mkdirSync(tempDir, { recursive: true });
-        const matchedRows = job.rows.filter(r => r.status === 'matched');
 
-        for (const row of matchedRows) {
-            try {
-                const buf = await downloadPdfBuffer(row.pdfUrl);
-                if (!buf || buf.length < 100 || buf.slice(0,4).toString('ascii') !== '%PDF') {
-                    row.dlStatus = 'failed'; row.dlError = 'Not a valid PDF';
-                    job.dlFailed++; continue;
-                }
-                const filePath = path.join(tempDir, row.filename);
-                fs.writeFileSync(filePath, buf);
-                row.localPath = filePath;
-                row.dlStatus = 'done';
-                job.downloaded++;
-            } catch(e) {
-                row.dlStatus = 'failed'; row.dlError = e.message;
-                job.dlFailed++;
+        const renamedRows = job.rows.filter(r => r.fileStatus === 'found' && r.pdfBuffer);
+        if (renamedRows.length > 0) {
+            // Write PDFs to temp
+            for (const r of renamedRows) {
+                fs.writeFileSync(path.join(tempDir, r.filename), r.pdfBuffer);
             }
-        }
 
-        // Step 3: Create ZIP
-        if (job.downloaded > 0) {
-            try {
-                const zipPath = path.join(os.tmpdir(), `Coral_Bills_${jobId}.zip`);
-                await new Promise((resolve, reject) => {
-                    const output = fs.createWriteStream(zipPath);
-                    const archive = archiver('zip', { zlib: { level: 6 } });
-                    output.on('close', resolve);
-                    archive.on('error', reject);
-                    archive.pipe(output);
-                    for (const r of matchedRows.filter(x => x.dlStatus === 'done')) {
-                        archive.file(r.localPath, { name: r.filename });
-                    }
-                    archive.finalize();
-                });
-                job.zipPath = zipPath;
-                job.zipReady = true;
-                bulkPdfJobs.set(jobId, job);  // store for ZIP download later
-                // Cleanup after 30 min
-                setTimeout(() => {
-                    try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch(e) {}
-                    try { if (job.zipPath) fs.unlinkSync(job.zipPath); } catch(e) {}
-                    bulkPdfJobs.delete(jobId);
-                }, 1800000);
-            } catch(e) { job.errors.push('ZIP failed: ' + e.message); }
+            const zipPath = path.join(os.tmpdir(), `Coral_Bills_${jobId}.zip`);
+            await new Promise((resolve, reject) => {
+                const output = fs.createWriteStream(zipPath);
+                const archive = archiver('zip', { zlib: { level: 6 } });
+                output.on('close', resolve);
+                archive.on('error', reject);
+                archive.pipe(output);
+                for (const r of renamedRows) {
+                    archive.file(path.join(tempDir, r.filename), { name: r.filename });
+                }
+                archive.finalize();
+            });
+            job.zipPath = zipPath;
+            job.zipReady = true;
+            bulkPdfJobs.set(jobId, job);
+            // Cleanup after 30 min
+            setTimeout(() => {
+                try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch(e) {}
+                try { if (job.zipPath) fs.unlinkSync(job.zipPath); } catch(e) {}
+                bulkPdfJobs.delete(jobId);
+            }, 1800000);
         } else {
-            // Cleanup temp dir
             try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch(e) {}
         }
 
-        // Return full result
+        // Clear pdfBuffer from response (too large)
         const rowSummary = job.rows.map(r => ({
             telNo: r.telNo, customerName: r.customerName||'', filename: r.filename||'',
-            email: r.email||'', status: r.status, dlStatus: r.dlStatus, dlError: r.dlError||''
+            email: r.email||'', status: r.status, fileStatus: r.fileStatus,
+            originalPdf: r.originalPdf||'', error: r.error||''
         }));
         res.json({
             success: true, jobId, status: 'done',
             total: job.total, matched: job.matched, notFound: job.notFound,
-            downloaded: job.downloaded, dlFailed: job.dlFailed,
+            renamed: job.renamed, noFile: job.noFile,
             zipReady: job.zipReady,
+            pdfCount: pdfFiles.length,
             rowSummary
         });
     } catch(e) {
