@@ -3478,6 +3478,105 @@ app.post('/api/bulk-pdf-process', authenticateToken, async (req, res) => {
     });
 });
 
+// ── BULK PDF PHASE 1: MATCH CUSTOMERS FROM EXCEL ─────────────────────────────
+app.post('/api/bulk-match-customers', authenticateToken, async (req, res) => {
+    const { excelBase64 } = req.body || {};
+    if (!excelBase64) return res.status(400).json({ error: 'No Excel file.' });
+    let workbook;
+    try { workbook = xlsx.read(Buffer.from(excelBase64, 'base64'), { type: 'buffer' }); }
+    catch(e) { return res.status(400).json({ error: 'Invalid Excel file.' }); }
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+    const dataRows = rows.filter((r, idx) => {
+        if (idx === 0) return /^\d/.test(String(r[0]||'').trim());
+        return r[0] && r[1];
+    });
+    if (!dataRows.length) return res.status(400).json({ error: 'No valid data rows found.' });
+    const results = [];
+    for (const row of dataRows) {
+        const telNo = String(row[0]||'').trim();
+        const pdfUrl = String(row[1]||'').trim();
+        if (!telNo) continue;
+        try {
+            const [rows2] = await pool.query(
+                `SELECT c.id, c.customer_name, c.circle, c.oa_name,
+                        COALESCE(c.acc_person_email, c.email_id) AS email
+                 FROM customers c
+                 INNER JOIN customer_lines cl ON cl.customer_id = c.id
+                 WHERE cl.telephone_number = ?
+                    OR CONCAT(cl.telephone_code, cl.telephone_number) = ?
+                    OR REPLACE(cl.telephone_number, '-', '') = REPLACE(?, '-', '')
+                 LIMIT 1`,
+                [telNo, telNo, telNo]
+            );
+            const cust = rows2[0] || null;
+            if (cust) {
+                const circleAbbr = (cust.circle||'UNKNW').replace(/\s/g,'').toUpperCase().substring(0,5);
+                const oaAbbr     = (cust.oa_name||'UNKNW').replace(/\s/g,'').toUpperCase().substring(0,5);
+                const telClean   = telNo.replace(/[/\\?%*:|"<>]/g,'-');
+                results.push({ telNo, pdfUrl, customerName: cust.customer_name,
+                    email: cust.email||'', circle: cust.circle, oa_name: cust.oa_name,
+                    suggestedFilename: `Coral_${telClean}_${circleAbbr}_${oaAbbr}.pdf`,
+                    status: 'matched' });
+            } else {
+                results.push({ telNo, pdfUrl, status: 'not_found' });
+            }
+        } catch(e) { results.push({ telNo, pdfUrl, status: 'error', reason: e.message }); }
+    }
+    res.json({ success: true, total: dataRows.length, results });
+});
+
+// ── BULK PDF PHASE 2: PROXY PDF DOWNLOAD ─────────────────────────────────────
+app.get('/api/proxy-pdf', authenticateToken, (req, res) => {
+    const { url } = req.query;
+    if (!url) return res.status(400).json({ error: 'URL required.' });
+    const doReq = (targetUrl) => {
+        const proto = targetUrl.startsWith('https') ? https : http;
+        const request = proto.get(targetUrl, { timeout: 30000 }, (response) => {
+            if (response.statusCode === 301 || response.statusCode === 302) {
+                doReq(response.headers.location); return;
+            }
+            if (response.statusCode !== 200) {
+                res.status(502).json({ error: `Server returned ${response.statusCode}` }); return;
+            }
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', 'attachment');
+            response.pipe(res);
+        });
+        request.on('error', (e) => { if (!res.headersSent) res.status(502).json({ error: e.message }); });
+        request.on('timeout', () => { request.destroy(); if (!res.headersSent) res.status(504).json({ error: 'Download timeout (30s)' }); });
+    };
+    doReq(url);
+});
+
+// ── BULK PDF PHASE 3: BATCH EMAIL SEND ────────────────────────────────────────
+app.post('/api/bulk-send-batch', authenticateToken, async (req, res) => {
+    const { items } = req.body || {};
+    if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'No items.' });
+    if (items.length > 10) return res.status(400).json({ error: 'Max 10 items per batch.' });
+    const results = [];
+    for (const item of items) {
+        const { email, customerName, filename, pdfBase64 } = item;
+        if (!email || !pdfBase64) {
+            results.push({ telNo: item.telNo, emailStatus: 'skipped', reason: !email ? 'No email address' : 'No PDF data' });
+            continue;
+        }
+        try {
+            await billMailTransporter.sendMail({
+                from: '"Coral Infratel Pvt. Ltd." <bsnlpribill@gmail.com>',
+                to: email.trim(),
+                subject: `Bill - ${customerName || ''}`,
+                text: `Dear ${customerName || 'Customer'},\n\nPlease find your bill attached.\n\nRegards,\nCoral Infratel Pvt. Ltd.`,
+                attachments: [{ filename: filename || 'bill.pdf', content: Buffer.from(pdfBase64, 'base64'), contentType: 'application/pdf' }]
+            });
+            results.push({ telNo: item.telNo, emailStatus: 'sent' });
+        } catch(e) {
+            results.push({ telNo: item.telNo, emailStatus: 'failed', reason: e.message });
+        }
+    }
+    res.json({ success: true, results });
+});
+
 // Support for both local development and Vercel Serverless Functions
 if (require.main === module) {
     app.listen(PORT, '0.0.0.0', async () => {
