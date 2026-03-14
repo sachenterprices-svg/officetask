@@ -3323,10 +3323,13 @@ function createZip(srcDir, destZip) {
 }
 
 // ── BULK PDF PROCESS ──────────────────────────────────────────────────────────
-const excelUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
-
-app.post('/api/bulk-pdf-process', authenticateToken, excelUpload.single('excelFile'), async (req, res) => {
-    if (!req.file) return res.status(400).json({ success: false, error: 'No Excel file uploaded.' });
+// Accepts JSON body with base64-encoded Excel (Vercel-compatible, no multer)
+app.post('/api/bulk-pdf-process', authenticateToken, async (req, res) => {
+    const { excelBase64 } = req.body || {};
+    if (!excelBase64) return res.status(400).json({ success: false, error: 'No Excel file uploaded.' });
+    const fileBuffer = Buffer.from(excelBase64, 'base64');
+    // Shim req.file so the rest of the function works unchanged
+    req.file = { buffer: fileBuffer };
 
     // Clean up old jobs (> 1 hour)
     const ONE_HOUR = 60 * 60 * 1000;
