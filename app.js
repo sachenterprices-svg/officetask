@@ -8,7 +8,8 @@ const nodemailer = require('nodemailer');
 const multer = require('multer');
 const xlsx = require('xlsx');
 const archiver = require('archiver');
-const pdfParse = require('pdf-parse');
+let pdfParse;
+try { pdfParse = require('pdf-parse'); } catch(e) { console.warn('pdf-parse not available:', e.message); }
 const os = require('os');
 const fs = require('fs');
 const http = require('http');
