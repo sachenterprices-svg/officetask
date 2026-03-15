@@ -3928,8 +3928,9 @@ app.post('/api/bulk-bill/upload-excel', authenticateToken, (req, res, next) => {
 // 2. Process batch — download 5 PDFs, match customer, save BLOB
 app.post('/api/bulk-bill/process-batch', authenticateToken, async (req, res) => {
     try {
+        // Pick 10 pending rows and process ALL in parallel
         const [pending] = await pool.query(
-            `SELECT id, telephone_number, pdf_link FROM bill_pdfs WHERE status='pending' LIMIT 5`
+            `SELECT id, telephone_number, pdf_link FROM bill_pdfs WHERE status='pending' LIMIT 10`
         );
         if (!pending.length) {
             const [counts] = await pool.query(
@@ -3940,12 +3941,13 @@ app.post('/api/bulk-bill/process-batch', authenticateToken, async (req, res) => 
             return res.json({ processed: 0, remaining: 0, done: true, stats });
         }
 
-        let processed = 0;
-        for (const row of pending) {
-            try {
-                // Mark as downloading
-                await pool.query(`UPDATE bill_pdfs SET status='downloading' WHERE id=?`, [row.id]);
+        // Mark all as downloading
+        const ids = pending.map(r => r.id);
+        await pool.query(`UPDATE bill_pdfs SET status='downloading' WHERE id IN (?)`, [ids]);
 
+        // Process all rows in PARALLEL (simultaneous downloads)
+        const results = await Promise.allSettled(pending.map(async (row) => {
+            try {
                 // Download PDF from BSNL link
                 let pdfBuffer;
                 try {
@@ -3955,7 +3957,7 @@ app.post('/api/bulk-bill/process-batch', authenticateToken, async (req, res) => 
                         `UPDATE bill_pdfs SET status='error', error_message=? WHERE id=?`,
                         ['Download failed: ' + dlErr.message, row.id]
                     );
-                    continue;
+                    return 'error';
                 }
 
                 // Match telephone with customer database
@@ -3988,21 +3990,23 @@ app.post('/api/bulk-bill/process-batch', authenticateToken, async (req, res) => 
                         [c.customer_id, c.customer_name, c.circle, c.oa_name, c.email, filename, pdfBuffer, row.id]
                     );
                 } else {
-                    // Not found in DB — save with telephone number only
                     const filename = `${telNo.replace(/[/\\?%*:|"<>&]/g, '-')}.pdf`;
                     await pool.query(
                         `UPDATE bill_pdfs SET status='not_found', renamed_filename=?, pdf_data=? WHERE id=?`,
                         [filename, pdfBuffer, row.id]
                     );
                 }
-                processed++;
+                return 'ok';
             } catch(rowErr) {
                 await pool.query(
                     `UPDATE bill_pdfs SET status='error', error_message=? WHERE id=?`,
                     ['Process error: ' + rowErr.message, row.id]
                 );
+                return 'error';
             }
-        }
+        }));
+
+        const processed = results.filter(r => r.status === 'fulfilled' && r.value === 'ok').length;
 
         // Get remaining count
         const [[{ cnt: remaining }]] = await pool.query(
