@@ -25,6 +25,28 @@
             transition: transform 0.3s;
         }
 
+        /* Sub-tiles (nested under parent) */
+        .sub-tile {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 14px 8px 28px;
+            margin: 2px 8px 2px 16px;
+            border-radius: 8px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: #475569;
+            text-decoration: none;
+            border-left: 2px solid #e2e8f0;
+            transition: background 0.15s, color 0.15s;
+        }
+        .sub-tile:hover {
+            background: #f1f5f9;
+            color: #002d72;
+            border-left-color: #002d72;
+        }
+        .sub-tile i { font-size: 0.95rem; }
+
         /* Non-permitted modules are hidden via JS */
 
         /* --- MAIN CONTENT AREA --- */
@@ -96,18 +118,72 @@
             box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
         }
 
-        .grand-summary-card {
-            background: white;
-            border: 2px solid #e2e8f0;
-            padding: 25px;
-            border-radius: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            grid-column: 1 / -1;
-            margin-top: 20px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        /* ── Welcome Banner ── */
+        .dash-banner {
+            background: #fff;
+            border-radius:16px; padding:24px 28px; margin-bottom:24px;
+            display:flex; justify-content:space-between; align-items:center;
+            position:relative; overflow:hidden;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            border: 1px solid #e2e8f0;
+            border-left: 4px solid #002d72;
         }
+        .dash-banner::after {
+            content:''; position:absolute; right:0; top:0; bottom:0; width:180px;
+            background: linear-gradient(90deg, transparent, rgba(239,246,255,0.6));
+            pointer-events:none;
+        }
+        .dash-banner-accent {
+            position:absolute; top:0; left:4px; right:0; height:3px;
+            background:linear-gradient(90deg, #60a5fa, #34d399, #fbbf24, #f87171);
+            opacity: 0.7;
+        }
+        .dash-banner-greeting { font-size:1.4rem; font-weight:800; color:#0f172a; margin:0 0 4px; }
+        .dash-banner-sub { font-size:0.83rem; color:#64748b; margin:0; font-weight:500; }
+        .dash-banner-right { text-align:right; z-index:1; }
+        .dash-banner-date { font-size:0.78rem; font-weight:600; color:#94a3b8; }
+        .dash-banner-time { font-size:1.6rem; font-weight:900; color:#002d72; letter-spacing:-0.5px; }
+
+        /* ── Section Label ── */
+        .dash-section-label { font-size:0.7rem; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:1.2px; margin:0 0 14px; display:flex; align-items:center; gap:10px; }
+        .dash-section-label::after { content:''; flex:1; height:1px; background:#e2e8f0; }
+
+        /* ── Alert Cards — Dynamic full-width grid (columns set by JS) ── */
+        .alert-grid {
+            display: grid;
+            gap: 12px;
+            margin-bottom: 28px;
+        }
+
+        /* ── Team Table ── */
+        .tasks-table-wrap { background:#fff; border-radius:16px; border:1px solid #e2e8f0; overflow:hidden; box-shadow:0 4px 16px rgba(0,0,0,0.06); margin-bottom:32px; }
+        .tasks-table { width:100%; border-collapse:collapse; }
+        .tasks-table thead { background:linear-gradient(135deg,#002d72 0%,#1e3a8a 100%); }
+        .tasks-table thead th { padding:14px 18px; text-align:left; font-size:0.7rem; font-weight:700; color:rgba(255,255,255,0.8); text-transform:uppercase; letter-spacing:0.8px; }
+        .tasks-table thead th.tc { text-align:center; }
+        .tasks-table tbody tr { border-bottom:1px solid #f1f5f9; transition:background 0.15s; cursor:pointer; }
+        .tasks-table tbody tr:hover { background:#f8faff; }
+        .tasks-table tbody tr:last-child { border-bottom:none; }
+        .tasks-table td { padding:14px 18px; font-size:0.87rem; color:#334155; vertical-align:middle; }
+        .tasks-table td.tc { text-align:center; }
+        .tasks-table tfoot { background:#f8fafc; border-top:2px solid #e2e8f0; }
+        .tasks-table tfoot td { padding:12px 18px; }
+        .member-cell { display:flex; align-items:center; gap:11px; }
+        .member-avatar { width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg,#002d72,#1e40af); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.78rem; flex-shrink:0; }
+        .member-name { font-weight:700; color:#1e293b; font-size:0.9rem; }
+
+        /* ── Stat Pills ── */
+        .stat-pill { display:inline-flex; align-items:center; justify-content:center; padding:4px 14px; border-radius:20px; font-weight:800; font-size:0.82rem; min-width:40px; }
+        .pill-red { background:#fef2f2; color:#dc2626; }
+        .pill-amber { background:#fffbeb; color:#d97706; }
+        .pill-green { background:#f0fdf4; color:#16a34a; }
+        .pill-navy { background:#eff6ff; color:#1d4ed8; }
+
+        /* ── Progress ── */
+        .prog-wrap { display:flex; align-items:center; gap:10px; }
+        .prog-track { background:#f1f5f9; border-radius:4px; height:7px; flex:1; max-width:110px; overflow:hidden; }
+        .prog-fill { height:100%; border-radius:4px; }
+        .prog-label { font-size:0.74rem; color:#94a3b8; font-weight:600; white-space:nowrap; }
     </style>
 </head>
 
@@ -115,8 +191,8 @@
 
     <header class="top-header">
         <div class="header-left" style="display: flex; align-items: center; gap: 20px;">
-            <div class="header-brand" style="color: var(--text-main); font-weight: 800; font-size: 1.6rem;">
-                <span style="color: #002d72;">Coral</span> <span style="color: #f97316;">Infratel</span>
+            <div class="header-brand">
+                <img src="assets/Coral Infratel logo.jpg" alt="Coral Infratel Pvt. Ltd." height="46" style="display:block; object-fit:contain;">
             </div>
             <div style="width: 2px; height: 30px; background: rgba(15, 23, 42, 0.1); border-radius: 2px;"></div>
             <div
@@ -154,17 +230,16 @@
                 </div>
             </a>
             <a href="recurring_tasks.html" class="module-tile admin-only" id="navRecurring" target="_blank">
-                <i>⏱️</i>
+                <i>📋</i>
                 <div class="tile-content">
-                    <h4>Recurring Tasks</h4>
+                    <h4>Daily Activity</h4>
                 </div>
             </a>
 
-
-            <a href="index.html" class="module-tile" id="navProposals" target="_blank">
-                <i>📝</i>
+            <a href="new_business.html" class="module-tile" id="navProposals" target="_blank">
+                <i>💼</i>
                 <div class="tile-content">
-                    <h4>BSNL Proposals</h4>
+                    <h4>New Business</h4>
                 </div>
             </a>
             <a href="erp_hub.html" class="module-tile" id="navMasters" target="_blank">
@@ -179,35 +254,60 @@
                     <h4>Complaints</h4>
                 </div>
             </a>
-            <a href="data_import.html" class="module-tile admin-only" id="navDataImport" target="_blank">
-                <i>🗄️</i>
-                <div class="tile-content">
-                    <h4>Data Import</h4>
-                </div>
-            </a>
         </aside>
 
         <main class="content-area">
-            <div class="container" style="padding: 40px;">
-                <div id="pendingTasksSection" style="text-align: left;">
-                    <h2
-                        style="font-weight: 800; color: #1e293b; margin-bottom: 20px; display: flex; align-items: center; gap: 15px;">
-                        <span>📋 Pending Tasks</span>
-                        <span id="taskCountBadge" class="mini-badge" style="display:none;">0</span>
-                    </h2>
+            <div style="padding:28px 32px;">
 
-                    <div id="tasksList"
-                        style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
-                        <!-- Tasks will load here -->
-                        <div id="noTasksPlaceholder"
-                            style="padding: 100px 40px; text-align: center; color: #94a3b8; grid-column: 1 / -1;">
-                            <div style="font-size: 4rem; margin-bottom: 20px;">✅</div>
-                            <h2 style="font-weight: 800; color: #10b981; margin-bottom: 10px;">All Tasks Complete</h2>
-                            <p style="font-size: 1.1rem; max-width: 500px; margin: 0 auto;">Great job! There are no
-                                pending records requiring your attention right now.</p>
-                        </div>
+                <!-- Welcome Banner -->
+                <div class="dash-banner">
+                    <div class="dash-banner-accent"></div>
+                    <div style="z-index:1;">
+                        <p class="dash-banner-greeting" id="dashGreeting">Good Morning ☀️</p>
+                        <p class="dash-banner-sub">🏢 Coral Infratel &nbsp;·&nbsp; Operations Dashboard</p>
+                        <p class="dash-banner-sub" id="dashWeather" style="margin-top:4px; font-size:0.8rem; color:#475569;"></p>
+                    </div>
+                    <div class="dash-banner-right">
+                        <div class="dash-banner-date" id="dashDate">—</div>
+                        <div class="dash-banner-time" id="dashTime">—</div>
+                    </div>
+                    <span id="taskCountBadge" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(249,115,22,0.9); backdrop-filter:blur(8px); color:#fff; font-size:0.84rem; font-weight:800; padding:8px 22px; border-radius:20px; border:1px solid rgba(255,255,255,0.3); white-space:nowrap; box-shadow:0 4px 16px rgba(249,115,22,0.4);">0 Pending Items</span>
+                </div>
+
+                <!-- Alert Cards -->
+                <div class="dash-section-label">⚡ Attention Required</div>
+                <div class="alert-grid" id="alertGrid">
+                    <!-- populated by JS -->
+                </div>
+
+                <!-- Team Tasks Section -->
+                <div id="teamSection" style="display:none;">
+                    <div class="dash-section-label">👥 Team Task Overview</div>
+                    <div class="tasks-table-wrap">
+                        <table class="tasks-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:30%;">Team Member</th>
+                                    <th class="tc">🔴 Overdue</th>
+                                    <th class="tc">🟡 Due Soon</th>
+                                    <th class="tc">🟢 On Track</th>
+                                    <th class="tc">Total</th>
+                                    <th>Task Distribution</th>
+                                </tr>
+                            </thead>
+                            <tbody id="teamTableBody"></tbody>
+                            <tfoot id="teamTableFoot"></tfoot>
+                        </table>
                     </div>
                 </div>
+
+                <!-- Empty State -->
+                <div id="noTasksPlaceholder" style="display:none; text-align:center; padding:80px 40px;">
+                    <div style="font-size:4rem; margin-bottom:16px;">✅</div>
+                    <h2 style="font-weight:800; color:#10b981; margin-bottom:8px;">All Clear!</h2>
+                    <p style="color:#94a3b8; font-size:1rem;">No pending items requiring attention right now.</p>
+                </div>
+
             </div>
         </main>
     </div>
@@ -220,24 +320,29 @@
                 return;
             }
 
-            // Welcome text is handled in userInfoDisplay row
+            // ✅ User name dynamically update karo
+            const displayName = user.name || user.username;
+            const displayRole = user.role === 'admin' ? 'Admin' : 'User';
+            document.getElementById('userInfoDisplay').textContent = `${displayName} (${displayRole})`;
 
-            // Admin Visibility
+            // ✅ Admin Visibility — show/hide admin-only modules
             if (user.role !== 'admin') {
                 document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+            } else {
+                document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'inline-block');
             }
 
-            // Permission Enforcement
-            enforcePermission('navUsers', 'admin');
-            enforcePermission('navWebsite', 'admin');
-            enforcePermission('navProposals', 'proposals');
-            enforcePermission('navComplaints', 'complaints');
-            enforcePermission('navMasters', 'customers');
+            // Permission Enforcement for non-admin users
+            if (user.role !== 'admin') {
+                enforcePermission('navProposals', 'proposals');
+                enforcePermission('navComplaints', 'complaints');
+                enforcePermission('navMasters', 'customers');
+            }
 
             function enforcePermission(id, perm) {
                 const el = document.getElementById(id);
                 if (el && !window.hasModuleAccess(perm)) {
-                    el.style.display = 'none'; // Completely hide non-permitted modules
+                    el.style.display = 'none';
                 }
             }
 
@@ -258,168 +363,240 @@
             } catch (err) { console.error('Pending items fetch error:', err); }
 
             function renderAllPendingItems(dashData, tasksData) {
-                const list = document.getElementById('tasksList');
-                const placeholder = document.getElementById('noTasksPlaceholder');
-                const badge = document.getElementById('taskCountBadge');
-
-                let html = '';
-                let total = 0;
-
-                // 1. Missing Customer Product Info
-                if (dashData.products > 0) {
-                    total += dashData.products;
-                    html += `
-                        <a href="customer_reports.html?type=customers&pending=products" target="_blank" style="text-decoration:none;">
-                            <div style="background: white; border: 2px solid #fee2e2; padding: 25px; border-radius: 16px; display: flex; align-items: center; gap: 20px; transition: 0.3s; cursor: pointer;" onmouseover="this.style.borderColor='#f87171'" onmouseout="this.style.borderColor='#fee2e2'">
-                                <div style="width: 60px; height: 60px; background: #fef2f2; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem;">📦</div>
-                                <div>
-                                    <h3 style="margin: 0; color: #991b1b; font-size: 1.2rem; font-weight: 800;">Pending Products</h3>
-                                    <p style="margin: 5px 0 0; color: #b91c1c; font-weight: 600; font-size: 1.1rem;">Missing Info: ${dashData.products}</p>
-                                </div>
-                            </div>
-                        </a>
-                    `;
-                }
-
-                // 2. Missing Telephone Info
-                if (dashData.lines > 0) {
-                    total += dashData.lines;
-                    html += `
-                        <a href="customer_reports.html?type=customers&pending=lines" target="_blank" style="text-decoration:none;">
-                            <div style="background: white; border: 2px solid #fff7ed; padding: 25px; border-radius: 16px; display: flex; align-items: center; gap: 20px; transition: 0.3s; cursor: pointer;" onmouseover="this.style.borderColor='#fb923c'" onmouseout="this.style.borderColor='#fff7ed'">
-                                <div style="width: 60px; height: 60px; background: #fff7ed; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem;">📞</div>
-                                <div>
-                                    <h3 style="margin: 0; color: #9a3412; font-size: 1.2rem; font-weight: 800;">Pending Telephone Lines</h3>
-                                    <p style="margin: 5px 0 0; color: #c2410c; font-weight: 600; font-size: 1.1rem;">Missing Info: ${dashData.lines}</p>
-                                </div>
-                            </div>
-                        </a>
-                    `;
-                }
-
-                // 3. Pending Complaints
-                if (dashData.complaints > 0) {
-                    total += dashData.complaints;
-                    html += `
-                        <a href="complaints.html" target="_blank" style="text-decoration:none;">
-                            <div style="background: white; border: 2px solid #ef4444; padding: 25px; border-radius: 16px; display: flex; align-items: center; gap: 20px; transition: 0.3s; cursor: pointer;" onmouseover="this.style.borderColor='#dc2626'" onmouseout="this.style.borderColor='#ef4444'">
-                                <div style="width: 60px; height: 60px; background: #fef2f2; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem;">🛠️</div>
-                                <div>
-                                    <h3 style="margin: 0; color: #991b1b; font-size: 1.2rem; font-weight: 800;">Pending Complaints</h3>
-                                    <p style="margin: 5px 0 0; color: #b91c1c; font-weight: 600; font-size: 1.1rem;">Active Tickets: ${dashData.complaints}</p>
-                                </div>
-                            </div>
-                        </a>
-                    `;
-                }
-
-                // 4. CRM Tasks (Pending or In Progress, grouped by user)
-                const activeTasks = tasksData.filter(t => t.status !== 'COMPLETED');
-                let globalTotals = { red: 0, yellow: 0, green: 0 };
-
-                if (activeTasks.length > 0) {
-                    total += activeTasks.length;
-
-                    const userTasks = {};
+                // ── Clock & Greeting ──────────────────────────────────
+                function updateClock() {
                     const now = new Date();
-                    now.setHours(0, 0, 0, 0);
-                    const inTwoDays = new Date(now);
-                    inTwoDays.setDate(inTwoDays.getDate() + 2);
+                    const h = now.getHours();
+                    document.getElementById('dashGreeting').textContent =
+                        (h < 12 ? 'Good Morning ☀️' : h < 17 ? 'Good Afternoon 🌤️' : 'Good Evening 🌙');
+                    document.getElementById('dashDate').textContent =
+                        now.toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric', timeZone:'Asia/Kolkata' });
+                    document.getElementById('dashTime').textContent =
+                        now.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:true, timeZone:'Asia/Kolkata' });
+                }
+                updateClock();
+                setInterval(updateClock, 60000);
 
-                    activeTasks.forEach(task => {
-                        const assignee = task.assigned_to || 'Unassigned';
-                        const displayName = task.assignee_name ? `${task.assignee_name} (${assignee})` : assignee;
+                // ── Live Weather + Location ─────────────────────────
+                (async function loadWeather() {
+                    const wEl = document.getElementById('dashWeather');
+                    try {
+                        // Get user location
+                        const pos = await new Promise((resolve, reject) => {
+                            if (!navigator.geolocation) return reject('no geo');
+                            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000 });
+                        });
+                        const lat = pos.coords.latitude.toFixed(4);
+                        const lon = pos.coords.longitude.toFixed(4);
 
-                        if (!userTasks[assignee]) {
-                            userTasks[assignee] = {
-                                name: displayName,
-                                total: 0,
-                                red: 0,
-                                yellow: 0,
-                                green: 0
-                            };
-                        }
+                        // Fetch weather from Open-Meteo (free, no API key)
+                        const wRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m&timezone=auto`);
+                        const wData = await wRes.json();
+                        const cur = wData.current;
+                        const temp = Math.round(cur.temperature_2m);
+                        const humidity = cur.relative_humidity_2m;
+                        const wind = Math.round(cur.wind_speed_10m);
+                        const wCode = cur.weather_code;
 
-                        userTasks[assignee].total++;
+                        // Weather code to description + icon
+                        const weatherMap = {
+                            0: ['Clear Sky', '☀️'], 1: ['Mostly Clear', '🌤️'], 2: ['Partly Cloudy', '⛅'],
+                            3: ['Overcast', '☁️'], 45: ['Foggy', '🌫️'], 48: ['Fog', '🌫️'],
+                            51: ['Light Drizzle', '🌦️'], 53: ['Drizzle', '🌦️'], 55: ['Heavy Drizzle', '🌧️'],
+                            61: ['Light Rain', '🌦️'], 63: ['Rain', '🌧️'], 65: ['Heavy Rain', '🌧️'],
+                            71: ['Light Snow', '🌨️'], 73: ['Snow', '❄️'], 75: ['Heavy Snow', '❄️'],
+                            80: ['Rain Showers', '🌦️'], 81: ['Showers', '🌧️'], 82: ['Heavy Showers', '⛈️'],
+                            95: ['Thunderstorm', '⛈️'], 96: ['Hail Storm', '⛈️'], 99: ['Severe Storm', '⛈️']
+                        };
+                        const [desc, icon] = weatherMap[wCode] || ['--', '🌡️'];
 
-                        if (task.due_date) {
-                            const dueDate = new Date(task.due_date);
-                            dueDate.setHours(0, 0, 0, 0);
+                        // Reverse geocode for location name
+                        let locName = '';
+                        try {
+                            const gRes = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=10`);
+                            const gData = await gRes.json();
+                            const addr = gData.address || {};
+                            locName = addr.city || addr.town || addr.village || addr.county || addr.state || '';
+                            if (addr.state && locName !== addr.state) locName += ', ' + addr.state;
+                        } catch(e) {}
 
-                            if (dueDate < now) {
-                                userTasks[assignee].red++;
-                                globalTotals.red++;
-                            } else if (dueDate <= inTwoDays) {
-                                userTasks[assignee].yellow++;
-                                globalTotals.yellow++;
-                            } else {
-                                userTasks[assignee].green++;
-                                globalTotals.green++;
-                            }
-                        } else {
-                            userTasks[assignee].green++;
-                            globalTotals.green++;
-                        }
-                    });
+                        wEl.innerHTML = `${icon} ${temp}°C &nbsp;·&nbsp; ${desc} &nbsp;·&nbsp; Humidity ${humidity}% &nbsp;·&nbsp; Wind ${wind} km/h` +
+                            (locName ? ` &nbsp;·&nbsp; 📍 ${locName}` : '');
+                    } catch(e) {
+                        wEl.textContent = '';
+                    }
+                })();
 
-                    Object.values(userTasks).forEach(user => {
-                        html += `
-                            <div style="background: white; border: 2px solid #e0e7ff; padding: 25px; border-radius: 16px; display: flex; align-items: center; gap: 20px; transition: 0.3s; cursor: pointer;" onmouseover="this.style.borderColor='#818cf8'" onmouseout="this.style.borderColor='#e0e7ff'" onclick="window.open('tasks.html', '_blank', 'width=800,height=800')">
-                                <div style="width: 60px; height: 60px; background: #eef2ff; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem;">👤</div>
-                                <div style="flex-grow: 1;">
-                                    <h3 style="margin: 0; color: #3730a3; font-size: 1.2rem; font-weight: 800;">📝 Tasks: ${user.name}</h3>
-                                    <div style="margin: 12px 0 0; display: flex; align-items: center; gap: 10px;">
-                                        <span class="badge-ide badge-red" title="Overdue">${user.red}</span>
-                                        <span class="badge-ide badge-yellow" title="Due Soon">${user.yellow}</span>
-                                        <span class="badge-ide badge-green" title="On Track">${user.green}</span>
-                                        <span style="margin-left:auto; color:#6366f1; font-weight:700; font-size:0.9rem;">Total: ${user.total}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    });
+                const badge   = document.getElementById('taskCountBadge');
+                const nowD    = new Date(); nowD.setHours(0,0,0,0);
+                const in2days = new Date(nowD); in2days.setDate(in2days.getDate() + 2);
 
-                    // Add Grand Total Summary Row
-                    html += `
-                        <div class="grand-summary-card">
-                            <div style="display:flex; align-items:center; gap:15px;">
-                                <div style="font-size:1.8rem;">📊</div>
-                                <div>
-                                    <h3 style="margin:0; font-weight:800; color:#1e293b;">Overall Task Summary</h3>
-                                    <p style="margin:0; font-size:0.85rem; color:#64748b; font-weight:600;">Cumulative status across all team members</p>
-                                </div>
-                            </div>
-                            <div style="display:flex; gap:30px; align-items:center;">
-                                <div style="text-align:center;">
-                                    <div class="badge-ide badge-red" style="padding:10px 20px; border-radius:10px; font-size:1.1rem;">${globalTotals.red}</div>
-                                    <div style="margin-top:5px; font-size:0.7rem; font-weight:800; color:#991b1b; text-transform:uppercase;">Overdue</div>
-                                </div>
-                                <div style="text-align:center;">
-                                    <div class="badge-ide badge-yellow" style="padding:10px 20px; border-radius:10px; font-size:1.1rem;">${globalTotals.yellow}</div>
-                                    <div style="margin-top:5px; font-size:0.7rem; font-weight:800; color:#854d0e; text-transform:uppercase;">Due Soon</div>
-                                </div>
-                                <div style="text-align:center;">
-                                    <div class="badge-ide badge-green" style="padding:10px 20px; border-radius:10px; font-size:1.1rem;">${globalTotals.green}</div>
-                                    <div style="margin-top:5px; font-size:0.7rem; font-weight:800; color:#166534; text-transform:uppercase;">On Track</div>
-                                </div>
-                                <div style="width:2px; height:40px; background:#e2e8f0; margin:0 10px;"></div>
-                                <div style="text-align:right;">
-                                    <div style="font-size:1.8rem; font-weight:900; color:#1e293b;">${globalTotals.red + globalTotals.yellow + globalTotals.green}</div>
-                                    <div style="font-size:0.7rem; font-weight:800; color:#64748b; text-transform:uppercase;">Grand Total</div>
-                                </div>
-                            </div>
+                // ── Build user task stats ─────────────────────────────
+                const activeTasks = tasksData.filter(t => t.status !== 'COMPLETED');
+                const userTasks   = {};
+                const GT          = { red:0, yellow:0, green:0 };
+
+                activeTasks.forEach(task => {
+                    const key  = task.assigned_to || 'Unassigned';
+                    const name = task.assignee_name || key;
+                    if (!userTasks[key]) userTasks[key] = { name, total:0, red:0, yellow:0, green:0 };
+                    userTasks[key].total++;
+                    if (task.due_date) {
+                        const d = new Date(task.due_date); d.setHours(0,0,0,0);
+                        if      (d < nowD)     { userTasks[key].red++;    GT.red++;    }
+                        else if (d <= in2days) { userTasks[key].yellow++; GT.yellow++; }
+                        else                   { userTasks[key].green++;  GT.green++;  }
+                    } else { userTasks[key].green++; GT.green++; }
+                });
+
+                const totalTasks = activeTasks.length;
+                const grandTotal = totalTasks + (dashData.products||0) + (dashData.lines||0) + (dashData.complaints||0);
+                badge.textContent = grandTotal + ' Pending Items';
+                badge.style.display = grandTotal > 0 ? 'inline-block' : 'none';
+
+                // ── Alert Cards (Light Pastel Theme) ─────────────────
+                // ✅ Naya card add karne ke liye: { accent, lightBg, iconBg, numColor, dotColor, btnBg, btnColor, icon, value, label, sub, btnText, href, zero } add karo
+                const cards = [
+                    {
+                        accent: '#ef4444', lightBg: '#fff5f5',
+                        iconBg: '#fee2e2', numColor: '#dc2626',
+                        dotColor: '#fca5a5', btnBg: '#fee2e2', btnColor: '#b91c1c',
+                        icon: '🛠️',
+                        value: dashData.complaints||0,
+                        label: 'Active Complaints',
+                        sub: 'Requires resolution',
+                        btnText: '→ Manage',
+                        href: 'complaints.html',
+                        zero: (dashData.complaints||0) === 0
+                    },
+                    {
+                        accent: '#f59e0b', lightBg: '#fffbeb',
+                        iconBg: '#fde68a', numColor: '#d97706',
+                        dotColor: '#fbbf24', btnBg: '#fde68a', btnColor: '#92400e',
+                        icon: '📦',
+                        value: dashData.products||0,
+                        label: 'Pending Products',
+                        sub: 'Missing product info',
+                        btnText: '→ Fix Now',
+                        href: 'customer_reports.html?type=customers&pending=products',
+                        zero: (dashData.products||0) === 0
+                    },
+                    {
+                        accent: '#f97316', lightBg: '#fff7ed',
+                        iconBg: '#fed7aa', numColor: '#ea580c',
+                        dotColor: '#fb923c', btnBg: '#fed7aa', btnColor: '#9a3412',
+                        icon: '📞',
+                        value: dashData.lines||0,
+                        label: 'Pending Lines',
+                        sub: 'Missing telephone info',
+                        btnText: '→ Fix Now',
+                        href: 'customer_reports.html?type=customers&pending=lines',
+                        zero: (dashData.lines||0) === 0
+                    },
+                    {
+                        accent: '#3b82f6', lightBg: '#eff6ff',
+                        iconBg: '#bfdbfe', numColor: '#1d4ed8',
+                        dotColor: '#93c5fd', btnBg: '#bfdbfe', btnColor: '#1e40af',
+                        icon: '📋',
+                        value: totalTasks,
+                        label: 'Active Tasks',
+                        sub: GT.red > 0 ? `⚠️ ${GT.red} overdue` : '✅ All on track',
+                        btnText: '→ View Tasks',
+                        href: 'tasks.html',
+                        zero: totalTasks === 0
+                    }
+                ];
+
+                // Dynamic columns: ≤6 → single row, >6 → 2 rows with equal cols
+                const alertGrid = document.getElementById('alertGrid');
+                const cols = cards.length <= 6 ? cards.length : Math.ceil(cards.length / 2);
+                alertGrid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
+                alertGrid.innerHTML = cards.map(c => {
+                    const bg      = c.zero ? '#fff'       : c.lightBg;
+                    const numClr  = c.zero ? '#10b981'    : c.numColor;
+                    const lblClr  = c.zero ? '#94a3b8'    : '#475569';
+                    const subClr  = c.zero ? '#10b981'    : '#64748b';
+                    const icoClr  = c.zero ? '#f1f5f9'    : c.iconBg;
+                    const bBg     = c.zero ? '#f0fdf4'    : c.btnBg;
+                    const bClr    = c.zero ? '#16a34a'    : c.btnColor;
+                    const dot     = c.zero ? '#10b981'    : c.dotColor;
+                    const brd     = c.zero ? '#e2e8f0'    : c.accent + '55';
+                    const subTxt  = c.zero ? '✅ All clear': c.sub;
+                    return `
+                    <div onclick="window.open('${c.href}','_blank')"
+                         style="background:${bg}; border-radius:12px; padding:14px 16px; cursor:pointer; min-width:0;
+                                box-shadow:0 2px 8px rgba(0,0,0,0.06); transition:transform 0.2s,box-shadow 0.2s;
+                                border:1px solid ${brd}; border-top:3px solid ${c.zero?'#10b981':c.accent};
+                                display:flex; flex-direction:column; gap:8px;"
+                         onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 18px rgba(0,0,0,0.1)'"
+                         onmouseout="this.style.transform='';this.style.boxShadow='0 2px 8px rgba(0,0,0,0.06)'">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <div style="width:34px;height:34px;border-radius:8px;background:${icoClr};display:flex;align-items:center;justify-content:center;font-size:1rem;">${c.icon}</div>
+                            <div style="width:7px;height:7px;border-radius:50%;background:${dot};box-shadow:0 0 0 2px ${dot}44;"></div>
                         </div>
-                    `;
+                        <div>
+                            <div style="font-size:2rem;font-weight:900;line-height:1;color:${numClr};letter-spacing:-1px;">${c.value}</div>
+                            <div style="font-size:0.72rem;font-weight:700;color:${lblClr};text-transform:uppercase;letter-spacing:0.5px;margin-top:3px;">${c.label}</div>
+                            <div style="font-size:0.7rem;color:${subClr};margin-top:2px;font-weight:500;">${subTxt}</div>
+                        </div>
+                        <div style="display:inline-flex;align-items:center;gap:4px;font-size:0.7rem;font-weight:700;padding:4px 10px;border-radius:6px;background:${bBg};color:${bClr};width:fit-content;">${c.btnText}</div>
+                    </div>`;
+                }).join('');
+                // (alertGrid was already selected above)
+
+                // ── Team Tasks Table ──────────────────────────────────
+                const teamSection = document.getElementById('teamSection');
+                if (Object.keys(userTasks).length > 0) {
+                    teamSection.style.display = 'block';
+                    const maxTotal = Math.max(...Object.values(userTasks).map(u => u.total), 1);
+
+                    document.getElementById('teamTableBody').innerHTML =
+                        Object.entries(userTasks).map(([uid, u]) => {
+                            const userUrl = 'tasks.html?user=' + encodeURIComponent(uid) + '&name=' + encodeURIComponent(u.name);
+                            const initials  = u.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+                            const redW  = Math.round((u.red/maxTotal)*100);
+                            const yelW  = Math.round((u.yellow/maxTotal)*100);
+                            const grnW  = Math.round((u.green/maxTotal)*100);
+                            return `
+                                <tr onclick="window.open(userUrl,'_blank','width=1000,height=800')" style="cursor:pointer;">
+                                    <td>
+                                        <div class="member-cell">
+                                            <div class="member-avatar">${initials}</div>
+                                            <div>
+                                                <div class="member-name">${u.name}</div>
+                                                <div style="font-size:0.72rem;color:#94a3b8;">${u.red>0?'⚠️ Has overdue tasks':'✅ No overdue'}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="tc"><span class="stat-pill pill-red">${u.red}</span></td>
+                                    <td class="tc"><span class="stat-pill pill-amber">${u.yellow}</span></td>
+                                    <td class="tc"><span class="stat-pill pill-green">${u.green}</span></td>
+                                    <td class="tc"><span class="stat-pill pill-navy">${u.total}</span></td>
+                                    <td style="min-width:160px;">
+                                        <div style="display:flex;height:10px;border-radius:6px;overflow:hidden;gap:2px;">
+                                            ${u.red>0    ? `<div style="width:${redW}%;background:#ef4444;border-radius:6px;" title="Overdue: ${u.red}"></div>` : ''}
+                                            ${u.yellow>0 ? `<div style="width:${yelW}%;background:#f59e0b;border-radius:6px;" title="Due Soon: ${u.yellow}"></div>` : ''}
+                                            ${u.green>0  ? `<div style="width:${grnW}%;background:#10b981;border-radius:6px;" title="On Track: ${u.green}"></div>` : ''}
+                                        </div>
+                                    </td>
+                                </tr>`;
+                        }).join('');
+
+                    document.getElementById('teamTableFoot').innerHTML = `
+                        <tr>
+                            <td style="font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Team Total</td>
+                            <td class="tc"><span class="stat-pill pill-red">${GT.red}</span></td>
+                            <td class="tc"><span class="stat-pill pill-amber">${GT.yellow}</span></td>
+                            <td class="tc"><span class="stat-pill pill-green">${GT.green}</span></td>
+                            <td class="tc"><span class="stat-pill pill-navy">${totalTasks}</span></td>
+                            <td style="font-size:0.78rem;color:${GT.red>0?'#ef4444':'#10b981'};font-weight:700;">
+                                ${GT.red>0 ? `⚠️ ${GT.red} task(s) overdue — action needed` : '✅ All tasks on track'}
+                            </td>
+                        </tr>`;
                 }
 
-                if (total > 0) {
-                    list.innerHTML = html;
-                    badge.textContent = total;
-                    badge.style.display = 'block';
-                } else {
-                    placeholder.style.display = 'block';
-                    badge.style.display = 'none';
-                }
+                if (grandTotal === 0) document.getElementById('noTasksPlaceholder').style.display = 'block';
             }
         });
     </script>
