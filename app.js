@@ -681,6 +681,34 @@ async function initializeAnalyticsTable() {
     }
 }
 
+// ── BILL PDFS TABLE (Bulk bill download & email system) ──
+async function initBillPdfsTable() {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS bill_pdfs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                batch_id VARCHAR(100),
+                telephone_number VARCHAR(100),
+                pdf_link TEXT,
+                customer_id INT DEFAULT NULL,
+                customer_name VARCHAR(255) DEFAULT NULL,
+                circle VARCHAR(100) DEFAULT NULL,
+                oa_name VARCHAR(100) DEFAULT NULL,
+                email VARCHAR(150) DEFAULT NULL,
+                renamed_filename VARCHAR(500),
+                pdf_data LONGBLOB,
+                status ENUM('pending','downloading','matched','not_found','error') DEFAULT 'pending',
+                email_sent BOOLEAN DEFAULT FALSE,
+                error_message TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB
+        `);
+        console.log('✅ Bill PDFs table initialized.');
+    } catch (err) {
+        console.error('⚠️ Could not initialize bill_pdfs table:', err.message);
+    }
+}
+
 async function upgradeCustomersTable() {
     try {
         const [rows] = await pool.query(`
@@ -3242,6 +3270,7 @@ async function startupChecks() {
     await initializeAnalyticsTable();
     await initializeSystemLogsTable();
     await initializeWebsiteContentTable();
+    await initBillPdfsTable();
     await initializeAdmin();
     console.log('🚀 [READY] All startup checks complete. Server is fully ready!');
 }
@@ -3813,6 +3842,293 @@ app.get('/api/bulk-pdf-job/:jobId/zip', (req, res, next) => {
     res.setHeader('Content-Disposition', `attachment; filename="${zipName}"`);
     res.setHeader('Content-Type', 'application/zip');
     fs.createReadStream(job.zipPath).pipe(res);
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── BULK BILL SYSTEM: Excel upload → PDF download → Rename → ZIP → Email ──
+// ══════════════════════════════════════════════════════════════════════════════
+
+const bulkBillUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }).single('excel');
+
+// 1. Upload Excel → Parse → Insert rows into bill_pdfs
+app.post('/api/bulk-bill/upload-excel', authenticateToken, (req, res, next) => {
+    bulkBillUpload(req, res, (err) => {
+        if (err) return res.status(400).json({ error: 'Upload error: ' + err.message });
+        next();
+    });
+}, async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'No Excel file uploaded.' });
+
+        let workbook;
+        try { workbook = xlsx.read(req.file.buffer, { type: 'buffer' }); }
+        catch(e) { return res.status(400).json({ error: 'Invalid Excel file.' }); }
+
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const allRows = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+
+        // Skip header row, filter valid rows (col0 = phone, col1 = link)
+        const dataRows = [];
+        for (let i = 0; i < allRows.length; i++) {
+            const r = allRows[i];
+            const phone = String(r[0] || '').trim();
+            const link = String(r[1] || '').trim();
+            if (!phone || !link) continue;
+            if (i === 0 && (phone.toUpperCase().includes('PHONE') || phone.toUpperCase().includes('TEL'))) continue;
+            if (!link.startsWith('http')) continue;
+            dataRows.push({ phone, link });
+        }
+
+        if (!dataRows.length) return res.status(400).json({ error: 'No valid rows found in Excel.' });
+
+        const batchId = `bill_${Date.now()}`;
+
+        // Delete old data
+        await pool.query('DELETE FROM bill_pdfs');
+
+        // Insert new rows
+        const values = dataRows.map(r => [batchId, r.phone, r.link, 'pending']);
+        const placeholders = values.map(() => '(?,?,?,?)').join(',');
+        const flat = values.flat();
+        await pool.query(
+            `INSERT INTO bill_pdfs (batch_id, telephone_number, pdf_link, status) VALUES ${placeholders}`,
+            flat
+        );
+
+        res.json({ success: true, batchId, total: dataRows.length, inserted: dataRows.length });
+    } catch(e) {
+        res.status(500).json({ error: 'Upload failed: ' + e.message });
+    }
+});
+
+// 2. Process batch — download 5 PDFs, match customer, save BLOB
+app.post('/api/bulk-bill/process-batch', authenticateToken, async (req, res) => {
+    try {
+        const [pending] = await pool.query(
+            `SELECT id, telephone_number, pdf_link FROM bill_pdfs WHERE status='pending' LIMIT 5`
+        );
+        if (!pending.length) {
+            const [counts] = await pool.query(
+                `SELECT status, COUNT(*) as cnt FROM bill_pdfs GROUP BY status`
+            );
+            const stats = {};
+            counts.forEach(r => { stats[r.status] = r.cnt; });
+            return res.json({ processed: 0, remaining: 0, done: true, stats });
+        }
+
+        let processed = 0;
+        for (const row of pending) {
+            try {
+                // Mark as downloading
+                await pool.query(`UPDATE bill_pdfs SET status='downloading' WHERE id=?`, [row.id]);
+
+                // Download PDF from BSNL link
+                let pdfBuffer;
+                try {
+                    pdfBuffer = await downloadPdfBuffer(row.pdf_link);
+                } catch(dlErr) {
+                    await pool.query(
+                        `UPDATE bill_pdfs SET status='error', error_message=? WHERE id=?`,
+                        ['Download failed: ' + dlErr.message, row.id]
+                    );
+                    continue;
+                }
+
+                // Match telephone with customer database
+                const telNo = row.telephone_number;
+                const telNoDash = telNo.replace(/-/g, '');
+                const [custRows] = await pool.query(
+                    `SELECT c.id as customer_id, c.customer_name, c.circle, c.oa_name,
+                            COALESCE(c.acc_person_email, c.email_id) AS email
+                     FROM customers c
+                     INNER JOIN customer_lines cl ON cl.customer_id = c.id
+                     WHERE cl.telephone_number = ?
+                        OR CONCAT(cl.telephone_code, cl.telephone_number) = ?
+                        OR REPLACE(cl.telephone_number, '-', '') = ?
+                        OR cl.telephone_number = ?
+                     LIMIT 1`,
+                    [telNo, telNo, telNoDash, telNoDash]
+                );
+
+                if (custRows.length > 0) {
+                    const c = custRows[0];
+                    const nameClean = (c.customer_name || '').replace(/[/\\?%*:|"<>&]/g, '_').replace(/\s+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+                    const telClean = telNo.replace(/[/\\?%*:|"<>&]/g, '-');
+                    const circleClean = (c.circle || '').replace(/[/\\?%*:|"<>&]/g, '_').replace(/\s+/g, '_');
+                    const oaClean = (c.oa_name || '').replace(/[/\\?%*:|"<>&]/g, '_').replace(/\s+/g, '_');
+                    const filename = `${nameClean}_${telClean}_${circleClean}_${oaClean}.pdf`;
+
+                    await pool.query(
+                        `UPDATE bill_pdfs SET status='matched', customer_id=?, customer_name=?, circle=?,
+                         oa_name=?, email=?, renamed_filename=?, pdf_data=? WHERE id=?`,
+                        [c.customer_id, c.customer_name, c.circle, c.oa_name, c.email, filename, pdfBuffer, row.id]
+                    );
+                } else {
+                    // Not found in DB — save with telephone number only
+                    const filename = `${telNo.replace(/[/\\?%*:|"<>&]/g, '-')}.pdf`;
+                    await pool.query(
+                        `UPDATE bill_pdfs SET status='not_found', renamed_filename=?, pdf_data=? WHERE id=?`,
+                        [filename, pdfBuffer, row.id]
+                    );
+                }
+                processed++;
+            } catch(rowErr) {
+                await pool.query(
+                    `UPDATE bill_pdfs SET status='error', error_message=? WHERE id=?`,
+                    ['Process error: ' + rowErr.message, row.id]
+                );
+            }
+        }
+
+        // Get remaining count
+        const [[{ cnt: remaining }]] = await pool.query(
+            `SELECT COUNT(*) as cnt FROM bill_pdfs WHERE status='pending'`
+        );
+
+        res.json({ processed, remaining, done: remaining === 0 });
+    } catch(e) {
+        res.status(500).json({ error: 'Batch failed: ' + e.message });
+    }
+});
+
+// 3. Status — progress counts
+app.get('/api/bulk-bill/status', authenticateToken, async (req, res) => {
+    try {
+        const [counts] = await pool.query(
+            `SELECT status, COUNT(*) as cnt FROM bill_pdfs GROUP BY status`
+        );
+        const stats = { total: 0, pending: 0, downloading: 0, matched: 0, not_found: 0, error: 0 };
+        counts.forEach(r => { stats[r.status] = r.cnt; stats.total += r.cnt; });
+
+        // Email stats
+        const [[emailStats]] = await pool.query(
+            `SELECT COUNT(*) as total, SUM(email_sent) as sent
+             FROM bill_pdfs WHERE status='matched' AND email IS NOT NULL AND email != ''`
+        );
+
+        res.json({ ...stats, emailTotal: emailStats.total || 0, emailSent: emailStats.sent || 0 });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 4. Download ZIP — all PDFs (matched + not_found)
+app.get('/api/bulk-bill/download-zip', (req, res, next) => {
+    if (!req.headers['authorization'] && req.query.token) {
+        req.headers['authorization'] = 'Bearer ' + req.query.token;
+    }
+    authenticateToken(req, res, next);
+}, async (req, res) => {
+    try {
+        const [rows] = await pool.query(
+            `SELECT renamed_filename, pdf_data FROM bill_pdfs WHERE pdf_data IS NOT NULL`
+        );
+        if (!rows.length) return res.status(404).json({ error: 'No PDFs available for download.' });
+
+        const zipName = `Coral_Bills_${new Date().toISOString().slice(0, 10)}.zip`;
+        res.setHeader('Content-Disposition', `attachment; filename="${zipName}"`);
+        res.setHeader('Content-Type', 'application/zip');
+
+        const archive = archiver('zip', { zlib: { level: 6 } });
+        archive.on('error', (err) => { res.status(500).end(); });
+        archive.pipe(res);
+
+        for (const r of rows) {
+            if (r.pdf_data && r.renamed_filename) {
+                archive.append(r.pdf_data, { name: r.renamed_filename });
+            }
+        }
+        archive.finalize();
+    } catch(e) {
+        res.status(500).json({ error: 'ZIP failed: ' + e.message });
+    }
+});
+
+// 5. Send email batch — 3 at a time
+app.post('/api/bulk-bill/send-email-batch', authenticateToken, async (req, res) => {
+    try {
+        const billingMonth = req.body.billing_month || new Date().toLocaleString('en', { month: 'long' });
+        const billingYear = req.body.billing_year || new Date().getFullYear();
+        const subject = req.body.subject || `BSNL PBX Bill — ${billingMonth} ${billingYear}`;
+        const customMessage = req.body.message || '';
+
+        const [pending] = await pool.query(
+            `SELECT id, customer_name, email, renamed_filename, pdf_data, telephone_number
+             FROM bill_pdfs
+             WHERE status='matched' AND email_sent=false AND email IS NOT NULL AND email != ''
+             LIMIT 3`
+        );
+        if (!pending.length) {
+            return res.json({ sent: 0, remaining: 0, done: true });
+        }
+
+        let sent = 0;
+        for (const row of pending) {
+            try {
+                const emails = row.email.split(',').map(e => e.trim()).filter(e => e);
+                if (!emails.length) {
+                    await pool.query(`UPDATE bill_pdfs SET email_sent=true WHERE id=?`, [row.id]);
+                    continue;
+                }
+
+                const htmlBody = `
+                    <div style="font-family:Arial,sans-serif;max-width:600px;">
+                        <h2 style="color:#002d72;">BSNL PBX Bill — ${billingMonth} ${billingYear}</h2>
+                        <p>Dear <strong>${row.customer_name || 'Customer'}</strong>,</p>
+                        <p>Please find attached your BSNL PBX bill for <strong>${billingMonth} ${billingYear}</strong>
+                           (Telephone: ${row.telephone_number}).</p>
+                        ${customMessage ? '<p>' + customMessage + '</p>' : ''}
+                        <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">
+                        <p style="color:#64748b;font-size:12px;">
+                            Coral Infratel Pvt. Ltd.<br>
+                            This is an automated email from CRM system.
+                        </p>
+                    </div>`;
+
+                await billMailTransporter.sendMail({
+                    from: '"Coral Infratel" <bsnlpribill@gmail.com>',
+                    to: emails.join(','),
+                    subject,
+                    html: htmlBody,
+                    attachments: row.pdf_data ? [{
+                        filename: row.renamed_filename || 'bill.pdf',
+                        content: row.pdf_data,
+                        contentType: 'application/pdf'
+                    }] : []
+                });
+
+                await pool.query(`UPDATE bill_pdfs SET email_sent=true WHERE id=?`, [row.id]);
+                sent++;
+            } catch(mailErr) {
+                await pool.query(
+                    `UPDATE bill_pdfs SET error_message=? WHERE id=?`,
+                    ['Email error: ' + mailErr.message, row.id]
+                );
+            }
+        }
+
+        const [[{ cnt: remaining }]] = await pool.query(
+            `SELECT COUNT(*) as cnt FROM bill_pdfs
+             WHERE status='matched' AND email_sent=false AND email IS NOT NULL AND email != ''`
+        );
+
+        res.json({ sent, remaining, done: remaining === 0 });
+    } catch(e) {
+        res.status(500).json({ error: 'Email batch failed: ' + e.message });
+    }
+});
+
+// 6. Email status
+app.get('/api/bulk-bill/email-status', authenticateToken, async (req, res) => {
+    try {
+        const [[stats]] = await pool.query(
+            `SELECT COUNT(*) as total, SUM(email_sent) as sent
+             FROM bill_pdfs WHERE status='matched' AND email IS NOT NULL AND email != ''`
+        );
+        res.json({ total: stats.total || 0, sent: stats.sent || 0, remaining: (stats.total || 0) - (stats.sent || 0) });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
 // Catch-all route to serve the frontend — MUST be LAST
