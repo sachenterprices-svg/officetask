@@ -133,6 +133,21 @@
             line-height: 1.5;
         }
 
+        .alert-duplicate {
+            background: #fffbeb;
+            color: #92400e;
+            border: 1px solid #fde68a;
+            text-align: left;
+            line-height: 1.8;
+        }
+
+        .alert-duplicate .dup-ticket {
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: #002d72;
+            letter-spacing: 0.5px;
+        }
+
         .fetch-status {
             font-size: 0.8rem;
             color: #64748b;
@@ -196,7 +211,7 @@
     <header class="header-simple">
         <div class="header-container">
             <a href="index.html" class="header-logo">
-                <img src="https://coralinfratel.com/wp-content/uploads/2021/05/coral-logo.png" alt="Logo" id="realLogo">
+                <img src="assets/Coral Infratel logo.jpg" alt="Logo" id="realLogo">
                 <div id="textLogo">Coral <span>Infratel</span></div>
             </a>
             <div class="logo-nav">
@@ -210,12 +225,20 @@
         <h2>Register Complaint</h2>
 
         <div id="statusAlert" class="alert alert-success">
-            Complaint submitted! Your Ticket ID is: <span id="ticketIdDisplay"></span>
+            ✅ Complaint submitted successfully!<br>
+            <strong>Complaint No:</strong> <span id="complaintNoDisplay"></span>
         </div>
 
         <div id="notFoundAlert" class="alert alert-error">
             <strong>Data Not Available</strong><br>
             Please Enter your Pilot PRI/SIP number as mentioned in the BSNL Bill.
+        </div>
+
+        <div id="duplicateAlert" class="alert alert-duplicate">
+            ⚠️ <strong>Complaint Already Registered</strong><br>
+            Your complaint is already registered with us and is currently being attended to by our support team.<br><br>
+            <strong>Complaint No:</strong> <span id="dupTicketDisplay" class="dup-ticket"></span><br><br>
+            Please wait while our team resolves your issue. You will be notified once it is resolved.
         </div>
 
         <form id="complaintForm">
@@ -250,7 +273,8 @@
 
                 <div class="form-group">
                     <label>Mobile Number</label>
-                    <input type="tel" id="custMobile" required placeholder="Enter YOUR mobile for updates">
+                    <input type="tel" id="custMobile" required placeholder="Enter YOUR 10-digit mobile" maxlength="10" pattern="[0-9]{10}" inputmode="numeric">
+                    <small id="mobileError" style="color:red;display:none;">⚠️ Please enter a valid 10-digit mobile number.</small>
                 </div>
 
                 <div class="form-group">
@@ -269,8 +293,11 @@
     </div>
 
     <script>
-        const API_BASE = 'https://officetask-roan.vercel.app/api';
-        const CRM_API = 'https://officetask-roan.vercel.app/api';
+        // Dynamic API_BASE: localhost → local server, live site → Vercel
+        const API_BASE = window.location.hostname === 'localhost'
+            ? 'http://localhost:8080/api'
+            : 'https://officetask-roan.vercel.app/api';
+        const CRM_API = API_BASE;
 
         const stdInput = document.getElementById('stdCode');
         const telInput = document.getElementById('telNumber');
@@ -295,15 +322,15 @@
             statusText.style.display = 'block';
             statusText.style.color = '#64748b';
             document.getElementById('notFoundAlert').style.display = 'none';
+            document.getElementById('duplicateAlert').style.display = 'none';
+            document.getElementById('statusAlert').style.display = 'none';
             document.getElementById('extraFields').style.display = 'none';
 
             let customerFound = false;
 
-            // Try Live CRM first, then Vercel, then Local
+            // Single dynamic endpoint (localhost on local, Vercel on live)
             const endpoints = [
-                `${CRM_API}/customers/search?std_code=${std}&telephone_number=${tel}`,
-                `${API_BASE}/customers/search?std_code=${std}&telephone_number=${tel}`,
-                `http://localhost:8080/api/customers/search?std_code=${std}&telephone_number=${tel}`
+                `${API_BASE}/customers/search?std_code=${std}&telephone_number=${tel}`
             ];
 
             for (const url of endpoints) {
@@ -330,6 +357,26 @@
             if (!customerFound) {
                 statusText.style.display = 'none';
                 document.getElementById('notFoundAlert').style.display = 'block';
+                return; // don't check duplicate if customer not found
+            }
+
+            // ✅ Check for existing active complaint BEFORE showing form
+            try {
+                const checkRes = await fetch(`${API_BASE}/complaints/check?std_code=${encodeURIComponent(std)}&telephone_number=${encodeURIComponent(tel)}`);
+                if (checkRes.ok) {
+                    const checkData = await checkRes.json();
+                    if (checkData.exists) {
+                        // Hide form and show duplicate warning immediately
+                        document.getElementById('extraFields').style.display = 'none';
+                        document.getElementById('dupTicketDisplay').textContent = checkData.complaint_no || checkData.ticket_id;
+                        document.getElementById('duplicateAlert').style.display = 'block';
+                        statusText.style.display = 'none';
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.warn('Duplicate check failed, proceeding with form.');
             }
         };
 
@@ -341,9 +388,32 @@
             }
         });
 
+        // Mobile live validation
+        document.getElementById('custMobile').addEventListener('input', function() {
+            const val = this.value.replace(/\D/g, ''); // only digits
+            this.value = val; // remove non-digits automatically
+            const errEl = document.getElementById('mobileError');
+            if (val.length > 0 && val.length !== 10) {
+                errEl.style.display = 'block';
+            } else {
+                errEl.style.display = 'none';
+            }
+        });
+
         // Form Submission
         document.getElementById('complaintForm').onsubmit = async (e) => {
             e.preventDefault();
+
+            // Mobile validation
+            const mobileVal = mobileInput.value.trim();
+            const mobileErr = document.getElementById('mobileError');
+            if (mobileVal.length !== 10 || !/^\d{10}$/.test(mobileVal)) {
+                mobileErr.style.display = 'block';
+                mobileInput.focus();
+                return;
+            }
+            mobileErr.style.display = 'none';
+
             const btn = document.getElementById('submitBtn');
             btn.disabled = true;
             btn.textContent = 'Submitting...';
@@ -359,29 +429,54 @@
                 telephone_number: telInput.value
             };
 
-            try {
-                const res = await fetch(`${API_BASE}/complaints`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+            // Dynamic: localhost → local server, live → Vercel (matches duplicate check)
+            const submitEndpoints = [
+                `${API_BASE}/complaints`
+            ];
 
-                if (res.ok) {
-                    const result = await res.json();
-                    document.getElementById('ticketIdDisplay').textContent = result.ticket_id;
-                    document.getElementById('statusAlert').style.display = 'block';
-                    e.target.reset();
-                    statusText.textContent = "";
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                } else {
-                    alert("Submission error. Please call support.");
+            let submitted = false;
+            for (const url of submitEndpoints) {
+                try {
+                    const res = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (res.ok) {
+                        const result = await res.json();
+                        document.getElementById('complaintNoDisplay').textContent = result.complaint_no || result.ticket_id || '';
+                        document.getElementById('statusAlert').style.display = 'block';
+                        document.getElementById('duplicateAlert').style.display = 'none';
+                        e.target.reset();
+                        document.getElementById('extraFields').style.display = 'none';
+                        statusText.textContent = "";
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        submitted = true;
+                        break;
+                    } else if (res.status === 409) {
+                        const result = await res.json();
+                        document.getElementById('dupTicketDisplay').textContent = result.complaint_no || result.ticket_id;
+                        document.getElementById('duplicateAlert').style.display = 'block';
+                        document.getElementById('statusAlert').style.display = 'none';
+                        e.target.reset();
+                        document.getElementById('extraFields').style.display = 'none';
+                        statusText.textContent = "";
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        submitted = true;
+                        break;
+                    }
+                } catch (err) {
+                    console.warn(`Submit failed: ${url}`);
                 }
-            } catch (err) {
-                alert("Network error. Try again later.");
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Submit Complaint';
             }
+
+            if (!submitted) {
+                alert("Submission error. Please call support.");
+            }
+
+            btn.disabled = false;
+            btn.textContent = 'Submit Complaint';
         };
 
         // Try to load real logo
