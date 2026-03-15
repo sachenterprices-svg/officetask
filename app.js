@@ -3557,23 +3557,24 @@ function downloadPdfBuffer(url, redirectCount = 0) {
     });
 }
 
-// ── BULK PDF: Upload PDFs → Read content → Match tel no → Rename → ZIP ──
+// ── BULK PDF: Excel+PDFs OR Auto-Read PDFs → Match → Rename → ZIP ──
 const bulkPdfUpload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024, files: 510 }
-}).array('pdfs', 500);
+}).fields([
+    { name: 'excel', maxCount: 1 },
+    { name: 'pdfs', maxCount: 500 }
+]);
 
 // Extract telephone numbers from PDF text content
 function extractTelFromPdf(text) {
-    // BSNL bills typically have telephone number patterns like: 0621-2100120, 06224-260103, 0641-2201001
-    // Look for STD code + number patterns (Indian landline format)
     const patterns = [
         /(?:Telephone\s*(?:No|Number|#)?[:\s]*)([\d-]{7,15})/gi,
         /(?:Tel\s*(?:No|Number)?[:\s]*)([\d-]{7,15})/gi,
         /(?:Phone\s*(?:No|Number)?[:\s]*)([\d-]{7,15})/gi,
         /(?:Service\s*(?:No|Number)?[:\s]*)([\d-]{7,15})/gi,
         /(?:Account\s*(?:No|Number)?[:\s]*)([\d-]{7,15})/gi,
-        /\b(0\d{2,4}-\d{6,8})\b/g,  // STD format: 0XXX-XXXXXXX
+        /\b(0\d{2,4}-\d{6,8})\b/g,
     ];
     const found = [];
     for (const pat of patterns) {
@@ -3593,75 +3594,154 @@ app.post('/api/bulk-pdf-job/start', authenticateToken, (req, res, next) => {
     });
 }, async (req, res) => {
     try {
-        const pdfFiles = req.files || [];
+        const excelFile = req.files && req.files['excel'] && req.files['excel'][0];
+        const pdfFiles  = (req.files && req.files['pdfs']) || [];
         if (!pdfFiles.length) return res.status(400).json({ error: 'No PDF files uploaded.' });
+
+        const useExcelMethod = !!excelFile;
 
         const jobId = `bulk_${Date.now()}_${Math.random().toString(36).substr(2,6)}`;
         const job = {
-            jobId, total: pdfFiles.length, matched: 0, notFound: 0,
-            renamed: 0,
+            jobId, total: 0, matched: 0, notFound: 0,
+            renamed: 0, noFile: 0,
             zipReady: false, zipPath: null,
             rows: [], errors: []
         };
 
-        // Step 1: Parse each PDF → extract telephone number → match with DB
-        for (let i = 0; i < pdfFiles.length; i++) {
-            const pf = pdfFiles[i];
-            const originalName = pf.originalname || `file_${i}.pdf`;
-            try {
-                // Read PDF text
-                const parsed = await pdfParse(pf.buffer, { max: 2 }); // only first 2 pages
-                const text = parsed.text || '';
-                const telNumbers = extractTelFromPdf(text);
+        if (useExcelMethod) {
+            // ── METHOD 1: Excel + PDFs ──
+            let workbook;
+            try { workbook = xlsx.read(excelFile.buffer, { type: 'buffer' }); }
+            catch(e) { return res.status(400).json({ error: 'Invalid Excel file.' }); }
 
-                if (!telNumbers.length) {
-                    job.rows.push({ originalPdf: originalName, status: 'no_tel', fileStatus: 'no_tel',
-                        error: 'No telephone number found in PDF' });
-                    job.notFound++;
-                    continue;
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const allRows = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+            const dataRows = allRows.filter(r => {
+                const tel = String(r[0]||'').trim();
+                return tel && /^\d/.test(tel);
+            });
+            job.total = dataRows.length;
+
+            // Build PDF lookup map from filenames
+            const pdfMap = new Map();
+            for (const pf of pdfFiles) {
+                const nameNoExt = (pf.originalname || '').replace(/\.pdf$/i, '');
+                const digits = nameNoExt.replace(/[^0-9-]/g, '').replace(/^-+|-+$/g, '');
+                if (digits) {
+                    pdfMap.set(digits, { buffer: pf.buffer, originalName: pf.originalname });
+                    const noDash = digits.replace(/-/g, '');
+                    if (noDash !== digits) pdfMap.set(noDash, { buffer: pf.buffer, originalName: pf.originalname });
                 }
+            }
 
-                // Try matching each found tel number with DB
-                let matched = false;
-                for (const telNo of telNumbers) {
-                    const telNoDash = telNo.replace(/-/g, '');
+            // Match each Excel row with DB + find matching PDF
+            for (const row of dataRows) {
+                const telNo = String(row[0]||'').trim();
+                const telNoDash = telNo.replace(/-/g, '');
+                try {
                     const [rows2] = await pool.query(
                         `SELECT c.customer_name, COALESCE(c.acc_person_email, c.email_id) AS email
                          FROM customers c
                          INNER JOIN customer_lines cl ON cl.customer_id = c.id
                          WHERE cl.telephone_number = ?
                             OR CONCAT(cl.telephone_code, cl.telephone_number) = ?
-                            OR REPLACE(cl.telephone_number, '-', '') = ?
+                            OR REPLACE(cl.telephone_number, '-', '') = REPLACE(?, '-', '')
                          LIMIT 1`,
-                        [telNo, telNo, telNoDash]
+                        [telNo, telNo, telNo]
                     );
-                    if (rows2.length > 0) {
-                        const cust = rows2[0];
+                    const cust = rows2[0] || null;
+                    if (cust) {
                         const nameClean = cust.customer_name.replace(/[/\\?%*:|"<>&]/g,'_').replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,'');
-                        const telClean = telNo.replace(/[/\\?%*:|"<>&]/g,'-');
-                        job.rows.push({
-                            telNo, customerName: cust.customer_name, email: cust.email||'',
-                            filename: `${nameClean}_${telClean}.pdf`,
-                            originalPdf: originalName,
-                            pdfBuffer: pf.buffer,
-                            status: 'matched', fileStatus: 'found'
-                        });
-                        job.matched++;
-                        job.renamed++;
-                        matched = true;
-                        break;
+                        const telClean  = telNo.replace(/[/\\?%*:|"<>&]/g,'-');
+                        const pdf = pdfMap.get(telNo) || pdfMap.get(telNoDash);
+                        if (pdf) {
+                            job.rows.push({
+                                telNo, customerName: cust.customer_name, email: cust.email||'',
+                                filename: `${nameClean}_${telClean}.pdf`,
+                                originalPdf: pdf.originalName,
+                                pdfBuffer: pdf.buffer,
+                                status: 'matched', fileStatus: 'found'
+                            });
+                            job.matched++;
+                            job.renamed++;
+                        } else {
+                            job.rows.push({
+                                telNo, customerName: cust.customer_name, email: cust.email||'',
+                                filename: `${nameClean}_${telClean}.pdf`,
+                                status: 'matched', fileStatus: 'no_pdf'
+                            });
+                            job.matched++;
+                            job.noFile++;
+                        }
+                    } else {
+                        job.rows.push({ telNo, status: 'not_found', fileStatus: 'skipped' });
+                        job.notFound++;
                     }
+                } catch(e) {
+                    job.rows.push({ telNo, status: 'error', fileStatus: 'skipped', error: e.message });
                 }
-                if (!matched) {
-                    job.rows.push({ originalPdf: originalName, telNo: telNumbers[0]||'',
-                        status: 'not_in_db', fileStatus: 'not_in_db',
-                        error: 'Tel ' + telNumbers[0] + ' not found in customer DB' });
+            }
+        } else {
+            // ── METHOD 2: Auto-Read PDFs ──
+            if (!pdfParse) return res.status(500).json({ error: 'PDF reading not available on this server. Please use Excel + PDFs method.' });
+            job.total = pdfFiles.length;
+
+            for (let i = 0; i < pdfFiles.length; i++) {
+                const pf = pdfFiles[i];
+                const originalName = pf.originalname || `file_${i}.pdf`;
+                try {
+                    const parsed = await pdfParse(pf.buffer, { max: 2 });
+                    const text = parsed.text || '';
+                    const telNumbers = extractTelFromPdf(text);
+
+                    if (!telNumbers.length) {
+                        job.rows.push({ originalPdf: originalName, status: 'no_tel', fileStatus: 'no_tel',
+                            error: 'No telephone number found in PDF' });
+                        job.notFound++;
+                        continue;
+                    }
+
+                    let matched = false;
+                    for (const telNo of telNumbers) {
+                        const telNoDash = telNo.replace(/-/g, '');
+                        const [rows2] = await pool.query(
+                            `SELECT c.customer_name, COALESCE(c.acc_person_email, c.email_id) AS email
+                             FROM customers c
+                             INNER JOIN customer_lines cl ON cl.customer_id = c.id
+                             WHERE cl.telephone_number = ?
+                                OR CONCAT(cl.telephone_code, cl.telephone_number) = ?
+                                OR REPLACE(cl.telephone_number, '-', '') = ?
+                             LIMIT 1`,
+                            [telNo, telNo, telNoDash]
+                        );
+                        if (rows2.length > 0) {
+                            const cust = rows2[0];
+                            const nameClean = cust.customer_name.replace(/[/\\?%*:|"<>&]/g,'_').replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,'');
+                            const telClean = telNo.replace(/[/\\?%*:|"<>&]/g,'-');
+                            job.rows.push({
+                                telNo, customerName: cust.customer_name, email: cust.email||'',
+                                filename: `${nameClean}_${telClean}.pdf`,
+                                originalPdf: originalName,
+                                pdfBuffer: pf.buffer,
+                                status: 'matched', fileStatus: 'found'
+                            });
+                            job.matched++;
+                            job.renamed++;
+                            matched = true;
+                            break;
+                        }
+                    }
+                    if (!matched) {
+                        job.rows.push({ originalPdf: originalName, telNo: telNumbers[0]||'',
+                            status: 'not_in_db', fileStatus: 'not_in_db',
+                            error: 'Tel ' + telNumbers[0] + ' not found in customer DB' });
+                        job.notFound++;
+                    }
+                } catch(e) {
+                    job.rows.push({ originalPdf: originalName, status: 'error', fileStatus: 'error',
+                        error: 'PDF read error: ' + e.message });
                     job.notFound++;
                 }
-            } catch(e) {
-                job.rows.push({ originalPdf: originalName, status: 'error', fileStatus: 'error',
-                    error: 'PDF read error: ' + e.message });
-                job.notFound++;
             }
         }
 
