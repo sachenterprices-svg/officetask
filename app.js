@@ -791,6 +791,27 @@ async function initBillTasksTable() {
     }
 }
 
+// ── GST MASTER TABLE ──
+async function initGstMasterTable() {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS gst_master (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                gst_id VARCHAR(100) NOT NULL,
+                cgst DECIMAL(12,2) DEFAULT 0,
+                sgst DECIMAL(12,2) DEFAULT 0,
+                igst DECIMAL(12,2) DEFAULT 0,
+                created_by INT DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB
+        `);
+        console.log('✅ GST Master table initialized.');
+    } catch (err) {
+        console.error('⚠️ Could not initialize gst_master table:', err.message);
+    }
+}
+
 async function upgradeCustomersTable() {
     try {
         const [rows] = await pool.query(`
@@ -3354,6 +3375,7 @@ async function startupChecks() {
     await initializeWebsiteContentTable();
     await initBillPdfsTable();
     await initBillTasksTable();
+    await initGstMasterTable();
     await initializeAdmin();
     console.log('🚀 [READY] All startup checks complete. Server is fully ready!');
 }
@@ -4446,6 +4468,72 @@ app.delete('/api/bill-tasks/:id', authenticateToken, async (req, res) => {
         res.json({ success: true, message: 'Bill task deleted.' });
     } catch(e) {
         res.status(500).json({ error: 'Failed to delete: ' + e.message });
+    }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GST MASTER API
+// ══════════════════════════════════════════════════════════════════════════════
+
+app.post('/api/gst-master', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        const [result] = await pool.query(
+            `INSERT INTO gst_master (gst_id, cgst, sgst, igst, created_by) VALUES (?,?,?,?,?)`,
+            [b.gst_id || '', b.cgst || 0, b.sgst || 0, b.igst || 0, req.user.id]
+        );
+        res.json({ success: true, id: result.insertId, message: 'GST entry created.' });
+    } catch(e) {
+        res.status(500).json({ error: 'Failed: ' + e.message });
+    }
+});
+
+app.get('/api/gst-master', authenticateToken, async (req, res) => {
+    try {
+        const search = req.query.search || '';
+        const sortBy = req.query.sortBy || 'created_at';
+        const sortDir = (req.query.sortDir || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+        const allowed = ['id','gst_id','cgst','sgst','igst','created_at'];
+        const safeSort = allowed.includes(sortBy) ? sortBy : 'created_at';
+
+        let where = '1=1';
+        const params = [];
+        if (search) {
+            where += ` AND gst_id LIKE ?`;
+            params.push('%' + search + '%');
+        }
+
+        const [[{ total }]] = await pool.query(`SELECT COUNT(*) as total FROM gst_master WHERE ${where}`, params);
+        const [rows] = await pool.query(
+            `SELECT g.*, u.name as created_by_name FROM gst_master g
+             LEFT JOIN users u ON u.id = g.created_by
+             WHERE ${where} ORDER BY ${safeSort} ${sortDir}`, params
+        );
+        res.json({ data: rows, total });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.put('/api/gst-master/:id', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        await pool.query(
+            `UPDATE gst_master SET gst_id=?, cgst=?, sgst=?, igst=? WHERE id=?`,
+            [b.gst_id || '', b.cgst || 0, b.sgst || 0, b.igst || 0, req.params.id]
+        );
+        res.json({ success: true, message: 'GST entry updated.' });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.delete('/api/gst-master/:id', authenticateToken, async (req, res) => {
+    try {
+        await pool.query(`DELETE FROM gst_master WHERE id=?`, [req.params.id]);
+        res.json({ success: true, message: 'GST entry deleted.' });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
     }
 });
 
