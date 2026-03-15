@@ -748,12 +748,44 @@ async function initBillTasksTable() {
                 claim_fixed_charges DECIMAL(12,2) DEFAULT 0,
                 total_charges DECIMAL(12,2) DEFAULT 0,
                 remarks TEXT,
+                rev_fixed_per_month DECIMAL(12,2) DEFAULT 0,
+                rev_fixed_per_line DECIMAL(12,2) DEFAULT 0,
+                rev_fixed_per_vas DECIMAL(12,2) DEFAULT 0,
+                rev_rent_share_pct DECIMAL(8,4) DEFAULT 0,
+                rev_calling_share_pct DECIMAL(8,4) DEFAULT 0,
+                rev_rg_share_pct DECIMAL(8,4) DEFAULT 0,
+                gst_id VARCHAR(100) DEFAULT '',
+                cgst DECIMAL(12,2) DEFAULT 0,
+                sgst DECIMAL(12,2) DEFAULT 0,
+                igst DECIMAL(12,2) DEFAULT 0,
                 created_by INT DEFAULT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             ) ENGINE=InnoDB
         `);
         console.log('✅ Bill Tasks table initialized.');
+        // Add revenue columns if they don't exist (for existing tables)
+        const revCols = [
+            ['rev_fixed_per_month', 'DECIMAL(12,2) DEFAULT 0'],
+            ['rev_fixed_per_line', 'DECIMAL(12,2) DEFAULT 0'],
+            ['rev_fixed_per_vas', 'DECIMAL(12,2) DEFAULT 0'],
+            ['rev_rent_share_pct', 'DECIMAL(8,4) DEFAULT 0'],
+            ['rev_calling_share_pct', 'DECIMAL(8,4) DEFAULT 0'],
+            ['rev_rg_share_pct', 'DECIMAL(8,4) DEFAULT 0'],
+            ['gst_id', "VARCHAR(100) DEFAULT ''"],
+            ['cgst', 'DECIMAL(12,2) DEFAULT 0'],
+            ['sgst', 'DECIMAL(12,2) DEFAULT 0'],
+            ['igst', 'DECIMAL(12,2) DEFAULT 0']
+        ];
+        for (const [col, def] of revCols) {
+            try {
+                const [[exists]] = await pool.query(
+                    `SELECT COUNT(*) as c FROM information_schema.columns WHERE table_schema=? AND table_name='bill_tasks' AND column_name=?`,
+                    [process.env.DB_NAME, col]
+                );
+                if (!exists.c) await pool.query(`ALTER TABLE bill_tasks ADD COLUMN ${col} ${def}`);
+            } catch(e) {}
+        }
     } catch (err) {
         console.error('⚠️ Could not initialize bill_tasks table:', err.message);
     }
@@ -4284,8 +4316,11 @@ app.post('/api/bill-tasks', authenticateToken, async (req, res) => {
                 total_bill, value_as_per_bill, gst, customer_id_field, claim_no, phone_no,
                 net_bill_amount, days_of_month, days_of_plan,
                 rental_share_claim, rg_share_claim, call_charges_revenue,
-                modem_rental, claim_fixed_charges, total_charges, remarks, created_by
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                modem_rental, claim_fixed_charges, total_charges, remarks,
+                rev_fixed_per_month, rev_fixed_per_line, rev_fixed_per_vas,
+                rev_rent_share_pct, rev_calling_share_pct, rev_rg_share_pct,
+                gst_id, cgst, sgst, igst, created_by
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             [
                 b.bsnl_bill_no || '', b.bill_for_month || '', b.customer_name || '', b.customer_ph_no || '',
                 b.from_date || null, b.to_date || null,
@@ -4298,7 +4333,11 @@ app.post('/api/bill-tasks', authenticateToken, async (req, res) => {
                 b.net_bill_amount || 0, b.days_of_month || 0, b.days_of_plan || 0,
                 b.rental_share_claim || 0, b.rg_share_claim || 0, b.call_charges_revenue || 0,
                 b.modem_rental || 0, b.claim_fixed_charges || 0, b.total_charges || 0,
-                b.remarks || '', req.user.id
+                b.remarks || '',
+                b.rev_fixed_per_month || 0, b.rev_fixed_per_line || 0, b.rev_fixed_per_vas || 0,
+                b.rev_rent_share_pct || 0, b.rev_calling_share_pct || 0, b.rev_rg_share_pct || 0,
+                b.gst_id || '', b.cgst || 0, b.sgst || 0, b.igst || 0,
+                req.user.id
             ]
         );
         res.json({ success: true, id: result.insertId, message: 'Bill task created successfully.' });
@@ -4370,7 +4409,10 @@ app.put('/api/bill-tasks/:id', authenticateToken, async (req, res) => {
                 total_bill=?, value_as_per_bill=?, gst=?, customer_id_field=?, claim_no=?, phone_no=?,
                 net_bill_amount=?, days_of_month=?, days_of_plan=?,
                 rental_share_claim=?, rg_share_claim=?, call_charges_revenue=?,
-                modem_rental=?, claim_fixed_charges=?, total_charges=?, remarks=?
+                modem_rental=?, claim_fixed_charges=?, total_charges=?, remarks=?,
+                rev_fixed_per_month=?, rev_fixed_per_line=?, rev_fixed_per_vas=?,
+                rev_rent_share_pct=?, rev_calling_share_pct=?, rev_rg_share_pct=?,
+                gst_id=?, cgst=?, sgst=?, igst=?
             WHERE id=?`,
             [
                 b.bsnl_bill_no || '', b.bill_for_month || '', b.customer_name || '', b.customer_ph_no || '',
@@ -4384,7 +4426,11 @@ app.put('/api/bill-tasks/:id', authenticateToken, async (req, res) => {
                 b.net_bill_amount || 0, b.days_of_month || 0, b.days_of_plan || 0,
                 b.rental_share_claim || 0, b.rg_share_claim || 0, b.call_charges_revenue || 0,
                 b.modem_rental || 0, b.claim_fixed_charges || 0, b.total_charges || 0,
-                b.remarks || '', req.params.id
+                b.remarks || '',
+                b.rev_fixed_per_month || 0, b.rev_fixed_per_line || 0, b.rev_fixed_per_vas || 0,
+                b.rev_rent_share_pct || 0, b.rev_calling_share_pct || 0, b.rev_rg_share_pct || 0,
+                b.gst_id || '', b.cgst || 0, b.sgst || 0, b.igst || 0,
+                req.params.id
             ]
         );
         res.json({ success: true, message: 'Bill task updated.' });
