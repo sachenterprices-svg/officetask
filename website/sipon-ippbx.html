@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sipon IPPBX - Advanced VoIP Communication System | Coral Infratel</title>
+    <meta name="description" content="Sipon Swarsanchar IPPBX - Advanced IP-based telephony system with IVR, call recording, CRM integration. Scalable from 20 to 2000 users. Manufactured by Coral Infratel Pvt Ltd.">
+    <meta name="keywords" content="IPPBX system, VoIP communication, Sipon IPPBX, business phone system, IP PBX India, SIP trunk, PRI gateway, call center software, cloud IPPBX, office phone system">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root{--primary:#e31837;--primary-dark:#c1122d;--secondary:#0f172a;--accent:#38bdf8;--bg:#ffffff;--bg-alt:#f8fafc;--text:#1e293b;--text-muted:#64748b;--shadow:0 10px 40px rgba(0,0,0,0.06);--radius:16px}
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Inter',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;overflow-x:hidden}
+        .container{max-width:1200px;margin:0 auto;padding:0 25px}
+        header{position:fixed;top:0;width:100%;z-index:1000;padding:15px 0;background:rgba(255,255,255,0.95);backdrop-filter:blur(10px);border-bottom:1px solid rgba(0,0,0,0.05)}
+        .nav-flex{display:flex;justify-content:space-between;align-items:center}
+        .logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+        .nav-links{display:flex;gap:25px}
+        .nav-links a{text-decoration:none;color:var(--secondary);font-weight:600;font-size:0.9rem;transition:0.2s}
+        .nav-links a:hover,.nav-links a.active{color:var(--primary)}
+        .btn{display:inline-block;padding:12px 28px;border-radius:50px;font-weight:700;cursor:pointer;transition:0.3s;text-decoration:none;font-size:0.95rem}
+        .btn-primary{background:var(--primary);color:white;box-shadow:0 4px 15px rgba(227,24,55,0.2)}
+        .btn-primary:hover{background:var(--primary-dark);transform:translateY(-2px)}
+        .btn-outline{border:2px solid var(--primary);color:var(--primary);background:transparent}
+        .btn-outline:hover{background:var(--primary);color:white}
+
+        /* Hero */
+        .page-hero{padding:140px 0 80px;background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);color:white;position:relative;overflow:hidden}
+        .page-hero::after{content:'';position:absolute;top:-50%;right:-20%;width:600px;height:600px;background:radial-gradient(circle,rgba(227,24,55,0.15),transparent);border-radius:50%}
+        .page-hero .tag{color:var(--accent)}
+        .page-hero h1{font-size:3.2rem;font-weight:800;margin-bottom:20px;line-height:1.15}
+        .page-hero h1 span{color:var(--primary)}
+        .page-hero p{font-size:1.15rem;color:#94a3b8;max-width:600px;margin-bottom:30px}
+        .hero-grid{display:grid;grid-template-columns:1.2fr 1fr;gap:50px;align-items:center}
+        .hero-product-img{width:100%;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.3)}
+
+        /* Sections */
+        .section{padding:80px 0}
+        .tag{color:var(--primary);text-transform:uppercase;font-weight:800;font-size:0.8rem;margin-bottom:12px;display:block}
+        .title{font-size:2.2rem;font-weight:800;margin-bottom:20px;color:var(--secondary)}
+        .subtitle{font-size:1.05rem;color:var(--text-muted);max-width:700px;margin-bottom:50px}
+
+        /* Feature Grid */
+        .feature-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:25px}
+        .feature-card{padding:35px;background:white;border-radius:20px;border:1px solid #e2e8f0;transition:0.3s}
+        .feature-card:hover{border-color:var(--primary);transform:translateY(-5px);box-shadow:var(--shadow)}
+        .feature-icon{width:50px;height:50px;background:rgba(227,24,55,0.08);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin-bottom:18px}
+        .feature-card h3{font-size:1.15rem;margin-bottom:10px}
+        .feature-card p{color:var(--text-muted);font-size:0.92rem}
+
+        /* Channels */
+        .channel-list{display:flex;flex-wrap:wrap;gap:12px;margin-top:20px}
+        .channel-chip{padding:10px 20px;background:var(--bg-alt);border-radius:50px;font-size:0.9rem;font-weight:600;border:1px solid #e2e8f0}
+
+        /* Stats */
+        .stats-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:30px;padding:50px 0;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;margin:60px 0}
+        .stat-item{text-align:center}
+        .stat-item .num{font-size:2.5rem;font-weight:800;color:var(--primary)}
+        .stat-item .label{font-size:0.85rem;color:var(--text-muted);margin-top:5px}
+
+        /* Industries */
+        .industry-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px}
+        .industry-card{padding:25px;text-align:center;background:var(--bg-alt);border-radius:16px;transition:0.3s}
+        .industry-card:hover{background:white;box-shadow:var(--shadow)}
+        .industry-card .ind-icon{font-size:2rem;margin-bottom:10px;display:block}
+        .industry-card h4{font-size:0.95rem}
+
+        /* CTA */
+        .cta-section{background:linear-gradient(135deg,#0f172a,#1e293b);color:white;padding:80px 0;text-align:center;border-radius:30px;margin:0 25px 60px}
+        .cta-section h2{font-size:2.2rem;margin-bottom:15px}
+        .cta-section p{color:#94a3b8;margin-bottom:30px;font-size:1.05rem}
+
+        /* Footer */
+        footer{padding:40px 0;background:#020617;color:#64748b;text-align:center;font-size:0.85rem}
+        footer a{color:#64748b;text-decoration:none}
+
+        /* Why Choose */
+        .why-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:25px}
+        .why-card{padding:30px;background:var(--secondary);color:white;border-radius:20px}
+        .why-card h3{font-size:1.1rem;margin-bottom:10px}
+        .why-card p{color:#94a3b8;font-size:0.9rem}
+
+        @media(max-width:900px){
+            .hero-grid{grid-template-columns:1fr}
+            .page-hero h1{font-size:2.4rem}
+            .stats-bar{grid-template-columns:repeat(2,1fr)}
+            .nav-links{display:none}
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="container">
+            <nav class="nav-flex">
+                <a href="index.html" class="logo">
+                    <img src="assets/Coral Infratel logo.jpg" alt="Coral Infratel" style="height:55px;">
+                </a>
+                <div class="nav-links">
+                    <a href="index.html">Home</a>
+                    <a href="sipon-ippbx.html" class="active">Sipon IPPBX</a>
+                    <a href="call-center.html">Call Center</a>
+                    <a href="blog.html">Blog</a>
+                    <a href="support.html">Support</a>
+                </div>
+                <a href="index.html#contact" class="btn btn-primary" style="padding:10px 22px;font-size:0.85rem;">Request Demo</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Hero -->
+    <section class="page-hero">
+        <div class="container">
+            <div class="hero-grid">
+                <div>
+                    <span class="tag">Flagship Product</span>
+                    <h1>Sipon <span>Swarsanchar</span> IPPBX</h1>
+                    <p>Advanced IP-based telephony system designed to simplify and modernize business communication. Manage internal and external calls through a unified platform.</p>
+                    <div style="display:flex;gap:15px;flex-wrap:wrap;">
+                        <a href="index.html#contact" class="btn btn-primary">Request Free Demo</a>
+                        <a href="#features" class="btn btn-outline" style="border-color:white;color:white;">Explore Features</a>
+                    </div>
+                </div>
+                <div>
+                    <img src="assets/sipon-ippbx.png" alt="Sipon Swarsanchar IPPBX Hardware" class="hero-product-img">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- What is SIPON IPPBX -->
+    <section class="section">
+        <div class="container">
+            <span class="tag">Overview</span>
+            <h2 class="title">What is Sipon IPPBX?</h2>
+            <p class="subtitle">Sipon IPPBX is an Internet Protocol based Private Branch Exchange system that manages voice communication over IP networks instead of traditional telephone lines. It integrates voice, data, and communication applications within a single network.</p>
+            <h3 style="margin-bottom:15px;">Supported Communication Channels</h3>
+            <div class="channel-list">
+                <span class="channel-chip">SIP Trunks</span>
+                <span class="channel-chip">PRI Lines</span>
+                <span class="channel-chip">Analog Lines</span>
+                <span class="channel-chip">GSM Gateways</span>
+                <span class="channel-chip">IP Phones</span>
+                <span class="channel-chip">Softphones</span>
+                <span class="channel-chip">WebRTC</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats -->
+    <div class="container">
+        <div class="stats-bar">
+            <div class="stat-item"><div class="num">2000+</div><div class="label">Max Users Supported</div></div>
+            <div class="stat-item"><div class="num">30</div><div class="label">Simultaneous PRI Channels</div></div>
+            <div class="stat-item"><div class="num">24/7</div><div class="label">Expert Support</div></div>
+            <div class="stat-item"><div class="num">15+</div><div class="label">Years Experience</div></div>
+        </div>
+    </div>
+
+    <!-- Key Features -->
+    <section class="section" id="features" style="background:var(--bg-alt);">
+        <div class="container">
+            <span class="tag">Capabilities</span>
+            <h2 class="title">Key Features</h2>
+            <p class="subtitle">Everything you need for enterprise-grade voice communication in one system.</p>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">📞</div>
+                    <h3>Intelligent Call Routing</h3>
+                    <p>Automatically route incoming calls to the appropriate department or extension for faster customer response.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3>Real-Time Analytics</h3>
+                    <p>Monitor call traffic, call duration, and agent activity through real-time reporting dashboards.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🎙️</div>
+                    <h3>Call Recording & Monitoring</h3>
+                    <p>Record calls for quality monitoring, compliance, and training purposes with secure storage.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🤖</div>
+                    <h3>IVR (Interactive Voice Response)</h3>
+                    <p>Provide automated call handling and direct customers to the correct department without manual intervention.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🏢</div>
+                    <h3>Multi-Branch Connectivity</h3>
+                    <p>Connect multiple offices and branches into one unified communication system with VPN-based security.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔗</div>
+                    <h3>CRM Integration</h3>
+                    <p>Integrate with CRM platforms to improve customer management and sales processes seamlessly.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📱</div>
+                    <h3>Mobile & Remote Access</h3>
+                    <p>Employees can make and receive office calls from mobile phones or laptops from anywhere in the world.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔒</div>
+                    <h3>Secure Communication</h3>
+                    <p>Advanced security protocols protect voice traffic and sensitive business data with encryption.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🎤</div>
+                    <h3>Conference Bridge</h3>
+                    <p>Conduct audio conferences with multiple participants directly through the IPPBX system.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Technology -->
+    <section class="section">
+        <div class="container">
+            <span class="tag">Under the Hood</span>
+            <h2 class="title">Technology Platform</h2>
+            <p class="subtitle">Built on proven telecommunications technologies for maximum reliability.</p>
+            <div class="channel-list">
+                <span class="channel-chip">Asterisk Based Platform</span>
+                <span class="channel-chip">SIP Protocol</span>
+                <span class="channel-chip">Analog & SIP Trunk Integration</span>
+                <span class="channel-chip">PRI Gateway Support</span>
+                <span class="channel-chip">GSM Gateway</span>
+                <span class="channel-chip">VPN Based Secure Communication</span>
+                <span class="channel-chip">On-Premise & Cloud Deployment</span>
+                <span class="channel-chip">API Integration</span>
+                <span class="channel-chip">Disaster Recovery</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Industries -->
+    <section class="section" style="background:var(--bg-alt);">
+        <div class="container">
+            <span class="tag">Who We Serve</span>
+            <h2 class="title">Industries We Serve</h2>
+            <p class="subtitle">Sipon IPPBX solutions are designed for organizations across diverse sectors.</p>
+            <div class="industry-grid">
+                <div class="industry-card"><span class="ind-icon">🏢</span><h4>Corporate Offices</h4></div>
+                <div class="industry-card"><span class="ind-icon">📞</span><h4>BPO & Call Centers</h4></div>
+                <div class="industry-card"><span class="ind-icon">🏥</span><h4>Hospitals & Healthcare</h4></div>
+                <div class="industry-card"><span class="ind-icon">🎓</span><h4>Educational Institutions</h4></div>
+                <div class="industry-card"><span class="ind-icon">🏨</span><h4>Hotels & Hospitality</h4></div>
+                <div class="industry-card"><span class="ind-icon">🏛️</span><h4>Government Organizations</h4></div>
+                <div class="industry-card"><span class="ind-icon">🛒</span><h4>Retail & Service</h4></div>
+                <div class="industry-card"><span class="ind-icon">🏗️</span><h4>Manufacturing</h4></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Why Choose -->
+    <section class="section">
+        <div class="container">
+            <span class="tag">Benefits</span>
+            <h2 class="title">Why Choose Sipon IPPBX?</h2>
+            <div class="why-grid">
+                <div class="why-card"><h3>Reduced Communication Cost</h3><p>VoIP technology significantly reduces telephony costs compared to traditional EPABX systems.</p></div>
+                <div class="why-card"><h3>Scalability</h3><p>Easily add new extensions or departments as your business grows. Scale from 20 to 2000+ users.</p></div>
+                <div class="why-card"><h3>Centralized Communication</h3><p>All communication managed from one centralized system across all branches and locations.</p></div>
+                <div class="why-card"><h3>Improved Customer Experience</h3><p>Automated call routing and IVR ensure faster, more efficient customer service every time.</p></div>
+                <div class="why-card"><h3>Business Continuity</h3><p>Cloud-based features allow uninterrupted communication even during disruptions and disasters.</p></div>
+                <div class="why-card"><h3>Advanced Call Analytics</h3><p>Data-driven insights into call patterns, agent performance, and customer engagement metrics.</p></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <div class="cta-section">
+        <h2>Ready to Transform Your Communication?</h2>
+        <p>Contact Coral Infratel today to schedule a free product demonstration.</p>
+        <div style="display:flex;gap:15px;justify-content:center;flex-wrap:wrap;">
+            <a href="index.html#contact" class="btn btn-primary">Request Free Demo</a>
+            <a href="https://wa.me/917015997383?text=I%20want%20to%20know%20about%20Sipon%20IPPBX" class="btn" style="background:#25d366;color:white;" target="_blank">WhatsApp Us</a>
+        </div>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2026 Coral Infratel Pvt Ltd. All rights reserved. | <a href="index.html">Home</a> | <a href="call-center.html">Call Center</a> | <a href="blog.html">Blog</a></p>
+        </div>
+    </footer>
+
+    <script>
+        window.addEventListener('scroll',()=>{const h=document.querySelector('header');h.style.boxShadow=window.scrollY>50?'0 10px 30px rgba(0,0,0,0.1)':'none'});
+    </script>
+</body>
+</html>

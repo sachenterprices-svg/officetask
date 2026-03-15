@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BSNL Free IPPBX Scheme - Zero Investment Office Setup | Coral Infratel</title>
+    <meta name="description" content="Get IPPBX system absolutely free under BSNL scheme. Zero capital expenditure on hardware. Official BSNL channel partner Coral Infratel provides complete setup, installation, and support.">
+    <meta name="keywords" content="BSNL free IPPBX, BSNL IPPBX scheme, free office phone system, BSNL PBX scheme, zero investment IPPBX, BSNL channel partner, free business phone system, BSNL EPABX scheme, government IPPBX scheme">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root{--primary:#e31837;--primary-dark:#c1122d;--secondary:#0f172a;--accent:#38bdf8;--bg:#fff;--bg-alt:#f8fafc;--text:#1e293b;--text-muted:#64748b;--shadow:0 10px 40px rgba(0,0,0,.06);--bsnl:#1a237e}
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Inter',sans-serif;color:var(--text);background:var(--bg);line-height:1.7;overflow-x:hidden}
+        .container{max-width:1200px;margin:0 auto;padding:0 25px}
+        header{position:fixed;top:0;width:100%;z-index:1000;padding:15px 0;background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-bottom:1px solid rgba(0,0,0,.05)}
+        .nav-flex{display:flex;justify-content:space-between;align-items:center}
+        .logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+        .nav-links{display:flex;gap:25px}
+        .nav-links a{text-decoration:none;color:var(--secondary);font-weight:600;font-size:.9rem;transition:.2s}
+        .nav-links a:hover,.nav-links a.active{color:var(--primary)}
+        .btn{display:inline-block;padding:12px 28px;border-radius:50px;font-weight:700;cursor:pointer;transition:.3s;text-decoration:none;font-size:.95rem}
+        .btn-primary{background:var(--primary);color:white;box-shadow:0 4px 15px rgba(227,24,55,.2)}
+        .btn-primary:hover{background:var(--primary-dark);transform:translateY(-2px)}
+
+        .page-hero{padding:140px 0 80px;background:linear-gradient(135deg,var(--bsnl) 0%,#283593 60%,#1565c0 100%);color:white;position:relative;overflow:hidden}
+        .page-hero::after{content:'';position:absolute;top:-40%;right:-15%;width:500px;height:500px;background:radial-gradient(circle,rgba(255,255,255,.08),transparent);border-radius:50%}
+        .page-hero .tag{color:#ffd54f;text-transform:uppercase;font-weight:800;font-size:.8rem;margin-bottom:12px;display:block}
+        .page-hero h1{font-size:3rem;font-weight:800;margin-bottom:20px;line-height:1.15}
+        .page-hero h1 span{color:#ffd54f}
+        .page-hero p{font-size:1.15rem;color:rgba(255,255,255,.8);max-width:650px;margin-bottom:30px}
+        .hero-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:50px;align-items:center}
+        .hero-stats{display:flex;gap:30px;margin-top:30px}
+        .hero-stat{text-align:center}
+        .hero-stat .val{font-size:2rem;font-weight:800;color:#ffd54f}
+        .hero-stat .lbl{font-size:.8rem;color:rgba(255,255,255,.7)}
+
+        .section{padding:80px 0}
+        .tag{color:var(--primary);text-transform:uppercase;font-weight:800;font-size:.8rem;margin-bottom:12px;display:block}
+        .title{font-size:2.2rem;font-weight:800;margin-bottom:20px;color:var(--secondary)}
+        .subtitle{font-size:1.05rem;color:var(--text-muted);max-width:700px;margin-bottom:50px}
+
+        .benefit-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:25px}
+        .benefit-card{padding:35px;background:white;border-radius:20px;border:1px solid #e2e8f0;transition:.3s}
+        .benefit-card:hover{border-color:var(--bsnl);transform:translateY(-5px);box-shadow:var(--shadow)}
+        .benefit-icon{width:50px;height:50px;background:rgba(26,35,126,.08);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin-bottom:18px}
+        .benefit-card h3{font-size:1.15rem;margin-bottom:10px}
+        .benefit-card p{color:var(--text-muted);font-size:.92rem}
+
+        .steps-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:25px;counter-reset:step}
+        .step-card{padding:35px;background:var(--bg-alt);border-radius:20px;position:relative;border:1px solid #e2e8f0}
+        .step-card::before{counter-increment:step;content:counter(step);position:absolute;top:20px;right:20px;font-size:3rem;font-weight:800;color:rgba(26,35,126,.08)}
+        .step-card h3{font-size:1.1rem;margin-bottom:10px;color:var(--bsnl)}
+        .step-card p{color:var(--text-muted);font-size:.9rem}
+
+        .eligibility-box{background:var(--secondary);color:white;padding:50px;border-radius:24px}
+        .eligibility-box h2{font-size:1.8rem;margin-bottom:25px}
+        .eligibility-list{list-style:none;font-size:1rem}
+        .eligibility-list li{padding:12px 0;border-bottom:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:12px}
+        .eligibility-list li:last-child{border:none}
+
+        .faq-section{max-width:800px;margin:0 auto}
+        .faq-item{border-bottom:1px solid #e2e8f0;padding:20px 0}
+        .faq-q{font-weight:700;font-size:1.05rem;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+        .faq-a{color:var(--text-muted);margin-top:12px;display:none;font-size:.95rem}
+        .faq-item.open .faq-a{display:block}
+        .faq-item.open .faq-arrow{transform:rotate(180deg)}
+        .faq-arrow{transition:.3s}
+
+        .cta-section{background:linear-gradient(135deg,var(--bsnl),#1565c0);color:white;padding:80px 0;text-align:center;border-radius:30px;margin:0 25px 60px}
+        .cta-section h2{font-size:2.2rem;margin-bottom:15px}
+        .cta-section p{color:rgba(255,255,255,.8);margin-bottom:30px;font-size:1.05rem}
+
+        footer{padding:40px 0;background:#020617;color:#64748b;text-align:center;font-size:.85rem}
+        footer a{color:#64748b;text-decoration:none}
+
+        @media(max-width:900px){.hero-grid{grid-template-columns:1fr}.page-hero h1{font-size:2.4rem}.hero-stats{flex-wrap:wrap}.nav-links{display:none}}
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="container">
+            <nav class="nav-flex">
+                <a href="index.html" class="logo">
+                    <img src="assets/Coral Infratel logo.jpg" alt="Coral Infratel" style="height:55px;">
+                </a>
+                <div class="nav-links">
+                    <a href="index.html">Home</a>
+                    <a href="sipon-ippbx.html">Sipon IPPBX</a>
+                    <a href="call-center.html">Call Center</a>
+                    <a href="bsnl-scheme.html" class="active">BSNL Scheme</a>
+                    <a href="blog.html">Blog</a>
+                    <a href="support.html">Support</a>
+                </div>
+                <a href="index.html#contact" class="btn btn-primary" style="padding:10px 22px;font-size:.85rem;">Apply Now</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Hero -->
+    <section class="page-hero">
+        <div class="container">
+            <div class="hero-grid">
+                <div>
+                    <span class="tag">Government Scheme</span>
+                    <h1>BSNL Free <span>IPPBX</span> Scheme</h1>
+                    <p>Get a complete IPPBX system for your office absolutely free under the BSNL scheme. Zero capital expenditure on hardware. Coral Infratel is your certified BSNL channel partner for end-to-end setup.</p>
+                    <div style="display:flex;gap:15px;flex-wrap:wrap;">
+                        <a href="index.html#contact" class="btn" style="background:#ffd54f;color:var(--bsnl);">Apply for Free IPPBX</a>
+                        <a href="https://wa.me/917015997383?text=I%20want%20BSNL%20Free%20IPPBX%20Scheme%20details" class="btn" style="background:#25d366;color:white;" target="_blank">WhatsApp Us</a>
+                    </div>
+                    <div class="hero-stats">
+                        <div class="hero-stat"><div class="val">0 &#8377;</div><div class="lbl">Hardware Cost</div></div>
+                        <div class="hero-stat"><div class="val">Free</div><div class="lbl">Installation</div></div>
+                        <div class="hero-stat"><div class="val">24/7</div><div class="lbl">Support</div></div>
+                        <div class="hero-stat"><div class="val">100%</div><div class="lbl">Uptime</div></div>
+                    </div>
+                </div>
+                <div style="text-align:center;">
+                    <img src="https://upload.wikimedia.org/wikipedia/en/thumb/5/52/Bharat_Sanchar_Nigam_Limited_Logo.svg/1200px-Bharat_Sanchar_Nigam_Limited_Logo.svg.png"
+                        alt="BSNL Logo" style="height:180px;filter:brightness(0) invert(1);opacity:.9;">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- What is this Scheme -->
+    <section class="section">
+        <div class="container">
+            <span class="tag">About the Scheme</span>
+            <h2 class="title">What is BSNL Free IPPBX Scheme?</h2>
+            <p class="subtitle">BSNL offers a promotional scheme where businesses can get a complete IPPBX system installed at zero hardware cost. The scheme is designed to help organizations modernize their office communication without any upfront capital investment.</p>
+            <div class="benefit-grid">
+                <div class="benefit-card">
+                    <div class="benefit-icon">💰</div>
+                    <h3>Zero Hardware Investment</h3>
+                    <p>The IPPBX hardware unit is provided completely free of cost. No purchase or lease payments required for the system.</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">🔧</div>
+                    <h3>Free Professional Installation</h3>
+                    <p>Coral Infratel handles complete installation, cabling, configuration, and testing at no additional charge.</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">📞</div>
+                    <h3>Full IPPBX Features</h3>
+                    <p>Get all enterprise features including IVR, call recording, multi-extension support, and call analytics included.</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">🛡️</div>
+                    <h3>BSNL Backed Reliability</h3>
+                    <p>Backed by India's largest government telecom operator with nationwide coverage and reliable connectivity.</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">🔗</div>
+                    <h3>PRI/SIP Connectivity</h3>
+                    <p>BSNL PRI line or SIP trunk connectivity included with the scheme for external call routing.</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">📈</div>
+                    <h3>Scalable Solution</h3>
+                    <p>Start with basic extensions and scale up as your organization grows. Add departments and branches easily.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How to Apply -->
+    <section class="section" style="background:var(--bg-alt);">
+        <div class="container">
+            <span class="tag">Process</span>
+            <h2 class="title">How to Apply for Free IPPBX</h2>
+            <p class="subtitle">Getting your free IPPBX is simple. Follow these steps and Coral Infratel will handle everything for you.</p>
+            <div class="steps-grid">
+                <div class="step-card">
+                    <h3>Contact Coral Infratel</h3>
+                    <p>Reach out to us via phone, WhatsApp, or the contact form. Share your basic business details and communication requirements.</p>
+                </div>
+                <div class="step-card">
+                    <h3>Requirement Assessment</h3>
+                    <p>Our team visits your office to assess the number of extensions needed, existing infrastructure, and connectivity options.</p>
+                </div>
+                <div class="step-card">
+                    <h3>BSNL Application</h3>
+                    <p>We handle the complete BSNL application process including documentation, scheme registration, and approval follow-up.</p>
+                </div>
+                <div class="step-card">
+                    <h3>Installation & Training</h3>
+                    <p>Once approved, our engineers install the IPPBX system, configure all extensions, and provide hands-on training to your team.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Eligibility -->
+    <section class="section">
+        <div class="container">
+            <div class="eligibility-box">
+                <h2>Who Can Apply?</h2>
+                <ul class="eligibility-list">
+                    <li>&#9989; Registered businesses and companies (Pvt Ltd, LLP, Partnership, Proprietorship)</li>
+                    <li>&#9989; Government offices and public sector organizations</li>
+                    <li>&#9989; Educational institutions (schools, colleges, universities)</li>
+                    <li>&#9989; Hospitals, clinics, and healthcare facilities</li>
+                    <li>&#9989; Hotels, restaurants, and hospitality businesses</li>
+                    <li>&#9989; Any organization with existing or new BSNL telephone connection</li>
+                </ul>
+                <div style="margin-top:30px;">
+                    <a href="index.html#contact" class="btn" style="background:#ffd54f;color:var(--bsnl);">Check Your Eligibility</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- What You Get -->
+    <section class="section" style="background:var(--bg-alt);">
+        <div class="container">
+            <span class="tag">Included in Scheme</span>
+            <h2 class="title">What You Get Under This Scheme</h2>
+            <div class="benefit-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">
+                <div class="benefit-card" style="text-align:center;">
+                    <div style="font-size:2.5rem;margin-bottom:15px;">🖥️</div>
+                    <h3>IPPBX Hardware Unit</h3>
+                    <p>Sipon Swarsanchar IPPBX system with all required components</p>
+                </div>
+                <div class="benefit-card" style="text-align:center;">
+                    <div style="font-size:2.5rem;margin-bottom:15px;">📞</div>
+                    <h3>IP Phones</h3>
+                    <p>Desktop IP phones for each configured extension</p>
+                </div>
+                <div class="benefit-card" style="text-align:center;">
+                    <div style="font-size:2.5rem;margin-bottom:15px;">🔌</div>
+                    <h3>Cabling & Setup</h3>
+                    <p>Complete LAN cabling and network configuration</p>
+                </div>
+                <div class="benefit-card" style="text-align:center;">
+                    <div style="font-size:2.5rem;margin-bottom:15px;">🤖</div>
+                    <h3>IVR Configuration</h3>
+                    <p>Professional IVR menu setup with custom greetings</p>
+                </div>
+                <div class="benefit-card" style="text-align:center;">
+                    <div style="font-size:2.5rem;margin-bottom:15px;">🎓</div>
+                    <h3>Staff Training</h3>
+                    <p>On-site training for your team on system operation</p>
+                </div>
+                <div class="benefit-card" style="text-align:center;">
+                    <div style="font-size:2.5rem;margin-bottom:15px;">🛠️</div>
+                    <h3>Ongoing Support</h3>
+                    <p>Post-installation technical support and maintenance</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="section">
+        <div class="container">
+            <span class="tag">Common Questions</span>
+            <h2 class="title" style="text-align:center;">Frequently Asked Questions</h2>
+            <div class="faq-section">
+                <div class="faq-item" onclick="this.classList.toggle('open')">
+                    <div class="faq-q">Is the IPPBX hardware really free? <span class="faq-arrow">&#9660;</span></div>
+                    <div class="faq-a">Yes, under the BSNL scheme, the IPPBX hardware is provided at zero cost. There is no purchase price, lease, or EMI for the hardware unit itself.</div>
+                </div>
+                <div class="faq-item" onclick="this.classList.toggle('open')">
+                    <div class="faq-q">Do I need an existing BSNL connection? <span class="faq-arrow">&#9660;</span></div>
+                    <div class="faq-a">Having an existing BSNL connection helps, but it is not mandatory. We can arrange a new BSNL PRI line or SIP trunk as part of the scheme application process.</div>
+                </div>
+                <div class="faq-item" onclick="this.classList.toggle('open')">
+                    <div class="faq-q">What are the monthly charges? <span class="faq-arrow">&#9660;</span></div>
+                    <div class="faq-a">Monthly charges depend on the BSNL plan selected for your PRI line or SIP trunk connectivity. The IPPBX system itself does not have any separate monthly fee.</div>
+                </div>
+                <div class="faq-item" onclick="this.classList.toggle('open')">
+                    <div class="faq-q">How long does installation take? <span class="faq-arrow">&#9660;</span></div>
+                    <div class="faq-a">Once the scheme is approved by BSNL, installation is typically completed within 3-5 business days depending on the size of your setup and cabling requirements.</div>
+                </div>
+                <div class="faq-item" onclick="this.classList.toggle('open')">
+                    <div class="faq-q">Can I add more extensions later? <span class="faq-arrow">&#9660;</span></div>
+                    <div class="faq-a">Yes, the Sipon IPPBX system is fully scalable. You can add more extensions, departments, and even additional branches at any time.</div>
+                </div>
+                <div class="faq-item" onclick="this.classList.toggle('open')">
+                    <div class="faq-q">Is this scheme available in my city? <span class="faq-arrow">&#9660;</span></div>
+                    <div class="faq-a">The scheme is available across India wherever BSNL has coverage. Contact us with your location details and we will confirm availability in your area.</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA -->
+    <div class="cta-section">
+        <h2>Get Your Free IPPBX Today</h2>
+        <p>Contact Coral Infratel to apply for the BSNL Free IPPBX Scheme. We handle everything from application to installation.</p>
+        <div style="display:flex;gap:15px;justify-content:center;flex-wrap:wrap;">
+            <a href="index.html#contact" class="btn" style="background:#ffd54f;color:var(--bsnl);">Apply Now - It's Free</a>
+            <a href="https://wa.me/917015997383?text=I%20want%20BSNL%20Free%20IPPBX%20Scheme" class="btn" style="background:#25d366;color:white;" target="_blank">WhatsApp Us</a>
+        </div>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2026 Coral Infratel Pvt Ltd. All rights reserved. | <a href="index.html">Home</a> | <a href="sipon-ippbx.html">Sipon IPPBX</a> | <a href="call-center.html">Call Center</a> | <a href="blog.html">Blog</a></p>
+        </div>
+    </footer>
+
+    <script>
+        window.addEventListener('scroll',()=>{const h=document.querySelector('header');h.style.boxShadow=window.scrollY>50?'0 10px 30px rgba(0,0,0,.1)':'none'});
+    </script>
+</body>
+</html>
