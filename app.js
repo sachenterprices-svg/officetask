@@ -3547,7 +3547,59 @@ app.post('/api/bulk-pdf-process', authenticateToken, async (req, res) => {
 });
 
 // ── BULK PDF: HELPER — Download PDF to Buffer ────────────────────────────────
-function downloadPdfBuffer(url, redirectCount = 0) {
+// Uses cPanel PHP proxy for BSNL URLs (Vercel IPs are blocked by BSNL)
+const PDF_PROXY_URL = 'https://coralinfratel.com/pdf_proxy.php';
+const PDF_PROXY_KEY = 'CoralBill2026Proxy';
+
+function downloadPdfBuffer(url) {
+    // For BSNL URLs, use cPanel proxy
+    if (url.includes('bsnl.co.in')) {
+        return downloadViaProxy(url);
+    }
+    return downloadDirect(url);
+}
+
+function downloadViaProxy(originalUrl) {
+    return new Promise((resolve, reject) => {
+        const proxyUrl = `${PDF_PROXY_URL}?key=${encodeURIComponent(PDF_PROXY_KEY)}&url=${encodeURIComponent(originalUrl)}`;
+        const parsedUrl = new URL(proxyUrl);
+        const opts = {
+            hostname: parsedUrl.hostname,
+            path: parsedUrl.pathname + parsedUrl.search,
+            timeout: 30000,
+            headers: {
+                'User-Agent': 'CoralCRM/1.0',
+                'Accept': 'application/pdf,*/*'
+            }
+        };
+        const req = https.get(opts, (res) => {
+            if (res.statusCode !== 200) {
+                const chunks = [];
+                res.on('data', c => chunks.push(c));
+                res.on('end', () => {
+                    const body = Buffer.concat(chunks).toString();
+                    reject(new Error(`Proxy HTTP ${res.statusCode}: ${body.substring(0, 200)}`));
+                });
+                return;
+            }
+            const chunks = [];
+            res.on('data', chunk => chunks.push(chunk));
+            res.on('end', () => {
+                const buf = Buffer.concat(chunks);
+                if (buf.length < 500) {
+                    reject(new Error(`Proxy returned too small response (${buf.length} bytes)`));
+                } else {
+                    resolve(buf);
+                }
+            });
+            res.on('error', reject);
+        });
+        req.on('error', (e) => reject(new Error(`Proxy error: ${e.message}`)));
+        req.on('timeout', () => { req.destroy(); reject(new Error('Proxy timeout 30s')); });
+    });
+}
+
+function downloadDirect(url, redirectCount = 0) {
     return new Promise((resolve, reject) => {
         if (redirectCount > 5) return reject(new Error('Too many redirects'));
         const parsedUrl = new URL(url);
@@ -3559,18 +3611,8 @@ function downloadPdfBuffer(url, redirectCount = 0) {
             timeout: 45000,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,application/pdf,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9,hi;q=0.8',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Referer': 'https://billview.bsnl.co.in/',
-                'Origin': 'https://billview.bsnl.co.in',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'same-origin',
-                'Sec-Fetch-User': '?1',
-                'Upgrade-Insecure-Requests': '1',
-                'Cache-Control': 'no-cache',
-                'Pragma': 'no-cache',
+                'Accept': 'application/pdf,*/*',
+                'Accept-Language': 'en-US,en;q=0.9',
                 'Connection': 'keep-alive'
             }
         };
@@ -3580,7 +3622,7 @@ function downloadPdfBuffer(url, redirectCount = 0) {
                 const loc = res.headers.location;
                 if (!loc) return reject(new Error('Redirect without location'));
                 const nextUrl = loc.startsWith('http') ? loc : new URL(loc, url).href;
-                return downloadPdfBuffer(nextUrl, redirectCount + 1).then(resolve).catch(reject);
+                return downloadDirect(nextUrl, redirectCount + 1).then(resolve).catch(reject);
             }
             if (res.statusCode !== 200) {
                 res.resume();
