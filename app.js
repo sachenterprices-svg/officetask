@@ -3559,8 +3559,18 @@ function downloadPdfBuffer(url, redirectCount = 0) {
             timeout: 45000,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-                'Accept': 'application/pdf,*/*',
-                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,application/pdf,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9,hi;q=0.8',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Referer': 'https://billview.bsnl.co.in/',
+                'Origin': 'https://billview.bsnl.co.in',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'same-origin',
+                'Sec-Fetch-User': '?1',
+                'Upgrade-Insecure-Requests': '1',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache',
                 'Connection': 'keep-alive'
             }
         };
@@ -4034,7 +4044,12 @@ app.get('/api/bulk-bill/status', authenticateToken, async (req, res) => {
              FROM bill_pdfs WHERE status='matched' AND email IS NOT NULL AND email != ''`
         );
 
-        res.json({ ...stats, emailTotal: emailStats.total || 0, emailSent: emailStats.sent || 0 });
+        // Get sample error messages for debugging
+        const [errors] = await pool.query(
+            `SELECT error_message, COUNT(*) as cnt FROM bill_pdfs WHERE status='error' AND error_message IS NOT NULL GROUP BY error_message LIMIT 5`
+        );
+
+        res.json({ ...stats, emailTotal: emailStats.total || 0, emailSent: emailStats.sent || 0, errors });
     } catch(e) {
         res.status(500).json({ error: e.message });
     }

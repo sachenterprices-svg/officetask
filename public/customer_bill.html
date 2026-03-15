@@ -457,6 +457,7 @@
                 <span id="bbStatNotFound" style="background:#fee2e2;color:#991b1b;padding:4px 10px;border-radius:6px;font-size:0.78rem;font-weight:700;">Not Found: 0</span>
                 <span id="bbStatError" style="background:#fecaca;color:#dc2626;padding:4px 10px;border-radius:6px;font-size:0.78rem;font-weight:700;">Error: 0</span>
             </div>
+            <div id="bbErrorDetails" style="display:none;margin-top:6px;padding:8px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;"></div>
 
             <!-- ZIP Download -->
             <div id="bbZipSection" style="display:none;background:#f0fdf4;border:1px solid #bbf7d0;
@@ -1083,6 +1084,13 @@ async function updateBulkBillStatus() {
         document.getElementById('bbStatMatched').textContent = 'Matched: ' + s.matched;
         document.getElementById('bbStatNotFound').textContent = 'Not Found: ' + s.not_found;
         document.getElementById('bbStatError').textContent = 'Error: ' + s.error;
+
+        // Show error details if any
+        var errEl = document.getElementById('bbErrorDetails');
+        if (errEl && s.errors && s.errors.length > 0) {
+            errEl.style.display = '';
+            errEl.innerHTML = '<small style="color:#dc2626;font-size:0.78rem;">' + s.errors.map(function(e){ return esc(e.error_message) + ' (' + e.cnt + ')'; }).join('<br>') + '</small>';
+        } else if (errEl) { errEl.style.display = 'none'; }
 
         var done = s.total - s.pending - (s.downloading||0);
         var pct = s.total > 0 ? Math.round((done / s.total) * 90) + 10 : 10;
