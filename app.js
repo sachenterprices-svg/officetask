@@ -3977,12 +3977,13 @@ app.post('/api/bulk-bill/upload-excel', authenticateToken, (req, res, next) => {
     }
 });
 
-// 2. Process batch — download 5 PDFs, match customer, save BLOB
+// 2. Process batch — download PDFs via cPanel proxy, match customer, save BLOB
 app.post('/api/bulk-bill/process-batch', authenticateToken, async (req, res) => {
     try {
-        // Pick 10 pending rows and process ALL in parallel
+        // Pick 50 pending rows and process ALL in parallel via cPanel proxy
+        const batchSize = req.body.batchSize || 50;
         const [pending] = await pool.query(
-            `SELECT id, telephone_number, pdf_link FROM bill_pdfs WHERE status='pending' LIMIT 10`
+            `SELECT id, telephone_number, pdf_link FROM bill_pdfs WHERE status='pending' LIMIT ?`, [batchSize]
         );
         if (!pending.length) {
             const [counts] = await pool.query(
