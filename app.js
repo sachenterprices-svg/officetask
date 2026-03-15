@@ -3850,6 +3850,29 @@ app.get('/api/bulk-pdf-job/:jobId/zip', (req, res, next) => {
 
 const bulkBillUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }).single('excel');
 
+// Auto-ensure bill_pdfs table exists before any bulk-bill endpoint
+async function ensureBillPdfsTable() {
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS bill_pdfs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            batch_id VARCHAR(100),
+            telephone_number VARCHAR(100),
+            pdf_link TEXT,
+            customer_id INT DEFAULT NULL,
+            customer_name VARCHAR(255) DEFAULT NULL,
+            circle VARCHAR(100) DEFAULT NULL,
+            oa_name VARCHAR(100) DEFAULT NULL,
+            email VARCHAR(150) DEFAULT NULL,
+            renamed_filename VARCHAR(500),
+            pdf_data LONGBLOB,
+            status ENUM('pending','downloading','matched','not_found','error') DEFAULT 'pending',
+            email_sent BOOLEAN DEFAULT FALSE,
+            error_message TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB
+    `);
+}
+
 // 1. Upload Excel → Parse → Insert rows into bill_pdfs
 app.post('/api/bulk-bill/upload-excel', authenticateToken, (req, res, next) => {
     bulkBillUpload(req, res, (err) => {
@@ -3858,6 +3881,7 @@ app.post('/api/bulk-bill/upload-excel', authenticateToken, (req, res, next) => {
     });
 }, async (req, res) => {
     try {
+        await ensureBillPdfsTable();
         if (!req.file) return res.status(400).json({ error: 'No Excel file uploaded.' });
 
         let workbook;
