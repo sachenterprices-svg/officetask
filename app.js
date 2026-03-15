@@ -709,6 +709,56 @@ async function initBillPdfsTable() {
     }
 }
 
+// ── BILL TASKS TABLE (Customer Bill Task / Claim form) ──
+async function initBillTasksTable() {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS bill_tasks (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                bsnl_bill_no VARCHAR(100),
+                bill_for_month VARCHAR(50),
+                customer_name VARCHAR(255),
+                customer_ph_no VARCHAR(100),
+                from_date DATE DEFAULT NULL,
+                to_date DATE DEFAULT NULL,
+                rent_ip DECIMAL(12,2) DEFAULT 0,
+                rent_vas DECIMAL(12,2) DEFAULT 0,
+                rent_voice DECIMAL(12,2) DEFAULT 0,
+                rg_charges DECIMAL(12,2) DEFAULT 0,
+                fixed_charges DECIMAL(12,2) DEFAULT 0,
+                plan_charges DECIMAL(12,2) DEFAULT 0,
+                call_charges DECIMAL(12,2) DEFAULT 0,
+                other_debit_with_st DECIMAL(12,2) DEFAULT 0,
+                other_debit_wo_st DECIMAL(12,2) DEFAULT 0,
+                other_credit_with_st DECIMAL(12,2) DEFAULT 0,
+                other_credit_wo_st DECIMAL(12,2) DEFAULT 0,
+                total_bill DECIMAL(12,2) DEFAULT 0,
+                value_as_per_bill DECIMAL(12,2) DEFAULT 0,
+                gst DECIMAL(12,2) DEFAULT 0,
+                customer_id_field VARCHAR(100),
+                claim_no VARCHAR(100),
+                phone_no VARCHAR(100),
+                net_bill_amount DECIMAL(12,2) DEFAULT 0,
+                days_of_month INT DEFAULT 0,
+                days_of_plan INT DEFAULT 0,
+                rental_share_claim DECIMAL(12,2) DEFAULT 0,
+                rg_share_claim DECIMAL(12,2) DEFAULT 0,
+                call_charges_revenue DECIMAL(12,2) DEFAULT 0,
+                modem_rental DECIMAL(12,2) DEFAULT 0,
+                claim_fixed_charges DECIMAL(12,2) DEFAULT 0,
+                total_charges DECIMAL(12,2) DEFAULT 0,
+                remarks TEXT,
+                created_by INT DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB
+        `);
+        console.log('✅ Bill Tasks table initialized.');
+    } catch (err) {
+        console.error('⚠️ Could not initialize bill_tasks table:', err.message);
+    }
+}
+
 async function upgradeCustomersTable() {
     try {
         const [rows] = await pool.query(`
@@ -3271,6 +3321,7 @@ async function startupChecks() {
     await initializeSystemLogsTable();
     await initializeWebsiteContentTable();
     await initBillPdfsTable();
+    await initBillTasksTable();
     await initializeAdmin();
     console.log('🚀 [READY] All startup checks complete. Server is fully ready!');
 }
@@ -4213,6 +4264,142 @@ app.get('/api/bulk-bill/email-status', authenticateToken, async (req, res) => {
         res.json({ total: stats.total || 0, sent: stats.sent || 0, remaining: (stats.total || 0) - (stats.sent || 0) });
     } catch(e) {
         res.status(500).json({ error: e.message });
+    }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BILL TASKS API (Customer Bill Task / Claim submission)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Create bill task
+app.post('/api/bill-tasks', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        const [result] = await pool.query(
+            `INSERT INTO bill_tasks (
+                bsnl_bill_no, bill_for_month, customer_name, customer_ph_no,
+                from_date, to_date, rent_ip, rent_vas, rent_voice, rg_charges,
+                fixed_charges, plan_charges, call_charges,
+                other_debit_with_st, other_debit_wo_st, other_credit_with_st, other_credit_wo_st,
+                total_bill, value_as_per_bill, gst, customer_id_field, claim_no, phone_no,
+                net_bill_amount, days_of_month, days_of_plan,
+                rental_share_claim, rg_share_claim, call_charges_revenue,
+                modem_rental, claim_fixed_charges, total_charges, remarks, created_by
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [
+                b.bsnl_bill_no || '', b.bill_for_month || '', b.customer_name || '', b.customer_ph_no || '',
+                b.from_date || null, b.to_date || null,
+                b.rent_ip || 0, b.rent_vas || 0, b.rent_voice || 0, b.rg_charges || 0,
+                b.fixed_charges || 0, b.plan_charges || 0, b.call_charges || 0,
+                b.other_debit_with_st || 0, b.other_debit_wo_st || 0,
+                b.other_credit_with_st || 0, b.other_credit_wo_st || 0,
+                b.total_bill || 0, b.value_as_per_bill || 0, b.gst || 0,
+                b.customer_id_field || '', b.claim_no || '', b.phone_no || '',
+                b.net_bill_amount || 0, b.days_of_month || 0, b.days_of_plan || 0,
+                b.rental_share_claim || 0, b.rg_share_claim || 0, b.call_charges_revenue || 0,
+                b.modem_rental || 0, b.claim_fixed_charges || 0, b.total_charges || 0,
+                b.remarks || '', req.user.id
+            ]
+        );
+        res.json({ success: true, id: result.insertId, message: 'Bill task created successfully.' });
+    } catch(e) {
+        res.status(500).json({ error: 'Failed to create bill task: ' + e.message });
+    }
+});
+
+// List bill tasks (with search, sort, pagination)
+app.get('/api/bill-tasks', authenticateToken, async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 50;
+        const offset = (page - 1) * limit;
+        const search = req.query.search || '';
+        const sortBy = req.query.sortBy || 'created_at';
+        const sortDir = (req.query.sortDir || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+        const allowedSorts = ['id','bsnl_bill_no','bill_for_month','customer_name','customer_ph_no',
+            'total_bill','net_bill_amount','total_charges','created_at'];
+        const safeSort = allowedSorts.includes(sortBy) ? sortBy : 'created_at';
+
+        let where = '1=1';
+        const params = [];
+        if (search) {
+            where += ` AND (customer_name LIKE ? OR bsnl_bill_no LIKE ? OR customer_ph_no LIKE ? OR claim_no LIKE ?)`;
+            const s = '%' + search + '%';
+            params.push(s, s, s, s);
+        }
+
+        const [[{ total }]] = await pool.query(`SELECT COUNT(*) as total FROM bill_tasks WHERE ${where}`, params);
+        const [rows] = await pool.query(
+            `SELECT bt.*, u.name as created_by_name FROM bill_tasks bt
+             LEFT JOIN users u ON u.id = bt.created_by
+             WHERE ${where} ORDER BY ${safeSort} ${sortDir} LIMIT ? OFFSET ?`,
+            [...params, limit, offset]
+        );
+
+        res.json({ data: rows, total, page, limit, totalPages: Math.ceil(total / limit) });
+    } catch(e) {
+        res.status(500).json({ error: 'Failed to fetch bill tasks: ' + e.message });
+    }
+});
+
+// Get single bill task
+app.get('/api/bill-tasks/:id', authenticateToken, async (req, res) => {
+    try {
+        const [[row]] = await pool.query(
+            `SELECT bt.*, u.name as created_by_name FROM bill_tasks bt
+             LEFT JOIN users u ON u.id = bt.created_by WHERE bt.id = ?`, [req.params.id]
+        );
+        if (!row) return res.status(404).json({ error: 'Bill task not found' });
+        res.json(row);
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Update bill task
+app.put('/api/bill-tasks/:id', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        await pool.query(
+            `UPDATE bill_tasks SET
+                bsnl_bill_no=?, bill_for_month=?, customer_name=?, customer_ph_no=?,
+                from_date=?, to_date=?, rent_ip=?, rent_vas=?, rent_voice=?, rg_charges=?,
+                fixed_charges=?, plan_charges=?, call_charges=?,
+                other_debit_with_st=?, other_debit_wo_st=?, other_credit_with_st=?, other_credit_wo_st=?,
+                total_bill=?, value_as_per_bill=?, gst=?, customer_id_field=?, claim_no=?, phone_no=?,
+                net_bill_amount=?, days_of_month=?, days_of_plan=?,
+                rental_share_claim=?, rg_share_claim=?, call_charges_revenue=?,
+                modem_rental=?, claim_fixed_charges=?, total_charges=?, remarks=?
+            WHERE id=?`,
+            [
+                b.bsnl_bill_no || '', b.bill_for_month || '', b.customer_name || '', b.customer_ph_no || '',
+                b.from_date || null, b.to_date || null,
+                b.rent_ip || 0, b.rent_vas || 0, b.rent_voice || 0, b.rg_charges || 0,
+                b.fixed_charges || 0, b.plan_charges || 0, b.call_charges || 0,
+                b.other_debit_with_st || 0, b.other_debit_wo_st || 0,
+                b.other_credit_with_st || 0, b.other_credit_wo_st || 0,
+                b.total_bill || 0, b.value_as_per_bill || 0, b.gst || 0,
+                b.customer_id_field || '', b.claim_no || '', b.phone_no || '',
+                b.net_bill_amount || 0, b.days_of_month || 0, b.days_of_plan || 0,
+                b.rental_share_claim || 0, b.rg_share_claim || 0, b.call_charges_revenue || 0,
+                b.modem_rental || 0, b.claim_fixed_charges || 0, b.total_charges || 0,
+                b.remarks || '', req.params.id
+            ]
+        );
+        res.json({ success: true, message: 'Bill task updated.' });
+    } catch(e) {
+        res.status(500).json({ error: 'Failed to update: ' + e.message });
+    }
+});
+
+// Delete bill task
+app.delete('/api/bill-tasks/:id', authenticateToken, async (req, res) => {
+    try {
+        await pool.query(`DELETE FROM bill_tasks WHERE id=?`, [req.params.id]);
+        res.json({ success: true, message: 'Bill task deleted.' });
+    } catch(e) {
+        res.status(500).json({ error: 'Failed to delete: ' + e.message });
     }
 });
 
