@@ -413,7 +413,7 @@
                         // Reverse geocode for location name
                         let locName = '';
                         try {
-                            const gRes = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=10`);
+                            const gRes = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=10&accept-language=en`);
                             const gData = await gRes.json();
                             const addr = gData.address || {};
                             locName = addr.city || addr.town || addr.village || addr.county || addr.state || '';
