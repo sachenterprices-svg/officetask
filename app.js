@@ -812,6 +812,27 @@ async function initGstMasterTable() {
     }
 }
 
+async function initBillEmailLog() {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS bill_email_log (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                customer_id INT NOT NULL,
+                billing_month VARCHAR(20) NOT NULL,
+                billing_year VARCHAR(10) NOT NULL,
+                email_to VARCHAR(255),
+                sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                sent_by INT DEFAULT NULL,
+                source ENUM('individual','bulk') DEFAULT 'individual',
+                INDEX idx_cust_month (customer_id, billing_month, billing_year)
+            ) ENGINE=InnoDB
+        `);
+        console.log('✅ Bill email log table initialized.');
+    } catch (err) {
+        console.error('⚠️ Could not initialize bill_email_log table:', err.message);
+    }
+}
+
 async function upgradeCustomersTable() {
     try {
         const [rows] = await pool.query(`
@@ -2651,10 +2672,85 @@ app.post('/api/bills/send-email', authenticateToken, async (req, res) => {
 
         const sent   = results.filter(r => r.status === 'fulfilled').length;
         const failed = results.filter(r => r.status === 'rejected').length;
+
+        // Log successful sends to bill_email_log
+        for (let i = 0; i < results.length; i++) {
+            if (results[i].status === 'fulfilled') {
+                try {
+                    await pool.query(
+                        `INSERT INTO bill_email_log (customer_id, billing_month, billing_year, email_to, sent_by, source) VALUES (?, ?, ?, ?, ?, 'individual')`,
+                        [withEmail[i].id, billing_month || '', billing_year || '', withEmail[i].acc_person_email.trim(), req.user.id]
+                    );
+                } catch(logErr) { console.error('Email log insert error:', logErr.message); }
+            }
+        }
+
         res.json({ sent, failed, total: withEmail.length });
     } catch (err) {
         console.error('Send bill email error:', err);
         res.status(500).json({ error: 'Email send failed: ' + err.message });
+    }
+});
+
+// --- Bill Email Sent Status API ---
+app.get('/api/bills/email-sent-status', authenticateToken, async (req, res) => {
+    try {
+        const { billing_month, billing_year, customer_ids } = req.query;
+        if (!billing_month || !billing_year) return res.json({ sent_map: {} });
+
+        let custIds = [];
+        if (customer_ids) {
+            try { custIds = JSON.parse(customer_ids); } catch(e) { custIds = []; }
+        }
+        if (!custIds.length) return res.json({ sent_map: {} });
+
+        const [rows] = await pool.query(
+            `SELECT customer_id, MAX(sent_at) as last_sent
+             FROM bill_email_log
+             WHERE billing_month = ? AND billing_year = ? AND customer_id IN (?)
+             GROUP BY customer_id`,
+            [billing_month, billing_year, custIds]
+        );
+
+        const sent_map = {};
+        rows.forEach(r => {
+            sent_map[r.customer_id] = r.last_sent;
+        });
+        res.json({ sent_map });
+    } catch(err) {
+        console.error('Email sent status error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- One-time migration: backfill bill_email_log from bill_pdfs ---
+app.post('/api/bills/migrate-email-log', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        const { billing_month, billing_year } = req.body;
+        if (!billing_month || !billing_year) return res.status(400).json({ error: 'billing_month and billing_year required' });
+
+        const [rows] = await pool.query(
+            `SELECT customer_id, email, created_at FROM bill_pdfs WHERE email_sent = true AND customer_id IS NOT NULL AND email IS NOT NULL AND email != ''`
+        );
+        let inserted = 0;
+        for (const r of rows) {
+            // Check if already exists
+            const [[existing]] = await pool.query(
+                `SELECT id FROM bill_email_log WHERE customer_id = ? AND billing_month = ? AND billing_year = ? LIMIT 1`,
+                [r.customer_id, billing_month, billing_year]
+            );
+            if (!existing) {
+                await pool.query(
+                    `INSERT INTO bill_email_log (customer_id, billing_month, billing_year, email_to, sent_at, sent_by, source) VALUES (?, ?, ?, ?, ?, ?, 'bulk')`,
+                    [r.customer_id, billing_month, billing_year, r.email, r.created_at, req.user.id]
+                );
+                inserted++;
+            }
+        }
+        res.json({ migrated: inserted, total_found: rows.length });
+    } catch(err) {
+        res.status(500).json({ error: err.message });
     }
 });
 
@@ -3376,6 +3472,7 @@ async function startupChecks() {
     await initBillPdfsTable();
     await initBillTasksTable();
     await initGstMasterTable();
+    await initBillEmailLog();
     await initializeAdmin();
     console.log('🚀 [READY] All startup checks complete. Server is fully ready!');
 }
@@ -4289,6 +4386,16 @@ app.post('/api/bulk-bill/send-email-batch', authenticateToken, async (req, res) 
 
                 await pool.query(`UPDATE bill_pdfs SET email_sent=true WHERE id=?`, [row.id]);
                 sent++;
+
+                // Log to bill_email_log
+                if (row.customer_id) {
+                    try {
+                        await pool.query(
+                            `INSERT INTO bill_email_log (customer_id, billing_month, billing_year, email_to, sent_by, source) VALUES (?, ?, ?, ?, ?, 'bulk')`,
+                            [row.customer_id, billingMonth, billingYear, emails.join(','), req.user.id]
+                        );
+                    } catch(logErr) { console.error('Bulk email log error:', logErr.message); }
+                }
             } catch(mailErr) {
                 await pool.query(
                     `UPDATE bill_pdfs SET error_message=? WHERE id=?`,
