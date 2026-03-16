@@ -3607,6 +3607,7 @@ async function startupChecks() {
     await initBillTasksTable();
     await initGstMasterTable();
     await initBillEmailLog();
+    await initDiaryTasksTables();
     await initializeAdmin();
     console.log('🚀 [READY] All startup checks complete. Server is fully ready!');
 }
@@ -4773,6 +4774,338 @@ app.delete('/api/gst-master/:id', authenticateToken, async (req, res) => {
     try {
         await pool.query(`DELETE FROM gst_master WHERE id=?`, [req.params.id]);
         res.json({ success: true, message: 'GST entry deleted.' });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
+// WORK LOG PRO — Personal Diary Task Module
+// ═══════════════════════════════════════════════════════
+
+async function initDiaryTasksTables() {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS diary_tasks (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                title VARCHAR(500) NOT NULL,
+                description TEXT,
+                category VARCHAR(100) DEFAULT 'General',
+                priority ENUM('Low','Medium','High','Critical') DEFAULT 'Medium',
+                task_type ENUM('Call','Meeting','Follow Up','Work','Personal','Other') DEFAULT 'Work',
+                start_date DATE,
+                due_date DATE NOT NULL,
+                estimated_time VARCHAR(50),
+                status ENUM('Pending','In Progress','Completed','Rescheduled','Cancelled','Closed') DEFAULT 'Pending',
+                delay_reason TEXT,
+                next_due_date DATE,
+                reschedule_notes TEXT,
+                notes TEXT,
+                attachment_name VARCHAR(255),
+                attachment_data LONGBLOB,
+                source_type ENUM('manual','assigned') DEFAULT 'manual',
+                source_task_id INT,
+                assigned_by VARCHAR(255),
+                completed_at DATETIME,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_user_date (user_id, due_date),
+                INDEX idx_user_status (user_id, status)
+            ) ENGINE=InnoDB
+        `);
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS diary_task_history (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                task_id INT NOT NULL,
+                previous_status VARCHAR(50),
+                new_status VARCHAR(50),
+                comment TEXT,
+                changed_by INT,
+                changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_task (task_id)
+            ) ENGINE=InnoDB
+        `);
+        // Add columns if missing (for existing installs)
+        const newCols = [
+            { name: 'task_type', type: "ENUM('Call','Meeting','Follow Up','Work','Personal','Other') DEFAULT 'Work'" },
+            { name: 'reschedule_notes', type: 'TEXT' },
+            { name: 'attachment_name', type: 'VARCHAR(255)' },
+            { name: 'attachment_data', type: 'LONGBLOB' },
+            { name: 'source_type', type: "ENUM('manual','assigned') DEFAULT 'manual'" },
+            { name: 'source_task_id', type: 'INT' },
+            { name: 'assigned_by', type: 'VARCHAR(255)' },
+            { name: 'completed_at', type: 'DATETIME' }
+        ];
+        for (const col of newCols) {
+            try { await pool.query(`ALTER TABLE diary_tasks ADD COLUMN ${col.name} ${col.type}`); } catch(e) {}
+        }
+        console.log('✅ Diary tasks tables initialized.');
+    } catch(err) {
+        console.error('⚠️ Could not initialize diary tasks tables:', err.message);
+    }
+}
+
+// --- Check pending previous-day diary tasks (for login enforcement) ---
+app.get('/api/diary/pending-check', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const today = new Date(); today.setHours(0,0,0,0);
+        const [rows] = await pool.query(
+            `SELECT id, title, due_date, priority, status FROM diary_tasks
+             WHERE user_id = ? AND due_date < ? AND status IN ('Pending','In Progress')
+             ORDER BY due_date ASC`,
+            [userId, today.toISOString().split('T')[0]]
+        );
+        res.json({ hasPending: rows.length > 0, count: rows.length, tasks: rows });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- Bulk resolve pending tasks ---
+app.post('/api/diary/bulk-resolve', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { resolutions } = req.body; // [{id, status, delay_reason, next_due_date}]
+        if (!resolutions || !resolutions.length) return res.status(400).json({ error: 'No resolutions provided' });
+
+        const conn = await pool.getConnection();
+        try {
+            await conn.beginTransaction();
+            for (const r of resolutions) {
+                const [task] = await conn.query('SELECT * FROM diary_tasks WHERE id = ? AND user_id = ?', [r.id, userId]);
+                if (!task.length) continue;
+                const oldStatus = task[0].status;
+                const updates = { status: r.status };
+                if (r.delay_reason) updates.delay_reason = r.delay_reason;
+                if (r.next_due_date) updates.next_due_date = r.next_due_date;
+                if (r.status === 'Completed') updates.completed_at = new Date();
+
+                await conn.query('UPDATE diary_tasks SET ? WHERE id = ? AND user_id = ?', [updates, r.id, userId]);
+                await conn.query('INSERT INTO diary_task_history (task_id, previous_status, new_status, comment, changed_by) VALUES (?,?,?,?,?)',
+                    [r.id, oldStatus, r.status, r.delay_reason || 'Bulk resolved on login', userId]);
+
+                // If rescheduled, create new task
+                if (r.status === 'Rescheduled' && r.next_due_date) {
+                    await conn.query(`INSERT INTO diary_tasks (user_id, title, description, category, priority, task_type, start_date, due_date, estimated_time, status, notes, source_type)
+                        SELECT user_id, title, description, category, priority, task_type, ?, ?, estimated_time, 'Pending', CONCAT('Rescheduled from #', id), source_type FROM diary_tasks WHERE id = ?`,
+                        [r.next_due_date, r.next_due_date, r.id]);
+                }
+            }
+            await conn.commit();
+            res.json({ success: true, resolved: resolutions.length });
+        } catch(e) { await conn.rollback(); throw e; }
+        finally { conn.release(); }
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- Create diary task ---
+app.post('/api/diary/tasks', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { title, description, category, priority, task_type, start_date, due_date, estimated_time, notes } = req.body;
+        if (!title || !due_date) return res.status(400).json({ error: 'Title and due date required' });
+
+        const [result] = await pool.query(
+            `INSERT INTO diary_tasks (user_id, title, description, category, priority, task_type, start_date, due_date, estimated_time, notes, source_type)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+            [userId, title, description || null, category || 'General', priority || 'Medium', task_type || 'Work',
+             start_date || due_date, due_date, estimated_time || null, notes || null, 'manual']
+        );
+        await pool.query('INSERT INTO diary_task_history (task_id, previous_status, new_status, comment, changed_by) VALUES (?,?,?,?,?)',
+            [result.insertId, null, 'Pending', 'Task created', userId]);
+        res.status(201).json({ success: true, id: result.insertId });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- Get diary tasks (with filters) ---
+app.get('/api/diary/tasks', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        let where = 'WHERE user_id = ?';
+        let params = [userId];
+
+        if (req.query.status) { where += ' AND status = ?'; params.push(req.query.status); }
+        if (req.query.priority) { where += ' AND priority = ?'; params.push(req.query.priority); }
+        if (req.query.category) { where += ' AND category = ?'; params.push(req.query.category); }
+        if (req.query.task_type) { where += ' AND task_type = ?'; params.push(req.query.task_type); }
+        if (req.query.date_from) { where += ' AND due_date >= ?'; params.push(req.query.date_from); }
+        if (req.query.date_to) { where += ' AND due_date <= ?'; params.push(req.query.date_to); }
+        if (req.query.search) { where += ' AND (title LIKE ? OR description LIKE ?)'; params.push('%'+req.query.search+'%', '%'+req.query.search+'%'); }
+
+        // View modes
+        if (req.query.view === 'today') {
+            const today = new Date().toISOString().split('T')[0];
+            where += ' AND due_date = ?'; params.push(today);
+        } else if (req.query.view === 'overdue') {
+            const today = new Date().toISOString().split('T')[0];
+            where += " AND due_date < ? AND status IN ('Pending','In Progress')"; params.push(today);
+        } else if (req.query.view === 'pending') {
+            where += " AND status IN ('Pending','In Progress')";
+        }
+
+        const [rows] = await pool.query(
+            `SELECT id, title, description, category, priority, task_type, start_date, due_date, estimated_time, status, delay_reason, next_due_date, reschedule_notes, notes, source_type, source_task_id, assigned_by, completed_at, created_at, updated_at,
+             IF(attachment_data IS NOT NULL, attachment_name, NULL) as attachment_name
+             FROM diary_tasks ${where} ORDER BY FIELD(status,'In Progress','Pending','Rescheduled','Completed','Closed','Cancelled'), due_date ASC`, params
+        );
+        res.json(rows);
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- Get single diary task ---
+app.get('/api/diary/tasks/:id', authenticateToken, async (req, res) => {
+    try {
+        const [rows] = await pool.query(
+            `SELECT id, title, description, category, priority, task_type, start_date, due_date, estimated_time, status, delay_reason, next_due_date, reschedule_notes, notes, source_type, source_task_id, assigned_by, completed_at, created_at, updated_at,
+             IF(attachment_data IS NOT NULL, attachment_name, NULL) as attachment_name
+             FROM diary_tasks WHERE id = ? AND user_id = ?`, [req.params.id, req.user.id]
+        );
+        if (!rows.length) return res.status(404).json({ error: 'Task not found' });
+        res.json(rows[0]);
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- Update diary task ---
+app.put('/api/diary/tasks/:id', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const taskId = req.params.id;
+        const [existing] = await pool.query('SELECT * FROM diary_tasks WHERE id = ? AND user_id = ?', [taskId, userId]);
+        if (!existing.length) return res.status(404).json({ error: 'Task not found' });
+
+        const old = existing[0];
+        const fields = ['title','description','category','priority','task_type','start_date','due_date','estimated_time','status','delay_reason','next_due_date','reschedule_notes','notes'];
+        const updates = {};
+        fields.forEach(f => { if (req.body[f] !== undefined) updates[f] = req.body[f]; });
+
+        // Track status change
+        if (updates.status && updates.status !== old.status) {
+            if (updates.status === 'Completed') updates.completed_at = new Date();
+            await pool.query('INSERT INTO diary_task_history (task_id, previous_status, new_status, comment, changed_by) VALUES (?,?,?,?,?)',
+                [taskId, old.status, updates.status, req.body.delay_reason || req.body.notes || 'Status updated', userId]);
+
+            // If rescheduled, create new task
+            if (updates.status === 'Rescheduled' && req.body.next_due_date) {
+                await pool.query(`INSERT INTO diary_tasks (user_id, title, description, category, priority, task_type, start_date, due_date, estimated_time, status, notes, source_type)
+                    VALUES (?,?,?,?,?,?,?,?,'Pending',?,?)`,
+                    [userId, old.title, old.description, old.category, old.priority, old.task_type, req.body.next_due_date, req.body.next_due_date, old.estimated_time,
+                     'Rescheduled from #' + taskId, old.source_type]);
+            }
+        }
+
+        if (Object.keys(updates).length > 0) {
+            await pool.query('UPDATE diary_tasks SET ? WHERE id = ? AND user_id = ?', [updates, taskId, userId]);
+        }
+        res.json({ success: true });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- Delete diary task ---
+app.delete('/api/diary/tasks/:id', authenticateToken, async (req, res) => {
+    try {
+        const [result] = await pool.query('DELETE FROM diary_tasks WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+        if (result.affectedRows === 0) return res.status(404).json({ error: 'Task not found' });
+        await pool.query('DELETE FROM diary_task_history WHERE task_id = ?', [req.params.id]);
+        res.json({ success: true });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- Get task history ---
+app.get('/api/diary/tasks/:id/history', authenticateToken, async (req, res) => {
+    try {
+        const [rows] = await pool.query(
+            `SELECT h.*, u.name as changed_by_name FROM diary_task_history h LEFT JOIN users u ON h.changed_by = u.id WHERE h.task_id = ? ORDER BY h.changed_at DESC`,
+            [req.params.id]
+        );
+        res.json(rows);
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- Add assigned task to diary ---
+app.post('/api/diary/add-from-task/:taskId', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const [tasks] = await pool.query('SELECT * FROM tasks WHERE id = ?', [req.params.taskId]);
+        if (!tasks.length) return res.status(404).json({ error: 'Source task not found' });
+        const t = tasks[0];
+
+        const [result] = await pool.query(
+            `INSERT INTO diary_tasks (user_id, title, description, category, priority, task_type, start_date, due_date, status, source_type, source_task_id, assigned_by)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [userId, t.title, t.description, t.category || 'Assigned', t.priority || 'Medium', 'Work',
+             new Date().toISOString().split('T')[0], t.due_date || new Date().toISOString().split('T')[0],
+             'Pending', 'assigned', t.id, t.creator_name || ('User #' + t.created_by)]
+        );
+        await pool.query('INSERT INTO diary_task_history (task_id, previous_status, new_status, comment, changed_by) VALUES (?,?,?,?,?)',
+            [result.insertId, null, 'Pending', 'Added from assigned task #' + t.id, userId]);
+        res.status(201).json({ success: true, id: result.insertId });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- Diary dashboard stats ---
+app.get('/api/diary/stats', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const today = new Date().toISOString().split('T')[0];
+
+        const [[todayStats]] = await pool.query(
+            `SELECT
+                COUNT(*) as total_today,
+                SUM(CASE WHEN status IN ('Pending','In Progress') THEN 1 ELSE 0 END) as pending_today,
+                SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) as completed_today
+             FROM diary_tasks WHERE user_id = ? AND due_date = ?`, [userId, today]
+        );
+        const [[overdueStats]] = await pool.query(
+            `SELECT COUNT(*) as overdue FROM diary_tasks WHERE user_id = ? AND due_date < ? AND status IN ('Pending','In Progress')`, [userId, today]
+        );
+        const [[weekStats]] = await pool.query(
+            `SELECT
+                COUNT(*) as week_total,
+                SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) as week_completed
+             FROM diary_tasks WHERE user_id = ? AND due_date >= DATE_SUB(?, INTERVAL 7 DAY) AND due_date <= ?`, [userId, today, today]
+        );
+        const [categoryBreakdown] = await pool.query(
+            `SELECT category, COUNT(*) as count FROM diary_tasks WHERE user_id = ? AND due_date >= DATE_SUB(?, INTERVAL 30 DAY) GROUP BY category ORDER BY count DESC`, [userId, today]
+        );
+        const [priorityBreakdown] = await pool.query(
+            `SELECT priority, COUNT(*) as count FROM diary_tasks WHERE user_id = ? AND status IN ('Pending','In Progress') GROUP BY priority`, [userId]
+        );
+        // 7-day trend
+        const [trend] = await pool.query(
+            `SELECT DATE(due_date) as date,
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) as completed,
+                SUM(CASE WHEN status IN ('Pending','In Progress') AND due_date < ? THEN 1 ELSE 0 END) as overdue
+             FROM diary_tasks WHERE user_id = ? AND due_date >= DATE_SUB(?, INTERVAL 7 DAY) AND due_date <= ?
+             GROUP BY DATE(due_date) ORDER BY date`, [today, userId, today, today]
+        );
+
+        res.json({
+            today: todayStats,
+            overdue: overdueStats.overdue,
+            week: weekStats,
+            categoryBreakdown,
+            priorityBreakdown,
+            trend
+        });
     } catch(e) {
         res.status(500).json({ error: e.message });
     }
