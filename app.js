@@ -879,6 +879,58 @@ async function initBaTspMasterTable() {
     }
 }
 
+async function initBsnlStaffContactsTable() {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS bsnl_staff_contacts (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                designation VARCHAR(100) DEFAULT NULL,
+                section VARCHAR(100) DEFAULT NULL,
+                circle VARCHAR(100) DEFAULT NULL,
+                oa VARCHAR(100) DEFAULT NULL,
+                mobile VARCHAR(50) DEFAULT NULL,
+                landline VARCHAR(50) DEFAULT NULL,
+                email VARCHAR(255) DEFAULT NULL,
+                email2 VARCHAR(255) DEFAULT NULL,
+                dob DATE DEFAULT NULL,
+                anniversary DATE DEFAULT NULL,
+                remarks TEXT DEFAULT NULL,
+                created_by INT DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB
+        `);
+        console.log('✅ BSNL Staff Contacts table initialized.');
+    } catch (err) {
+        console.error('⚠️ Could not initialize bsnl_staff_contacts table:', err.message);
+    }
+}
+
+async function initManualCollectionsTable() {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS manual_collections (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                customer_name VARCHAR(255) NOT NULL,
+                collection_date DATE NOT NULL,
+                payment_mode VARCHAR(50) NOT NULL,
+                amount DECIMAL(14,2) NOT NULL DEFAULT 0,
+                receipt_no VARCHAR(100) DEFAULT NULL,
+                cheque_no VARCHAR(100) DEFAULT NULL,
+                bank_name VARCHAR(255) DEFAULT NULL,
+                remarks TEXT DEFAULT NULL,
+                created_by INT DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB
+        `);
+        console.log('✅ Manual Collections table initialized.');
+    } catch (err) {
+        console.error('⚠️ Could not initialize manual_collections table:', err.message);
+    }
+}
+
 async function initBaLevelsTable() {
     try {
         await pool.query(`
@@ -3699,6 +3751,8 @@ async function startupChecks() {
     await initRevenueLevelsTable();
     await initModemSchemesTable();
     await initBaTspMasterTable();
+    await initBsnlStaffContactsTable();
+    await initManualCollectionsTable();
     await initBaLevelsTable();
     await initBillEmailLog();
     await initDiaryTasksTables();
@@ -5115,6 +5169,129 @@ app.delete('/api/ba-tsp/:id', authenticateToken, async (req, res) => {
     try {
         await pool.query(`DELETE FROM ba_tsp_master WHERE id=?`, [req.params.id]);
         res.json({ success: true, message: 'BA/TSP deleted.' });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════════
+// BSNL STAFF CONTACTS — Task & Other Module
+// ═══════════════════════════════════════════════════════
+
+app.post('/api/bsnl-staff-contacts', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        if (!b.name || !b.name.trim()) return res.status(400).json({ error: 'Staff Name is required.' });
+        if (!b.designation || !b.designation.trim()) return res.status(400).json({ error: 'Designation is required.' });
+        const [result] = await pool.query(
+            `INSERT INTO bsnl_staff_contacts (name, designation, section, circle, oa, mobile, landline, email, email2, dob, anniversary, remarks, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [b.name.trim(), b.designation.trim(), b.section || null, b.circle || null, b.oa || null,
+             b.mobile || null, b.landline || null, b.email || null, b.email2 || null,
+             b.dob || null, b.anniversary || null, b.remarks || null, req.user.id]
+        );
+        res.json({ success: true, id: result.insertId, message: 'Staff contact saved.' });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/bsnl-staff-contacts', authenticateToken, async (req, res) => {
+    try {
+        const { search, circle, sortBy = 'name', sortDir = 'ASC' } = req.query;
+        const allowed = ['id','name','designation','section','circle','oa','dob','anniversary','created_at'];
+        const col = allowed.includes(sortBy) ? sortBy : 'name';
+        const dir = sortDir === 'ASC' ? 'ASC' : 'DESC';
+        let where = '1=1', params = [];
+        if (search) { where += ` AND (sc.name LIKE ? OR sc.designation LIKE ? OR sc.section LIKE ? OR sc.mobile LIKE ?)`; params.push(`%${search}%`,`%${search}%`,`%${search}%`,`%${search}%`); }
+        if (circle) { where += ` AND sc.circle = ?`; params.push(circle); }
+        const [[{ total }]] = await pool.query(`SELECT COUNT(*) as total FROM bsnl_staff_contacts sc WHERE ${where}`, params);
+        const [data] = await pool.query(
+            `SELECT sc.*, u.name as created_by_name FROM bsnl_staff_contacts sc
+             LEFT JOIN users u ON sc.created_by = u.id
+             WHERE ${where} ORDER BY sc.${col} ${dir}`, params
+        );
+        res.json({ total, data });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/bsnl-staff-contacts/:id', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        if (!b.name || !b.name.trim()) return res.status(400).json({ error: 'Staff Name is required.' });
+        await pool.query(
+            `UPDATE bsnl_staff_contacts SET name=?, designation=?, section=?, circle=?, oa=?, mobile=?, landline=?, email=?, email2=?, dob=?, anniversary=?, remarks=? WHERE id=?`,
+            [b.name.trim(), b.designation || null, b.section || null, b.circle || null, b.oa || null,
+             b.mobile || null, b.landline || null, b.email || null, b.email2 || null,
+             b.dob || null, b.anniversary || null, b.remarks || null, req.params.id]
+        );
+        res.json({ success: true, message: 'Staff contact updated.' });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/bsnl-staff-contacts/:id', authenticateToken, async (req, res) => {
+    try {
+        await pool.query(`DELETE FROM bsnl_staff_contacts WHERE id=?`, [req.params.id]);
+        res.json({ success: true, message: 'Staff contact deleted.' });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════════
+// MANUAL COLLECTIONS — Sub Master Module
+// ═══════════════════════════════════════════════════════
+
+app.post('/api/manual-collections', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        if (!b.customer_name || !b.customer_name.trim()) return res.status(400).json({ error: 'Customer Name is required.' });
+        if (!b.collection_date) return res.status(400).json({ error: 'Collection Date is required.' });
+        if (!b.payment_mode) return res.status(400).json({ error: 'Payment Mode is required.' });
+        if (!b.amount || b.amount <= 0) return res.status(400).json({ error: 'Amount must be greater than 0.' });
+        const [result] = await pool.query(
+            `INSERT INTO manual_collections (customer_name, collection_date, payment_mode, amount, receipt_no, cheque_no, bank_name, remarks, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [b.customer_name.trim(), b.collection_date, b.payment_mode, b.amount,
+             b.receipt_no || null, b.cheque_no || null, b.bank_name || null, b.remarks || null, req.user.id]
+        );
+        res.json({ success: true, id: result.insertId, message: 'Collection saved.' });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/manual-collections', authenticateToken, async (req, res) => {
+    try {
+        const { search, mode, from, to, sortBy = 'collection_date', sortDir = 'DESC' } = req.query;
+        const allowed = ['id','customer_name','collection_date','payment_mode','amount','created_at'];
+        const col = allowed.includes(sortBy) ? sortBy : 'collection_date';
+        const dir = sortDir === 'ASC' ? 'ASC' : 'DESC';
+        let where = '1=1', params = [];
+        if (search) { where += ` AND (mc.customer_name LIKE ? OR mc.receipt_no LIKE ?)`; params.push(`%${search}%`,`%${search}%`); }
+        if (mode) { where += ` AND mc.payment_mode = ?`; params.push(mode); }
+        if (from) { where += ` AND mc.collection_date >= ?`; params.push(from); }
+        if (to) { where += ` AND mc.collection_date <= ?`; params.push(to); }
+        const [[{ total }]] = await pool.query(`SELECT COUNT(*) as total FROM manual_collections mc WHERE ${where}`, params);
+        const [[{ total_amount }]] = await pool.query(`SELECT COALESCE(SUM(amount),0) as total_amount FROM manual_collections mc WHERE ${where}`, params);
+        const [data] = await pool.query(
+            `SELECT mc.*, u.name as created_by_name FROM manual_collections mc
+             LEFT JOIN users u ON mc.created_by = u.id
+             WHERE ${where} ORDER BY mc.${col} ${dir}`, params
+        );
+        res.json({ total, total_amount, data });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/manual-collections/:id', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        if (!b.customer_name || !b.customer_name.trim()) return res.status(400).json({ error: 'Customer Name is required.' });
+        await pool.query(
+            `UPDATE manual_collections SET customer_name=?, collection_date=?, payment_mode=?, amount=?, receipt_no=?, cheque_no=?, bank_name=?, remarks=? WHERE id=?`,
+            [b.customer_name.trim(), b.collection_date, b.payment_mode, b.amount,
+             b.receipt_no || null, b.cheque_no || null, b.bank_name || null, b.remarks || null, req.params.id]
+        );
+        res.json({ success: true, message: 'Collection updated.' });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/manual-collections/:id', authenticateToken, async (req, res) => {
+    try {
+        await pool.query(`DELETE FROM manual_collections WHERE id=?`, [req.params.id]);
+        res.json({ success: true, message: 'Collection deleted.' });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
