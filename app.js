@@ -812,6 +812,29 @@ async function initGstMasterTable() {
     }
 }
 
+async function initRevenueLevelsTable() {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS revenue_levels (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                fixed_per_month DECIMAL(12,2) DEFAULT 0,
+                fixed_per_line DECIMAL(12,2) DEFAULT 0,
+                fixed_per_vas DECIMAL(12,2) DEFAULT 0,
+                rent_share_pct DECIMAL(8,4) DEFAULT 0,
+                calling_share_pct DECIMAL(8,4) DEFAULT 0,
+                rg_share_pct DECIMAL(8,4) DEFAULT 0,
+                created_by INT DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB
+        `);
+        console.log('✅ Revenue Levels table initialized.');
+    } catch (err) {
+        console.error('⚠️ Could not initialize revenue_levels table:', err.message);
+    }
+}
+
 async function initBillEmailLog() {
     try {
         await pool.query(`
@@ -3606,6 +3629,7 @@ async function startupChecks() {
     await initBillPdfsTable();
     await initBillTasksTable();
     await initGstMasterTable();
+    await initRevenueLevelsTable();
     await initBillEmailLog();
     await initDiaryTasksTables();
     await initializeAdmin();
@@ -4774,6 +4798,78 @@ app.delete('/api/gst-master/:id', authenticateToken, async (req, res) => {
     try {
         await pool.query(`DELETE FROM gst_master WHERE id=?`, [req.params.id]);
         res.json({ success: true, message: 'GST entry deleted.' });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════
+// REVENUE LEVELS — Master Module
+// ═══════════════════════════════════════════════════════
+
+app.post('/api/revenue-levels', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        if (!b.name || !b.name.trim()) return res.status(400).json({ error: 'Revenue Level Name is required.' });
+        const [result] = await pool.query(
+            `INSERT INTO revenue_levels (name, fixed_per_month, fixed_per_line, fixed_per_vas, rent_share_pct, calling_share_pct, rg_share_pct, created_by)
+             VALUES (?,?,?,?,?,?,?,?)`,
+            [b.name.trim(), b.fixed_per_month||0, b.fixed_per_line||0, b.fixed_per_vas||0,
+             b.rent_share_pct||0, b.calling_share_pct||0, b.rg_share_pct||0, req.user.id]
+        );
+        res.json({ success: true, id: result.insertId, message: 'Revenue Level created.' });
+    } catch(e) {
+        res.status(500).json({ error: 'Failed: ' + e.message });
+    }
+});
+
+app.get('/api/revenue-levels', authenticateToken, async (req, res) => {
+    try {
+        const search = req.query.search || '';
+        const sortBy = req.query.sortBy || 'created_at';
+        const sortDir = (req.query.sortDir || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+        const allowed = ['id','name','fixed_per_month','fixed_per_line','fixed_per_vas','rent_share_pct','calling_share_pct','rg_share_pct','created_at'];
+        const safeSort = allowed.includes(sortBy) ? sortBy : 'created_at';
+
+        let where = '1=1';
+        const params = [];
+        if (search) {
+            where += ` AND name LIKE ?`;
+            params.push('%' + search + '%');
+        }
+
+        const [[{ total }]] = await pool.query(`SELECT COUNT(*) as total FROM revenue_levels WHERE ${where}`, params);
+        const [rows] = await pool.query(
+            `SELECT rl.*, u.name as created_by_name FROM revenue_levels rl
+             LEFT JOIN users u ON u.id = rl.created_by
+             WHERE ${where} ORDER BY ${safeSort} ${sortDir}`, params
+        );
+        res.json({ data: rows, total });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.put('/api/revenue-levels/:id', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        if (!b.name || !b.name.trim()) return res.status(400).json({ error: 'Revenue Level Name is required.' });
+        await pool.query(
+            `UPDATE revenue_levels SET name=?, fixed_per_month=?, fixed_per_line=?, fixed_per_vas=?,
+             rent_share_pct=?, calling_share_pct=?, rg_share_pct=? WHERE id=?`,
+            [b.name.trim(), b.fixed_per_month||0, b.fixed_per_line||0, b.fixed_per_vas||0,
+             b.rent_share_pct||0, b.calling_share_pct||0, b.rg_share_pct||0, req.params.id]
+        );
+        res.json({ success: true, message: 'Revenue Level updated.' });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.delete('/api/revenue-levels/:id', authenticateToken, async (req, res) => {
+    try {
+        await pool.query(`DELETE FROM revenue_levels WHERE id=?`, [req.params.id]);
+        res.json({ success: true, message: 'Revenue Level deleted.' });
     } catch(e) {
         res.status(500).json({ error: e.message });
     }
