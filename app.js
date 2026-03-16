@@ -2840,6 +2840,140 @@ app.get('/api/dashboard/pending-tasks', authenticateToken, async (req, res) => {
     }
 });
 
+// --- DASHBOARD V2 STATS (SLA-aware) ---
+// Working hours: Mon-Sat 10:00-18:30, SLA = 4 working hours
+app.get('/api/dashboard/v2-stats', authenticateToken, async (req, res) => {
+    try {
+        // Helper: calculate working minutes between two dates
+        // Working day = Mon-Sat, hours = 10:00-18:30 (510 min/day)
+        function workingMinutesBetween(start, end) {
+            if (end <= start) return 0;
+            let mins = 0;
+            const cur = new Date(start);
+            const WORK_START_H = 10, WORK_START_M = 0;
+            const WORK_END_H = 18, WORK_END_M = 30;
+            const DAY_MINS = (WORK_END_H * 60 + WORK_END_M) - (WORK_START_H * 60 + WORK_START_M); // 510
+
+            // Cap to 60 days max to prevent infinite loop
+            const maxEnd = new Date(start.getTime() + 60 * 24 * 60 * 60 * 1000);
+            const actualEnd = end < maxEnd ? end : maxEnd;
+
+            while (cur < actualEnd) {
+                const dow = cur.getDay(); // 0=Sun
+                if (dow >= 1 && dow <= 6) { // Mon-Sat
+                    const dayStart = new Date(cur); dayStart.setHours(WORK_START_H, WORK_START_M, 0, 0);
+                    const dayEnd = new Date(cur); dayEnd.setHours(WORK_END_H, WORK_END_M, 0, 0);
+
+                    const effStart = cur > dayStart ? cur : dayStart;
+                    const effEnd = actualEnd < dayEnd ? actualEnd : dayEnd;
+
+                    if (effStart < effEnd) {
+                        mins += (effEnd - effStart) / 60000;
+                    }
+                }
+                // Jump to next day 10:00
+                cur.setDate(cur.getDate() + 1);
+                cur.setHours(WORK_START_H, WORK_START_M, 0, 0);
+            }
+            return Math.round(mins);
+        }
+
+        const SLA_MINUTES = 4 * 60; // 240 minutes = 4 working hours
+        const now = new Date();
+
+        // All complaints
+        const [allComplaints] = await pool.query(
+            `SELECT id, status, priority, created_at, updated_at, assigned_to FROM complaints ORDER BY created_at DESC`
+        );
+
+        // Calculate stats
+        let totalActive = 0, totalResolved = 0, totalOverdue = 0, totalEscalated = 0;
+        let statusCounts = { Pending: 0, 'In Progress': 0, Resolved: 0, Closed: 0, Escalated: 0 };
+        let priorityCounts = { High: 0, Medium: 0, Low: 0 };
+
+        allComplaints.forEach(c => {
+            const st = c.status || 'Pending';
+            statusCounts[st] = (statusCounts[st] || 0) + 1;
+            priorityCounts[c.priority] = (priorityCounts[c.priority] || 0) + 1;
+
+            const isActive = (st === 'Pending' || st === 'In Progress');
+            if (isActive) totalActive++;
+            if (st === 'Resolved' || st === 'Closed') totalResolved++;
+            if (st === 'Escalated') totalEscalated++;
+
+            // Check SLA overdue for active complaints
+            if (isActive && c.created_at) {
+                const createdAt = new Date(c.created_at);
+                const wMins = workingMinutesBetween(createdAt, now);
+                if (wMins > SLA_MINUTES) totalOverdue++;
+            }
+        });
+
+        // 30-day trend: total complaints and overdue per day
+        const trend30 = [];
+        for (let i = 29; i >= 0; i--) {
+            const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0,0,0,0);
+            const dEnd = new Date(d); dEnd.setHours(23,59,59,999);
+            const dateStr = d.toISOString().split('T')[0];
+
+            let dayTotal = 0, dayOverdue = 0;
+            allComplaints.forEach(c => {
+                const cDate = new Date(c.created_at);
+                if (cDate >= d && cDate <= dEnd) {
+                    dayTotal++;
+                    // Check if this complaint was overdue (took >4 working hours or still active)
+                    const resolvedDate = (c.status === 'Resolved' || c.status === 'Closed') ? new Date(c.updated_at) : now;
+                    const wMins = workingMinutesBetween(cDate, resolvedDate);
+                    if (wMins > SLA_MINUTES) dayOverdue++;
+                }
+            });
+
+            trend30.push({ date: dateStr, total: dayTotal, overdue: dayOverdue });
+        }
+
+        // Team pending work (assigned_to wise)
+        const [teamData] = await pool.query(`
+            SELECT c.assigned_to, u.name as assignee_name,
+                   SUM(CASE WHEN c.status IN ('Pending','In Progress') THEN 1 ELSE 0 END) as active,
+                   SUM(CASE WHEN c.status IN ('Resolved','Closed') THEN 1 ELSE 0 END) as resolved,
+                   SUM(CASE WHEN c.status = 'Escalated' THEN 1 ELSE 0 END) as escalated
+            FROM complaints c
+            LEFT JOIN users u ON c.assigned_to = u.id
+            WHERE c.assigned_to IS NOT NULL
+            GROUP BY c.assigned_to, u.name
+            ORDER BY active DESC
+        `);
+
+        // Tasks summary
+        const [tasksSummary] = await pool.query(`
+            SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN status != 'COMPLETED' THEN 1 ELSE 0 END) as active,
+                SUM(CASE WHEN status != 'COMPLETED' AND due_date < CURDATE() THEN 1 ELSE 0 END) as overdue
+            FROM tasks
+        `);
+
+        res.json({
+            complaints: {
+                total: allComplaints.length,
+                active: totalActive,
+                resolved: totalResolved,
+                overdue: totalOverdue,
+                escalated: totalEscalated,
+                statusCounts,
+                priorityCounts
+            },
+            trend30,
+            teamComplaints: teamData,
+            tasks: tasksSummary[0] || { total: 0, active: 0, overdue: 0 },
+            sla: { minutes: SLA_MINUTES, workingHours: '10:00-18:30', workingDays: 'Mon-Sat' }
+        });
+    } catch (err) {
+        console.error('Dashboard v2 stats error:', err);
+        res.status(500).json({ error: 'Failed to fetch dashboard stats' });
+    }
+});
+
 // --- WEBSITE ANALYTICS ROUTES ---
 // Public endpoint for tracking
 app.post('/api/analytics/track', async (req, res) => {
