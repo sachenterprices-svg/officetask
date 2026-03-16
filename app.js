@@ -835,6 +835,49 @@ async function initRevenueLevelsTable() {
     }
 }
 
+async function initModemSchemesTable() {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS modem_schemes (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                modem_rental DECIMAL(12,2) DEFAULT 0,
+                revenue_per_month DECIMAL(12,2) DEFAULT 0,
+                remarks TEXT DEFAULT NULL,
+                created_by INT DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB
+        `);
+        console.log('✅ Modem Schemes table initialized.');
+    } catch (err) {
+        console.error('⚠️ Could not initialize modem_schemes table:', err.message);
+    }
+}
+
+async function initBaLevelsTable() {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS ba_levels (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                level_name VARCHAR(100) NOT NULL,
+                revenue_share DECIMAL(8,4) DEFAULT 0,
+                revenue_share_rent DECIMAL(8,4) DEFAULT 0,
+                revenue_share_call DECIMAL(8,4) DEFAULT 0,
+                revenue_share_rng DECIMAL(8,4) DEFAULT 0,
+                revenue_share_modem DECIMAL(8,4) DEFAULT 0,
+                revenue_share_fixed DECIMAL(8,4) DEFAULT 0,
+                created_by INT DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB
+        `);
+        console.log('✅ BA Levels table initialized.');
+    } catch (err) {
+        console.error('⚠️ Could not initialize ba_levels table:', err.message);
+    }
+}
+
 async function initBillEmailLog() {
     try {
         await pool.query(`
@@ -3630,6 +3673,8 @@ async function startupChecks() {
     await initBillTasksTable();
     await initGstMasterTable();
     await initRevenueLevelsTable();
+    await initModemSchemesTable();
+    await initBaLevelsTable();
     await initBillEmailLog();
     await initDiaryTasksTables();
     await initializeAdmin();
@@ -4873,6 +4918,118 @@ app.delete('/api/revenue-levels/:id', authenticateToken, async (req, res) => {
     } catch(e) {
         res.status(500).json({ error: e.message });
     }
+});
+
+// ═══════════════════════════════════════════════════════
+// MODEM SCHEMES — Master Module
+// ═══════════════════════════════════════════════════════
+
+app.post('/api/modem-schemes', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        if (!b.name || !b.name.trim()) return res.status(400).json({ error: 'Scheme Name is required.' });
+        const [result] = await pool.query(
+            `INSERT INTO modem_schemes (name, modem_rental, revenue_per_month, remarks, created_by)
+             VALUES (?, ?, ?, ?, ?)`,
+            [b.name.trim(), b.modem_rental || 0, b.revenue_per_month || 0, b.remarks || null, req.user.id]
+        );
+        res.json({ success: true, id: result.insertId, message: 'Modem Scheme created.' });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/modem-schemes', authenticateToken, async (req, res) => {
+    try {
+        const { search, sortBy = 'created_at', sortDir = 'DESC' } = req.query;
+        const allowed = ['id','name','modem_rental','revenue_per_month','created_at'];
+        const col = allowed.includes(sortBy) ? sortBy : 'created_at';
+        const dir = sortDir === 'ASC' ? 'ASC' : 'DESC';
+        let where = '1=1', params = [];
+        if (search) { where = `ms.name LIKE ?`; params.push(`%${search}%`); }
+        const [[{ total }]] = await pool.query(`SELECT COUNT(*) as total FROM modem_schemes ms WHERE ${where}`, params);
+        const [data] = await pool.query(
+            `SELECT ms.*, u.name as created_by_name FROM modem_schemes ms
+             LEFT JOIN users u ON ms.created_by = u.id
+             WHERE ${where} ORDER BY ms.${col} ${dir}`, params
+        );
+        res.json({ total, data });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/modem-schemes/:id', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        if (!b.name || !b.name.trim()) return res.status(400).json({ error: 'Scheme Name is required.' });
+        await pool.query(
+            `UPDATE modem_schemes SET name=?, modem_rental=?, revenue_per_month=?, remarks=? WHERE id=?`,
+            [b.name.trim(), b.modem_rental || 0, b.revenue_per_month || 0, b.remarks || null, req.params.id]
+        );
+        res.json({ success: true, message: 'Modem Scheme updated.' });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/modem-schemes/:id', authenticateToken, async (req, res) => {
+    try {
+        await pool.query(`DELETE FROM modem_schemes WHERE id=?`, [req.params.id]);
+        res.json({ success: true, message: 'Modem Scheme deleted.' });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════════
+// BA LEVELS — BA/TSP Report Module
+// ═══════════════════════════════════════════════════════
+
+app.post('/api/ba-levels', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        // Auto-generate level_name: Level 1, Level 2, etc.
+        const [[{ maxNum }]] = await pool.query(`SELECT COALESCE(MAX(id), 0) as maxNum FROM ba_levels`);
+        const levelName = b.level_name && b.level_name.trim() ? b.level_name.trim() : `Level ${maxNum + 1}`;
+        const [result] = await pool.query(
+            `INSERT INTO ba_levels (level_name, revenue_share, revenue_share_rent, revenue_share_call, revenue_share_rng, revenue_share_modem, revenue_share_fixed, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [levelName, b.revenue_share || 0, b.revenue_share_rent || 0, b.revenue_share_call || 0,
+             b.revenue_share_rng || 0, b.revenue_share_modem || 0, b.revenue_share_fixed || 0, req.user.id]
+        );
+        res.json({ success: true, id: result.insertId, level_name: levelName, message: 'BA Level created.' });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/ba-levels', authenticateToken, async (req, res) => {
+    try {
+        const { search, sortBy = 'id', sortDir = 'ASC' } = req.query;
+        const allowed = ['id','level_name','revenue_share','revenue_share_rent','revenue_share_call','revenue_share_rng','revenue_share_modem','revenue_share_fixed','created_at'];
+        const col = allowed.includes(sortBy) ? sortBy : 'id';
+        const dir = sortDir === 'ASC' ? 'ASC' : 'DESC';
+        let where = '1=1', params = [];
+        if (search) { where = `bl.level_name LIKE ?`; params.push(`%${search}%`); }
+        const [[{ total }]] = await pool.query(`SELECT COUNT(*) as total FROM ba_levels bl WHERE ${where}`, params);
+        const [data] = await pool.query(
+            `SELECT bl.*, u.name as created_by_name FROM ba_levels bl
+             LEFT JOIN users u ON bl.created_by = u.id
+             WHERE ${where} ORDER BY bl.${col} ${dir}`, params
+        );
+        res.json({ total, data });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/ba-levels/:id', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        await pool.query(
+            `UPDATE ba_levels SET level_name=?, revenue_share=?, revenue_share_rent=?, revenue_share_call=?,
+             revenue_share_rng=?, revenue_share_modem=?, revenue_share_fixed=? WHERE id=?`,
+            [b.level_name, b.revenue_share || 0, b.revenue_share_rent || 0, b.revenue_share_call || 0,
+             b.revenue_share_rng || 0, b.revenue_share_modem || 0, b.revenue_share_fixed || 0, req.params.id]
+        );
+        res.json({ success: true, message: 'BA Level updated.' });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/ba-levels/:id', authenticateToken, async (req, res) => {
+    try {
+        await pool.query(`DELETE FROM ba_levels WHERE id=?`, [req.params.id]);
+        res.json({ success: true, message: 'BA Level deleted.' });
+    } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ═══════════════════════════════════════════════════════
