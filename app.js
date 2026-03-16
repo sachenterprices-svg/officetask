@@ -888,7 +888,7 @@ const authenticateToken = (req, res, next) => {
     if (token == null) return res.status(401).json({ error: 'Unauthorized. Please log in.' });
 
     jwt.verify(token, JWT_SECRET, (err, user) => {
-        if (err) return res.status(403).json({ error: 'Session expired or invalid token.' });
+        if (err) return res.status(401).json({ error: 'Session expired or invalid token.' });
         req.user = user;
         next();
     });
