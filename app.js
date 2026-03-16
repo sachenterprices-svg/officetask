@@ -855,6 +855,30 @@ async function initModemSchemesTable() {
     }
 }
 
+async function initBaTspMasterTable() {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS ba_tsp_master (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                type ENUM('BA','TSP') NOT NULL DEFAULT 'BA',
+                contact_person VARCHAR(255) DEFAULT NULL,
+                phone VARCHAR(50) DEFAULT NULL,
+                email VARCHAR(255) DEFAULT NULL,
+                gst_no VARCHAR(15) DEFAULT NULL,
+                pan_no VARCHAR(10) DEFAULT NULL,
+                address TEXT DEFAULT NULL,
+                created_by INT DEFAULT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB
+        `);
+        console.log('✅ BA/TSP Master table initialized.');
+    } catch (err) {
+        console.error('⚠️ Could not initialize ba_tsp_master table:', err.message);
+    }
+}
+
 async function initBaLevelsTable() {
     try {
         await pool.query(`
@@ -3674,6 +3698,7 @@ async function startupChecks() {
     await initGstMasterTable();
     await initRevenueLevelsTable();
     await initModemSchemesTable();
+    await initBaTspMasterTable();
     await initBaLevelsTable();
     await initBillEmailLog();
     await initDiaryTasksTables();
@@ -5029,6 +5054,67 @@ app.delete('/api/ba-levels/:id', authenticateToken, async (req, res) => {
     try {
         await pool.query(`DELETE FROM ba_levels WHERE id=?`, [req.params.id]);
         res.json({ success: true, message: 'BA Level deleted.' });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════════
+// BA/TSP MASTER — Add BA/TSP Module
+// ═══════════════════════════════════════════════════════
+
+app.post('/api/ba-tsp', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        if (!b.name || !b.name.trim()) return res.status(400).json({ error: 'Name is required.' });
+        if (!b.type || !['BA','TSP'].includes(b.type)) return res.status(400).json({ error: 'Type must be BA or TSP.' });
+        const [result] = await pool.query(
+            `INSERT INTO ba_tsp_master (name, type, contact_person, phone, email, gst_no, pan_no, address, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [b.name.trim(), b.type, b.contact_person || null, b.phone || null, b.email || null,
+             b.gst_no || null, b.pan_no || null, b.address || null, req.user.id]
+        );
+        res.json({ success: true, id: result.insertId, message: 'BA/TSP created.' });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/ba-tsp', authenticateToken, async (req, res) => {
+    try {
+        const { search, type, sortBy = 'created_at', sortDir = 'DESC' } = req.query;
+        const allowed = ['id','name','type','contact_person','gst_no','pan_no','created_at'];
+        const col = allowed.includes(sortBy) ? sortBy : 'created_at';
+        const dir = sortDir === 'ASC' ? 'ASC' : 'DESC';
+        let where = '1=1', params = [];
+        if (search) { where += ` AND (bt.name LIKE ? OR bt.gst_no LIKE ? OR bt.pan_no LIKE ?)`; params.push(`%${search}%`,`%${search}%`,`%${search}%`); }
+        if (type && ['BA','TSP'].includes(type)) { where += ` AND bt.type = ?`; params.push(type); }
+        const [[{ total }]] = await pool.query(`SELECT COUNT(*) as total FROM ba_tsp_master bt WHERE ${where}`, params);
+        const [[{ ba_count }]] = await pool.query(`SELECT COUNT(*) as ba_count FROM ba_tsp_master WHERE type='BA'`);
+        const [[{ tsp_count }]] = await pool.query(`SELECT COUNT(*) as tsp_count FROM ba_tsp_master WHERE type='TSP'`);
+        const [data] = await pool.query(
+            `SELECT bt.*, u.name as created_by_name FROM ba_tsp_master bt
+             LEFT JOIN users u ON bt.created_by = u.id
+             WHERE ${where} ORDER BY bt.${col} ${dir}`, params
+        );
+        res.json({ total, ba_count, tsp_count, data });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/ba-tsp/:id', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        if (!b.name || !b.name.trim()) return res.status(400).json({ error: 'Name is required.' });
+        if (!b.type || !['BA','TSP'].includes(b.type)) return res.status(400).json({ error: 'Type must be BA or TSP.' });
+        await pool.query(
+            `UPDATE ba_tsp_master SET name=?, type=?, contact_person=?, phone=?, email=?, gst_no=?, pan_no=?, address=? WHERE id=?`,
+            [b.name.trim(), b.type, b.contact_person || null, b.phone || null, b.email || null,
+             b.gst_no || null, b.pan_no || null, b.address || null, req.params.id]
+        );
+        res.json({ success: true, message: 'BA/TSP updated.' });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/ba-tsp/:id', authenticateToken, async (req, res) => {
+    try {
+        await pool.query(`DELETE FROM ba_tsp_master WHERE id=?`, [req.params.id]);
+        res.json({ success: true, message: 'BA/TSP deleted.' });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
