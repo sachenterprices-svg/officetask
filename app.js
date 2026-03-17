@@ -607,15 +607,21 @@ async function initializeActivityTables() {
         await pool.query(`
             CREATE TABLE IF NOT EXISTS activity_templates (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                department ENUM('Technical','Clerical','Accounts','Sales','Admin','All') NOT NULL DEFAULT 'All',
-                category ENUM('Daily','Week1','Week2','Week3','Week4') NOT NULL DEFAULT 'Daily',
+                department ENUM('Technical','Clerical','Accounts','Sales','Admin','HR','PR','Marketing','All') NOT NULL DEFAULT 'All',
+                category ENUM('Daily','Week1','Week2','Week3','Week4','Monthly','Quarterly') NOT NULL DEFAULT 'Daily',
                 task_name TEXT NOT NULL,
+                input_type ENUM('status','number','text') NOT NULL DEFAULT 'status',
                 sort_order INT DEFAULT 0,
                 is_active TINYINT(1) DEFAULT 1,
                 created_by INT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB
         `);
+        // Safe ALTER — add columns if not exist (ignore errors if already present)
+        try { await pool.query(`ALTER TABLE activity_templates ADD COLUMN input_type ENUM('status','number','text') NOT NULL DEFAULT 'status' AFTER task_name`); } catch(e) {}
+        try { await pool.query(`ALTER TABLE activity_templates MODIFY department ENUM('Technical','Clerical','Accounts','Sales','Admin','HR','PR','Marketing','All') NOT NULL DEFAULT 'All'`); } catch(e) {}
+        try { await pool.query(`ALTER TABLE activity_templates MODIFY category ENUM('Daily','Week1','Week2','Week3','Week4','Monthly','Quarterly') NOT NULL DEFAULT 'Daily'`); } catch(e) {}
+
         await pool.query(`
             CREATE TABLE IF NOT EXISTS activity_user_tasks (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -635,13 +641,41 @@ async function initializeActivityTables() {
                 custom_task VARCHAR(500),
                 log_date DATE NOT NULL,
                 status ENUM('done','not_done','partial','leave','na') DEFAULT 'not_done',
+                value VARCHAR(500) DEFAULT NULL,
                 remarks TEXT,
+                submitted_late TINYINT(1) DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 UNIQUE KEY unique_user_task_date (user_id, template_id, log_date)
             ) ENGINE=InnoDB
         `);
-        console.log('✅ Activity tables initialized.');
+        // Safe ALTER — add new columns if not exist
+        try { await pool.query(`ALTER TABLE activity_logs ADD COLUMN value VARCHAR(500) DEFAULT NULL AFTER status`); } catch(e) {}
+        try { await pool.query(`ALTER TABLE activity_logs ADD COLUMN submitted_late TINYINT(1) DEFAULT 0 AFTER remarks`); } catch(e) {}
+
+        // Performance scores cache table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS performance_scores (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                period_type ENUM('monthly','quarterly','half_yearly','annual') NOT NULL,
+                period_start DATE NOT NULL,
+                period_end DATE NOT NULL,
+                total_tasks INT DEFAULT 0,
+                completed_on_time INT DEFAULT 0,
+                completed_late INT DEFAULT 0,
+                partial_count INT DEFAULT 0,
+                not_done_count INT DEFAULT 0,
+                missed_days INT DEFAULT 0,
+                total_working_days INT DEFAULT 0,
+                submission_rate DECIMAL(5,2) DEFAULT 0,
+                score DECIMAL(5,2) DEFAULT 0,
+                grade VARCHAR(5) DEFAULT 'F',
+                calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_user_period (user_id, period_type, period_start)
+            ) ENGINE=InnoDB
+        `);
+        console.log('✅ Activity tables initialized (enhanced).');
     } catch (err) {
         console.error('⚠️ Could not initialize activity tables:', err.message);
     }
@@ -3734,12 +3768,12 @@ app.get('/api/activity/templates', authenticateToken, async (req, res) => {
 
 // POST create template (admin only)
 app.post('/api/activity/templates', authenticateToken, isAdmin, async (req, res) => {
-    const { department, category, task_name, sort_order } = req.body;
+    const { department, category, task_name, sort_order, input_type } = req.body;
     if (!task_name) return res.status(400).json({ error: 'task_name required' });
     try {
         await pool.query(
-            'INSERT INTO activity_templates (department, category, task_name, sort_order, created_by) VALUES (?,?,?,?,?)',
-            [department||'All', category||'Daily', task_name, sort_order||0, req.user.id]
+            'INSERT INTO activity_templates (department, category, task_name, input_type, sort_order, created_by) VALUES (?,?,?,?,?,?)',
+            [department||'All', category||'Daily', task_name, input_type||'status', sort_order||0, req.user.id]
         );
         res.json({ message: 'Template created' });
     } catch (err) { res.status(500).json({ error: 'Failed to create template' }); }
@@ -3747,11 +3781,11 @@ app.post('/api/activity/templates', authenticateToken, isAdmin, async (req, res)
 
 // PUT update template (admin only)
 app.put('/api/activity/templates/:id', authenticateToken, isAdmin, async (req, res) => {
-    const { department, category, task_name, sort_order, is_active } = req.body;
+    const { department, category, task_name, sort_order, is_active, input_type } = req.body;
     try {
         await pool.query(
-            'UPDATE activity_templates SET department=?, category=?, task_name=?, sort_order=?, is_active=? WHERE id=?',
-            [department, category, task_name, sort_order||0, is_active===false?0:1, req.params.id]
+            'UPDATE activity_templates SET department=?, category=?, task_name=?, input_type=?, sort_order=?, is_active=? WHERE id=?',
+            [department, category, task_name, input_type||'status', sort_order||0, is_active===false?0:1, req.params.id]
         );
         res.json({ message: 'Template updated' });
     } catch (err) { res.status(500).json({ error: 'Failed to update template' }); }
@@ -3805,7 +3839,7 @@ app.delete('/api/activity/assignments/:id', authenticateToken, isAdmin, async (r
     } catch (err) { res.status(500).json({ error: 'Failed to remove assignment' }); }
 });
 
-// GET my tasks for a date (auto-show Daily + current week tasks)
+// GET my tasks for a date (auto-show Daily + current week + monthly on 1st-5th + quarterly on 1st-5th of Q months)
 app.get('/api/activity/my-tasks', authenticateToken, async (req, res) => {
     const date = req.query.date || new Date().toISOString().split('T')[0];
     const userId = req.query.user_id || req.user.id;
@@ -3815,42 +3849,51 @@ app.get('/api/activity/my-tasks', authenticateToken, async (req, res) => {
     try {
         const d = new Date(date);
         const day = d.getDate();
-        let weekCategories = ['Daily'];
-        if (day >= 1 && day <= 7) weekCategories.push('Week1');
-        else if (day >= 8 && day <= 14) weekCategories.push('Week2');
-        else if (day >= 15 && day <= 21) weekCategories.push('Week3');
-        else weekCategories.push('Week4');
+        const month = d.getMonth() + 1; // 1-12
+        let categories = ['Daily'];
+        // Week-based tasks
+        if (day >= 1 && day <= 7) categories.push('Week1');
+        else if (day >= 8 && day <= 14) categories.push('Week2');
+        else if (day >= 15 && day <= 21) categories.push('Week3');
+        else categories.push('Week4');
+        // Monthly tasks — show on 1st to 5th of every month
+        if (day >= 1 && day <= 5) categories.push('Monthly');
+        // Quarterly tasks — show on 1st to 5th of Jan, Apr, Jul, Oct
+        if (day >= 1 && day <= 5 && [1,4,7,10].includes(month)) categories.push('Quarterly');
 
-        const catPlaceholders = weekCategories.map(() => '?').join(',');
+        const catPlaceholders = categories.map(() => '?').join(',');
         const [tasks] = await pool.query(
             `SELECT aut.id as assignment_id, at.id as template_id, at.task_name, at.category, at.department,
-                    al.status, al.remarks, al.id as log_id
+                    at.input_type, al.status, al.value, al.remarks, al.id as log_id
              FROM activity_user_tasks aut
              JOIN activity_templates at ON aut.template_id=at.id
              LEFT JOIN activity_logs al ON al.template_id=at.id AND al.user_id=? AND al.log_date=?
              WHERE aut.user_id=? AND aut.is_active=1 AND at.is_active=1 AND at.category IN (${catPlaceholders})
              ORDER BY at.category, at.sort_order, at.id`,
-            [userId, date, userId, ...weekCategories]
+            [userId, date, userId, ...categories]
         );
         res.json(tasks);
     } catch (err) { res.status(500).json({ error: 'Failed to fetch tasks' }); }
 });
 
-// POST/PUT submit daily log (upsert)
+// POST/PUT submit daily log (upsert) — supports value field + late detection
 app.post('/api/activity/logs', authenticateToken, async (req, res) => {
-    const { logs, log_date } = req.body; // logs: [{template_id, status, remarks}]
+    const { logs, log_date } = req.body; // logs: [{template_id, status, value, remarks}]
     if (!Array.isArray(logs) || !log_date) return res.status(400).json({ error: 'logs[] and log_date required' });
     const userId = req.user.id;
     try {
+        // Check if submission is late (not same day)
+        const today = new Date().toISOString().split('T')[0];
+        const isLate = log_date < today ? 1 : 0;
         for (const l of logs) {
             await pool.query(
-                `INSERT INTO activity_logs (user_id, template_id, log_date, status, remarks)
-                 VALUES (?,?,?,?,?)
-                 ON DUPLICATE KEY UPDATE status=VALUES(status), remarks=VALUES(remarks), updated_at=NOW()`,
-                [userId, l.template_id, log_date, l.status||'not_done', l.remarks||'']
+                `INSERT INTO activity_logs (user_id, template_id, log_date, status, value, remarks, submitted_late)
+                 VALUES (?,?,?,?,?,?,?)
+                 ON DUPLICATE KEY UPDATE status=VALUES(status), value=VALUES(value), remarks=VALUES(remarks), submitted_late=VALUES(submitted_late), updated_at=NOW()`,
+                [userId, l.template_id, log_date, l.status||'not_done', l.value||null, l.remarks||'', isLate]
             );
         }
-        res.json({ message: `${logs.length} task(s) saved for ${log_date}` });
+        res.json({ message: `${logs.length} task(s) saved for ${log_date}`, late: isLate===1 });
     } catch (err) { res.status(500).json({ error: 'Failed to save logs' }); }
 });
 
@@ -3901,6 +3944,272 @@ app.get('/api/activity/summary', authenticateToken, isAdmin, async (req, res) =>
         );
         res.json(rows);
     } catch (err) { res.status(500).json({ error: 'Failed to fetch summary' }); }
+});
+
+// ============================================================
+// --- PENDENCY & PERFORMANCE APIs ---
+// ============================================================
+
+// GET pendency — dates where user has assigned tasks but no/incomplete submissions
+app.get('/api/activity/pendency', authenticateToken, async (req, res) => {
+    const userId = req.query.user_id || req.user.id;
+    if (req.user.role !== 'admin' && String(userId) !== String(req.user.id))
+        return res.status(403).json({ error: 'Access denied' });
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        // Get all dates from 30 days ago to yesterday where user had Daily tasks assigned but didn't submit all
+        const [rows] = await pool.query(`
+            SELECT d.dt as pending_date,
+                   COUNT(aut.id) as total_tasks,
+                   SUM(CASE WHEN al.id IS NOT NULL THEN 1 ELSE 0 END) as submitted_tasks,
+                   COUNT(aut.id) - SUM(CASE WHEN al.id IS NOT NULL THEN 1 ELSE 0 END) as pending_tasks
+            FROM (
+                SELECT DATE_SUB(?, INTERVAL n DAY) as dt
+                FROM (SELECT 0 n UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4
+                      UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9
+                      UNION SELECT 10 UNION SELECT 11 UNION SELECT 12 UNION SELECT 13 UNION SELECT 14
+                      UNION SELECT 15 UNION SELECT 16 UNION SELECT 17 UNION SELECT 18 UNION SELECT 19
+                      UNION SELECT 20 UNION SELECT 21 UNION SELECT 22 UNION SELECT 23 UNION SELECT 24
+                      UNION SELECT 25 UNION SELECT 26 UNION SELECT 27 UNION SELECT 28 UNION SELECT 29) nums
+            ) d
+            JOIN activity_user_tasks aut ON aut.user_id=? AND aut.is_active=1
+            JOIN activity_templates at ON aut.template_id=at.id AND at.is_active=1 AND at.category='Daily'
+            LEFT JOIN activity_logs al ON al.user_id=? AND al.template_id=at.id AND al.log_date=d.dt
+            WHERE d.dt < ? AND d.dt >= DATE_SUB(?, INTERVAL 30 DAY) AND DAYOFWEEK(d.dt) NOT IN (1)
+            GROUP BY d.dt
+            HAVING pending_tasks > 0
+            ORDER BY d.dt DESC
+        `, [today, userId, userId, today, today]);
+        res.json(rows);
+    } catch (err) { res.status(500).json({ error: 'Failed to fetch pendency', detail: err.message }); }
+});
+
+// GET performance score for a user
+app.get('/api/performance/my-score', authenticateToken, async (req, res) => {
+    const userId = req.query.user_id || req.user.id;
+    if (req.user.role !== 'admin' && String(userId) !== String(req.user.id))
+        return res.status(403).json({ error: 'Access denied' });
+    const period = req.query.period || 'monthly'; // monthly, quarterly, half_yearly, annual
+    const dateStr = req.query.date || new Date().toISOString().split('T')[0];
+    try {
+        const d = new Date(dateStr);
+        let startDate, endDate;
+        if (period === 'monthly') {
+            startDate = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+            endDate = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
+        } else if (period === 'quarterly') {
+            const q = Math.floor(d.getMonth() / 3) * 3;
+            startDate = new Date(d.getFullYear(), q, 1).toISOString().split('T')[0];
+            endDate = new Date(d.getFullYear(), q + 3, 0).toISOString().split('T')[0];
+        } else if (period === 'half_yearly') {
+            const h = d.getMonth() < 6 ? 0 : 6;
+            startDate = new Date(d.getFullYear(), h, 1).toISOString().split('T')[0];
+            endDate = new Date(d.getFullYear(), h + 6, 0).toISOString().split('T')[0];
+        } else { // annual
+            startDate = new Date(d.getFullYear(), 0, 1).toISOString().split('T')[0];
+            endDate = new Date(d.getFullYear(), 11, 31).toISOString().split('T')[0];
+        }
+        // Calculate score from activity_logs
+        const [stats] = await pool.query(`
+            SELECT
+                COUNT(*) as total_logs,
+                SUM(CASE WHEN al.status='done' AND al.submitted_late=0 THEN 1 ELSE 0 END) as done_on_time,
+                SUM(CASE WHEN al.status='done' AND al.submitted_late=1 THEN 1 ELSE 0 END) as done_late,
+                SUM(CASE WHEN al.status='partial' THEN 1 ELSE 0 END) as partial_count,
+                SUM(CASE WHEN al.status='not_done' THEN 1 ELSE 0 END) as not_done_count,
+                SUM(CASE WHEN al.status='leave' THEN 1 ELSE 0 END) as leave_count,
+                SUM(CASE WHEN al.status='na' THEN 1 ELSE 0 END) as na_count
+            FROM activity_logs al
+            WHERE al.user_id=? AND al.log_date BETWEEN ? AND ?
+        `, [userId, startDate, endDate]);
+
+        // Count total expected task-days (working days × daily assigned tasks)
+        const [assignCount] = await pool.query(
+            `SELECT COUNT(*) as cnt FROM activity_user_tasks aut
+             JOIN activity_templates at ON aut.template_id=at.id
+             WHERE aut.user_id=? AND aut.is_active=1 AND at.is_active=1 AND at.category='Daily'`, [userId]);
+        const dailyTaskCount = assignCount[0]?.cnt || 0;
+
+        // Count working days in range (exclude Sundays)
+        const [wdRows] = await pool.query(`
+            SELECT COUNT(*) as wd FROM (
+                SELECT DATE_ADD(?, INTERVAL n DAY) as dt
+                FROM (SELECT @row := @row + 1 as n FROM
+                    (SELECT 0 UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) a,
+                    (SELECT 0 UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) b,
+                    (SELECT 0 UNION SELECT 1 UNION SELECT 2 UNION SELECT 3) c,
+                    (SELECT @row := -1) r
+                ) nums
+                WHERE DATE_ADD(?, INTERVAL n DAY) <= ?
+            ) dates WHERE DAYOFWEEK(dt) NOT IN (1) AND dt <= CURDATE()
+        `, [startDate, startDate, endDate]);
+        const workingDays = wdRows[0]?.wd || 0;
+        const totalExpected = dailyTaskCount * workingDays;
+
+        // Count days where user submitted at least one log
+        const [subDays] = await pool.query(
+            `SELECT COUNT(DISTINCT log_date) as cnt FROM activity_logs WHERE user_id=? AND log_date BETWEEN ? AND ?`,
+            [userId, startDate, endDate]);
+        const submittedDays = subDays[0]?.cnt || 0;
+        const missedDays = Math.max(0, workingDays - submittedDays);
+
+        const s = stats[0] || {};
+        const doneOnTime = s.done_on_time || 0;
+        const doneLate = s.done_late || 0;
+        const partial = s.partial_count || 0;
+        const notDone = s.not_done_count || 0;
+        const totalLogs = s.total_logs || 0;
+        // Scoring: on-time=100%, late=60%, partial=40%, not_done=0%, missed=0%
+        const scoreNumerator = (doneOnTime * 100) + (doneLate * 60) + (partial * 40);
+        const scoreDenom = totalExpected > 0 ? totalExpected : 1;
+        const score = Math.min(100, Math.round((scoreNumerator / scoreDenom) * 100) / 100);
+        let grade = 'F';
+        if (score >= 95) grade = 'A+';
+        else if (score >= 85) grade = 'A';
+        else if (score >= 75) grade = 'B+';
+        else if (score >= 65) grade = 'B';
+        else if (score >= 50) grade = 'C';
+        else if (score >= 35) grade = 'D';
+
+        const submissionRate = workingDays > 0 ? Math.round((submittedDays / workingDays) * 100) : 0;
+
+        res.json({
+            user_id: parseInt(userId), period, period_start: startDate, period_end: endDate,
+            total_expected: totalExpected, total_logs: totalLogs,
+            done_on_time: doneOnTime, done_late: doneLate, partial: partial, not_done: notDone,
+            working_days: workingDays, submitted_days: submittedDays, missed_days: missedDays,
+            submission_rate: submissionRate, score, grade
+        });
+    } catch (err) { res.status(500).json({ error: 'Failed to calculate score', detail: err.message }); }
+});
+
+// GET team performance (admin only) — all users' scores for a period
+app.get('/api/performance/team', authenticateToken, isAdmin, async (req, res) => {
+    const period = req.query.period || 'monthly';
+    const dateStr = req.query.date || new Date().toISOString().split('T')[0];
+    try {
+        const [users] = await pool.query('SELECT id, name, username, department, role FROM users WHERE is_active=1 ORDER BY name');
+        const results = [];
+        for (const u of users) {
+            // Reuse score logic via internal fetch
+            const d = new Date(dateStr);
+            let startDate, endDate;
+            if (period === 'monthly') {
+                startDate = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+                endDate = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
+            } else if (period === 'quarterly') {
+                const q = Math.floor(d.getMonth() / 3) * 3;
+                startDate = new Date(d.getFullYear(), q, 1).toISOString().split('T')[0];
+                endDate = new Date(d.getFullYear(), q + 3, 0).toISOString().split('T')[0];
+            } else if (period === 'half_yearly') {
+                const h = d.getMonth() < 6 ? 0 : 6;
+                startDate = new Date(d.getFullYear(), h, 1).toISOString().split('T')[0];
+                endDate = new Date(d.getFullYear(), h + 6, 0).toISOString().split('T')[0];
+            } else {
+                startDate = new Date(d.getFullYear(), 0, 1).toISOString().split('T')[0];
+                endDate = new Date(d.getFullYear(), 11, 31).toISOString().split('T')[0];
+            }
+            const [stats] = await pool.query(`
+                SELECT COUNT(*) as total_logs,
+                    SUM(CASE WHEN status='done' AND submitted_late=0 THEN 1 ELSE 0 END) as done_on_time,
+                    SUM(CASE WHEN status='done' AND submitted_late=1 THEN 1 ELSE 0 END) as done_late,
+                    SUM(CASE WHEN status='partial' THEN 1 ELSE 0 END) as partial_count,
+                    SUM(CASE WHEN status='not_done' THEN 1 ELSE 0 END) as not_done_count
+                FROM activity_logs WHERE user_id=? AND log_date BETWEEN ? AND ?`, [u.id, startDate, endDate]);
+            const [ac] = await pool.query(
+                `SELECT COUNT(*) as cnt FROM activity_user_tasks aut JOIN activity_templates at ON aut.template_id=at.id
+                 WHERE aut.user_id=? AND aut.is_active=1 AND at.is_active=1 AND at.category='Daily'`, [u.id]);
+            const [wdR] = await pool.query(`
+                SELECT COUNT(*) as wd FROM (
+                    SELECT DATE_ADD(?, INTERVAL n DAY) as dt FROM (
+                        SELECT @r:=@r+1 as n FROM
+                        (SELECT 0 UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) a,
+                        (SELECT 0 UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) b,
+                        (SELECT 0 UNION SELECT 1 UNION SELECT 2 UNION SELECT 3) c,
+                        (SELECT @r:=-1) r
+                    ) nums WHERE DATE_ADD(?, INTERVAL n DAY) <= ?
+                ) dates WHERE DAYOFWEEK(dt) NOT IN (1) AND dt <= CURDATE()
+            `, [startDate, startDate, endDate]);
+            const [sdR] = await pool.query(
+                'SELECT COUNT(DISTINCT log_date) as cnt FROM activity_logs WHERE user_id=? AND log_date BETWEEN ? AND ?',
+                [u.id, startDate, endDate]);
+            const dailyTasks = ac[0]?.cnt || 0;
+            const wd = wdR[0]?.wd || 0;
+            const totalExp = dailyTasks * wd;
+            const s = stats[0] || {};
+            const dOnTime = s.done_on_time || 0;
+            const dLate = s.done_late || 0;
+            const partial = s.partial_count || 0;
+            const notDone = s.not_done_count || 0;
+            const scoreN = (dOnTime * 100) + (dLate * 60) + (partial * 40);
+            const scoreD = totalExp > 0 ? totalExp : 1;
+            const score = Math.min(100, Math.round((scoreN / scoreD) * 100) / 100);
+            let grade = 'F';
+            if (score >= 95) grade = 'A+'; else if (score >= 85) grade = 'A'; else if (score >= 75) grade = 'B+';
+            else if (score >= 65) grade = 'B'; else if (score >= 50) grade = 'C'; else if (score >= 35) grade = 'D';
+            const subDays = sdR[0]?.cnt || 0;
+            const subRate = wd > 0 ? Math.round((subDays / wd) * 100) : 0;
+            results.push({
+                user_id: u.id, name: u.name, username: u.username, department: u.department, role: u.role,
+                total_expected: totalExp, done_on_time: dOnTime, done_late: dLate, partial, not_done: notDone,
+                working_days: wd, submitted_days: subDays, missed_days: Math.max(0, wd - subDays),
+                submission_rate: subRate, score, grade
+            });
+        }
+        results.sort((a, b) => b.score - a.score); // Sort by score desc
+        res.json({ period, results });
+    } catch (err) { res.status(500).json({ error: 'Failed to fetch team performance', detail: err.message }); }
+});
+
+// GET monthly trend for a user (last 6 or 12 months)
+app.get('/api/performance/trend', authenticateToken, async (req, res) => {
+    const userId = req.query.user_id || req.user.id;
+    if (req.user.role !== 'admin' && String(userId) !== String(req.user.id))
+        return res.status(403).json({ error: 'Access denied' });
+    const months = parseInt(req.query.months) || 6;
+    try {
+        const results = [];
+        for (let i = months - 1; i >= 0; i--) {
+            const d = new Date();
+            d.setMonth(d.getMonth() - i);
+            const startDate = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+            const endDate = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
+            const [stats] = await pool.query(`
+                SELECT COUNT(*) as total_logs,
+                    SUM(CASE WHEN status='done' AND submitted_late=0 THEN 1 ELSE 0 END) as done_on_time,
+                    SUM(CASE WHEN status='done' AND submitted_late=1 THEN 1 ELSE 0 END) as done_late,
+                    SUM(CASE WHEN status='partial' THEN 1 ELSE 0 END) as partial_count,
+                    SUM(CASE WHEN status='not_done' THEN 1 ELSE 0 END) as not_done_count
+                FROM activity_logs WHERE user_id=? AND log_date BETWEEN ? AND ?`, [userId, startDate, endDate]);
+            const [ac] = await pool.query(
+                `SELECT COUNT(*) as cnt FROM activity_user_tasks aut JOIN activity_templates at ON aut.template_id=at.id
+                 WHERE aut.user_id=? AND aut.is_active=1 AND at.is_active=1 AND at.category='Daily'`, [userId]);
+            const [wdR] = await pool.query(`
+                SELECT COUNT(*) as wd FROM (
+                    SELECT DATE_ADD(?, INTERVAL n DAY) as dt FROM (
+                        SELECT @rr:=@rr+1 as n FROM
+                        (SELECT 0 UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) a,
+                        (SELECT 0 UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) b,
+                        (SELECT @rr:=-1) r
+                    ) nums WHERE DATE_ADD(?, INTERVAL n DAY) <= ?
+                ) dates WHERE DAYOFWEEK(dt) NOT IN (1) AND dt <= CURDATE()
+            `, [startDate, startDate, endDate]);
+            const dailyTasks = ac[0]?.cnt || 0;
+            const wd = wdR[0]?.wd || 0;
+            const totalExp = dailyTasks * wd;
+            const s = stats[0] || {};
+            const scoreN = ((s.done_on_time||0) * 100) + ((s.done_late||0) * 60) + ((s.partial_count||0) * 40);
+            const score = totalExp > 0 ? Math.min(100, Math.round((scoreN / totalExp) * 100) / 100) : 0;
+            let grade = 'F';
+            if (score >= 95) grade = 'A+'; else if (score >= 85) grade = 'A'; else if (score >= 75) grade = 'B+';
+            else if (score >= 65) grade = 'B'; else if (score >= 50) grade = 'C'; else if (score >= 35) grade = 'D';
+            results.push({
+                month: startDate.substring(0, 7), start: startDate, end: endDate,
+                score, grade, total_expected: totalExp, total_logs: s.total_logs || 0
+            });
+        }
+        res.json(results);
+    } catch (err) { res.status(500).json({ error: 'Failed to fetch trend', detail: err.message }); }
 });
 
 // Basic Health Check Endpoint
