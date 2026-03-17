@@ -2900,13 +2900,41 @@ app.post('/api/bills/migrate-email-log', authenticateToken, async (req, res) => 
 
 app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
     try {
-        const [[{ count: pendingComplaints }]] = await pool.query("SELECT COUNT(*) as count FROM complaints WHERE status = 'Pending'");
-        const [[{ count: totalCustomers }]] = await pool.query("SELECT COUNT(*) as count FROM customers");
+        const user = req.user;
+        let cWhere = "WHERE status = 'Pending'";
+        let cParams = [];
+        let custWhere = '';
+        let custParams = [];
 
-        res.json({
-            pendingComplaints,
-            totalCustomers
-        });
+        if (user.role !== 'admin') {
+            const [[meRow]] = await pool.query('SELECT id, allowed_circles, allowed_oas FROM users WHERE id = ?', [user.id]);
+            let myCircles = [];
+            try { myCircles = JSON.parse(meRow?.allowed_circles || '[]'); } catch(e) {}
+
+            const [subs] = await pool.query('SELECT user_id FROM user_managers WHERE manager_id = ?', [user.id]);
+            const allIds = [user.id, ...subs.map(s => s.user_id)];
+            const idPH = allIds.map(() => '?').join(',');
+
+            if (myCircles.length > 0) {
+                const cirPH = myCircles.map(() => '?').join(',');
+                cWhere += ` AND (assigned_to IN (${idPH}) OR (assigned_to IS NULL AND circle IN (${cirPH})))`;
+                cParams = [...allIds, ...myCircles];
+                custWhere = `WHERE circle IN (${cirPH})`;
+                custParams = [...myCircles];
+            } else {
+                cWhere += ` AND assigned_to IN (${idPH})`;
+                cParams = [...allIds];
+            }
+        }
+
+        const [[{ count: pendingComplaints }]] = await pool.query(
+            `SELECT COUNT(*) as count FROM complaints ${cWhere}`, cParams
+        );
+        const [[{ count: totalCustomers }]] = await pool.query(
+            `SELECT COUNT(*) as count FROM customers ${custWhere}`, custParams
+        );
+
+        res.json({ pendingComplaints, totalCustomers });
     } catch (err) {
         console.error('Stats fetch error:', err);
         res.status(500).json({ error: 'Failed' });
@@ -2967,11 +2995,30 @@ app.get('/api/dashboard/pending-tasks', authenticateToken, async (req, res) => {
             ${whereClause} AND (SELECT COUNT(*) FROM customer_lines WHERE customer_id = c.id) = 0
         `, params);
 
-        // Pending Complaints - Simple Status Pending
-        // (Complaints might also need circle/oa filtering if that's added to complaints table)
-        const [pendingComplaints] = await pool.query(`
-            SELECT COUNT(*) as count FROM complaints WHERE status = 'Pending'
-        `);
+        // Pending Complaints — area filtered for non-admin
+        let complaintWhere = "WHERE status = 'Pending'";
+        let complaintParams = [];
+        if (user.role !== 'admin') {
+            const parseArr2 = v => { try { const a = JSON.parse(v); return Array.isArray(a) ? a.filter(Boolean) : []; } catch(e) { return []; } };
+            const [uData2] = await pool.query('SELECT allowed_circles FROM users WHERE id = ?', [user.id]);
+            const cCircles = parseArr2(uData2[0]?.allowed_circles);
+            // Get subordinates
+            const [subs2] = await pool.query('SELECT user_id FROM user_managers WHERE manager_id = ?', [user.id]);
+            const subIds2 = subs2.map(s => s.user_id);
+            const allIds2 = [user.id, ...subIds2];
+            const idPH2 = allIds2.map(() => '?').join(',');
+            if (cCircles.length > 0) {
+                const cirPH2 = cCircles.map(() => '?').join(',');
+                complaintWhere += ` AND (assigned_to IN (${idPH2}) OR (assigned_to IS NULL AND circle IN (${cirPH2})))`;
+                complaintParams = [...allIds2, ...cCircles];
+            } else {
+                complaintWhere += ` AND assigned_to IN (${idPH2})`;
+                complaintParams = [...allIds2];
+            }
+        }
+        const [pendingComplaints] = await pool.query(
+            `SELECT COUNT(*) as count FROM complaints ${complaintWhere}`, complaintParams
+        );
 
         res.json({
             products: pendingProducts[0].count,
@@ -3024,10 +3071,55 @@ app.get('/api/dashboard/v2-stats', authenticateToken, async (req, res) => {
 
         const SLA_MINUTES = 4 * 60; // 240 minutes = 4 working hours
         const now = new Date();
+        const user = req.user;
 
-        // All complaints
+        // ── Area-based access control ─────────────────────────────
+        let areaWhere = '';
+        let areaParams = [];
+        let teamWhere = '';
+        let teamParams = [];
+
+        if (user.role !== 'admin') {
+            // Get user's allowed circles/oas from DB
+            const [[meRow]] = await pool.query(
+                'SELECT id, allowed_circles, allowed_oas FROM users WHERE id = ?', [user.id]
+            );
+            const myId = meRow?.id || user.id;
+
+            let myCircles = [];
+            let myOas = [];
+            try { myCircles = JSON.parse(meRow?.allowed_circles || '[]'); } catch(e) {}
+            try { myOas = JSON.parse(meRow?.allowed_oas || '[]'); } catch(e) {}
+
+            // Get subordinates
+            const [subs] = await pool.query(
+                'SELECT user_id FROM user_managers WHERE manager_id = ?', [myId]
+            );
+            const subIds = subs.map(s => s.user_id);
+            const allIds = [myId, ...subIds];
+
+            // Complaints filter: assigned to self/subordinates OR unassigned in user's circles
+            const idPH = allIds.map(() => '?').join(',');
+            if (myCircles.length > 0) {
+                const cirPH = myCircles.map(() => '?').join(',');
+                areaWhere = `WHERE (c.assigned_to IN (${idPH}) OR (c.assigned_to IS NULL AND c.circle IN (${cirPH})))`;
+                areaParams = [...allIds, ...myCircles];
+            } else {
+                areaWhere = `WHERE c.assigned_to IN (${idPH})`;
+                areaParams = [...allIds];
+            }
+
+            // Team filter: only show self + subordinates in team chart
+            teamWhere = `AND c.assigned_to IN (${idPH})`;
+            teamParams = [...allIds];
+        }
+        // ──────────────────────────────────────────────────────────
+
+        // Complaints filtered by user's area
         const [allComplaints] = await pool.query(
-            `SELECT id, status, priority, created_at, updated_at, assigned_to FROM complaints ORDER BY created_at DESC`
+            `SELECT c.id, c.status, c.priority, c.created_at, c.updated_at, c.assigned_to
+             FROM complaints c ${areaWhere} ORDER BY c.created_at DESC`,
+            areaParams
         );
 
         // Calculate stats
@@ -3065,7 +3157,6 @@ app.get('/api/dashboard/v2-stats', authenticateToken, async (req, res) => {
                 const cDate = new Date(c.created_at);
                 if (cDate >= d && cDate <= dEnd) {
                     dayTotal++;
-                    // Check if this complaint was overdue (took >4 working hours or still active)
                     const resolvedDate = (c.status === 'Resolved' || c.status === 'Closed') ? new Date(c.updated_at) : now;
                     const wMins = workingMinutesBetween(cDate, resolvedDate);
                     if (wMins > SLA_MINUTES) dayOverdue++;
@@ -3075,7 +3166,7 @@ app.get('/api/dashboard/v2-stats', authenticateToken, async (req, res) => {
             trend30.push({ date: dateStr, total: dayTotal, overdue: dayOverdue });
         }
 
-        // Team pending work (assigned_to wise)
+        // Team pending work — filtered by area for non-admin
         const [teamData] = await pool.query(`
             SELECT c.assigned_to, u.name as assignee_name,
                    SUM(CASE WHEN c.status IN ('Pending','In Progress') THEN 1 ELSE 0 END) as active,
@@ -3083,19 +3174,26 @@ app.get('/api/dashboard/v2-stats', authenticateToken, async (req, res) => {
                    SUM(CASE WHEN c.status = 'Escalated' THEN 1 ELSE 0 END) as escalated
             FROM complaints c
             LEFT JOIN users u ON c.assigned_to = u.id
-            WHERE c.assigned_to IS NOT NULL
+            WHERE c.assigned_to IS NOT NULL ${teamWhere}
             GROUP BY c.assigned_to, u.name
             ORDER BY active DESC
-        `);
+        `, teamParams);
 
-        // Tasks summary
-        const [tasksSummary] = await pool.query(`
-            SELECT
-                COUNT(*) as total,
+        // Tasks summary — filtered by user for non-admin
+        let taskQuery, taskParams2 = [];
+        if (user.role === 'admin') {
+            taskQuery = `SELECT COUNT(*) as total,
                 SUM(CASE WHEN status != 'COMPLETED' THEN 1 ELSE 0 END) as active,
                 SUM(CASE WHEN status != 'COMPLETED' AND due_date < CURDATE() THEN 1 ELSE 0 END) as overdue
-            FROM tasks
-        `);
+                FROM tasks`;
+        } else {
+            taskQuery = `SELECT COUNT(*) as total,
+                SUM(CASE WHEN status != 'COMPLETED' THEN 1 ELSE 0 END) as active,
+                SUM(CASE WHEN status != 'COMPLETED' AND due_date < CURDATE() THEN 1 ELSE 0 END) as overdue
+                FROM tasks WHERE assigned_to = ?`;
+            taskParams2 = [user.id];
+        }
+        const [tasksSummary] = await pool.query(taskQuery, taskParams2);
 
         res.json({
             complaints: {
