@@ -99,8 +99,10 @@ async function upgradeUsersTable() {
             { name: 'backdate_rights', type: 'BOOLEAN DEFAULT FALSE' },
             { name: 'department', type: "VARCHAR(50) DEFAULT 'Technical'" },
             { name: 'work_types', type: 'JSON' },
-            { name: 'allowed_circles', type: 'TEXT' },   // JSON array of circle names (multi-select)
-            { name: 'allowed_oas', type: 'TEXT' }        // JSON array of OA names (multi-select)
+            { name: 'allowed_circles', type: 'TEXT' },   // JSON array of circle names (multi-select, for engineers)
+            { name: 'allowed_oas', type: 'TEXT' },       // JSON array of OA names (multi-select, for engineers)
+            { name: 'view_circles', type: 'TEXT' },      // JSON array of circle names (for view purpose)
+            { name: 'view_oas', type: 'TEXT' }           // JSON array of OA names (for view purpose)
         ];
 
         for (const col of columns) {
@@ -1224,12 +1226,18 @@ app.get('/api/users', authenticateToken, isAdmin, async (req, res) => {
         const [rows] = await pool.query(`
             SELECT u1.id, u1.username, u1.role, u1.name, u1.mobile, u1.email,
                    u1.allowed_circle, u1.allowed_oa, u1.allowed_circles, u1.allowed_oas,
+                   u1.view_circles, u1.view_oas,
                    u1.permissions, u1.reports_to, u1.created_at,
                    u1.department, u1.work_types, u1.allowed_customers,
                    u2.name as manager_name, u2.username as manager_username
             FROM users u1
             LEFT JOIN users u2 ON u1.reports_to = u2.id
         `);
+        // Attach manager_ids array for each user from user_managers table
+        for (const row of rows) {
+            const [mgrs] = await pool.query('SELECT manager_id FROM user_managers WHERE user_id = ?', [row.id]);
+            row.manager_ids = mgrs.map(m => m.manager_id);
+        }
         res.json(rows);
     } catch (err) {
         console.error('Fetch users error:', err);
@@ -1238,14 +1246,21 @@ app.get('/api/users', authenticateToken, isAdmin, async (req, res) => {
 });
 
 app.post('/api/users', authenticateToken, isAdmin, async (req, res) => {
-    const { username, password, role, name, mobile, email, permissions, reports_to, department, work_types, allowed_circles, allowed_oas } = req.body;
+    const { username, password, role, name, mobile, email, permissions, reports_to, manager_ids, department, work_types, allowed_circles, allowed_oas, view_circles, view_oas } = req.body;
     try {
         const hash = await bcrypt.hash(password, 10);
         const [result] = await pool.query(
-            'INSERT INTO users (username, password_hash, role, name, mobile, email, permissions, reports_to, backdate_rights, department, work_types, allowed_circles, allowed_oas) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [username, hash, role || 'user', name || null, mobile || null, email || null, JSON.stringify(permissions || []), reports_to || null, req.body.backdate_rights || false, department || 'Technical', JSON.stringify(work_types || []), JSON.stringify(allowed_circles || []), JSON.stringify(allowed_oas || [])]
+            'INSERT INTO users (username, password_hash, role, name, mobile, email, permissions, reports_to, backdate_rights, department, work_types, allowed_circles, allowed_oas, view_circles, view_oas) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [username, hash, role || 'user', name || null, mobile || null, email || null, JSON.stringify(permissions || []), reports_to || null, req.body.backdate_rights || false, department || 'Technical', JSON.stringify(work_types || []), JSON.stringify(allowed_circles || []), JSON.stringify(allowed_oas || []), JSON.stringify(view_circles || []), JSON.stringify(view_oas || [])]
         );
-        res.status(201).json({ id: result.insertId, username, role });
+        // Save multiple managers in user_managers table
+        const newUserId = result.insertId;
+        const mgrIds = Array.isArray(manager_ids) ? manager_ids : (reports_to ? [reports_to] : []);
+        if (mgrIds.length > 0) {
+            const mgrValues = mgrIds.map(mid => [newUserId, mid]);
+            await pool.query('INSERT INTO user_managers (user_id, manager_id) VALUES ?', [mgrValues]);
+        }
+        res.status(201).json({ id: newUserId, username, role });
     } catch (err) {
         console.error('Create user error:', err);
         res.status(500).json({ error: 'Failed to create user' });
@@ -1253,12 +1268,20 @@ app.post('/api/users', authenticateToken, isAdmin, async (req, res) => {
 });
 
 app.put('/api/users/:id', authenticateToken, isAdmin, async (req, res) => {
-    const { role, name, mobile, email, permissions, reports_to, department, work_types, allowed_circles, allowed_oas } = req.body;
+    const { role, name, mobile, email, permissions, reports_to, manager_ids, department, work_types, allowed_circles, allowed_oas, view_circles, view_oas } = req.body;
     try {
         await pool.query(
-            'UPDATE users SET role=?, name=?, mobile=?, email=?, permissions=?, reports_to=?, backdate_rights=?, department=?, work_types=?, allowed_circles=?, allowed_oas=? WHERE id=?',
-            [role, name || null, mobile || null, email || null, JSON.stringify(permissions || []), reports_to || null, req.body.backdate_rights || false, department || 'Technical', JSON.stringify(work_types || []), JSON.stringify(allowed_circles || []), JSON.stringify(allowed_oas || []), req.params.id]
+            'UPDATE users SET role=?, name=?, mobile=?, email=?, permissions=?, reports_to=?, backdate_rights=?, department=?, work_types=?, allowed_circles=?, allowed_oas=?, view_circles=?, view_oas=? WHERE id=?',
+            [role, name || null, mobile || null, email || null, JSON.stringify(permissions || []), reports_to || null, req.body.backdate_rights || false, department || 'Technical', JSON.stringify(work_types || []), JSON.stringify(allowed_circles || []), JSON.stringify(allowed_oas || []), JSON.stringify(view_circles || []), JSON.stringify(view_oas || []), req.params.id]
         );
+        // Update multiple managers in user_managers table
+        const userId = parseInt(req.params.id);
+        await pool.query('DELETE FROM user_managers WHERE user_id = ?', [userId]);
+        const mgrIds = Array.isArray(manager_ids) ? manager_ids : (reports_to ? [reports_to] : []);
+        if (mgrIds.length > 0) {
+            const mgrValues = mgrIds.map(mid => [userId, parseInt(mid)]);
+            await pool.query('INSERT INTO user_managers (user_id, manager_id) VALUES ?', [mgrValues]);
+        }
         res.json({ message: 'User updated successfully' });
     } catch (err) {
         console.error('Edit user error:', err);
@@ -1795,11 +1818,14 @@ app.get('/api/complaints/view-report/summary', authenticateToken, async (req, re
         let where = [];
         const params = [];
 
-        // Non-admin: scope by allowed_circles + allowed_oas + allowed_customers
+        // Non-admin: scope by view_circles + view_oas + allowed_customers + subordinates
         if (currentUser.role !== 'admin') {
-            const [[meRow]] = await pool.query('SELECT allowed_circles, allowed_oas, allowed_customers FROM users WHERE id = ?', [currentUser.id]);
-            let myCircles = []; try { myCircles = JSON.parse(meRow?.allowed_circles || '[]'); } catch(e) {}
-            let myOAs = []; try { myOAs = JSON.parse(meRow?.allowed_oas || '[]'); } catch(e) {}
+            const [[meRow]] = await pool.query('SELECT view_circles, view_oas, allowed_circles, allowed_oas, allowed_customers FROM users WHERE id = ?', [currentUser.id]);
+            // Prefer view_circles/view_oas; fallback to allowed_circles/allowed_oas
+            let myCircles = []; try { myCircles = JSON.parse(meRow?.view_circles || '[]'); } catch(e) {}
+            if (!myCircles.length) try { myCircles = JSON.parse(meRow?.allowed_circles || '[]'); } catch(e) {}
+            let myOAs = []; try { myOAs = JSON.parse(meRow?.view_oas || '[]'); } catch(e) {}
+            if (!myOAs.length) try { myOAs = JSON.parse(meRow?.allowed_oas || '[]'); } catch(e) {}
             let myCust = (meRow?.allowed_customers || '').split(',').map(s => s.trim()).filter(Boolean);
 
             const orConds = [];
@@ -1861,11 +1887,13 @@ app.get('/api/complaints/view-report', authenticateToken, async (req, res) => {
         let where = [];
         const params = [];
 
-        // Non-admin: scope
+        // Non-admin: scope by view_circles/view_oas (fallback to allowed_circles/allowed_oas)
         if (currentUser.role !== 'admin') {
-            const [[meRow]] = await pool.query('SELECT allowed_circles, allowed_oas, allowed_customers FROM users WHERE id = ?', [currentUser.id]);
-            let myCircles = []; try { myCircles = JSON.parse(meRow?.allowed_circles || '[]'); } catch(e) {}
-            let myOAs = []; try { myOAs = JSON.parse(meRow?.allowed_oas || '[]'); } catch(e) {}
+            const [[meRow]] = await pool.query('SELECT view_circles, view_oas, allowed_circles, allowed_oas, allowed_customers FROM users WHERE id = ?', [currentUser.id]);
+            let myCircles = []; try { myCircles = JSON.parse(meRow?.view_circles || '[]'); } catch(e) {}
+            if (!myCircles.length) try { myCircles = JSON.parse(meRow?.allowed_circles || '[]'); } catch(e) {}
+            let myOAs = []; try { myOAs = JSON.parse(meRow?.view_oas || '[]'); } catch(e) {}
+            if (!myOAs.length) try { myOAs = JSON.parse(meRow?.allowed_oas || '[]'); } catch(e) {}
             let myCust = (meRow?.allowed_customers || '').split(',').map(s => s.trim()).filter(Boolean);
 
             const orConds = [];
