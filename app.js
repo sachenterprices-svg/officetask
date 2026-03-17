@@ -1087,12 +1087,25 @@ app.post('/api/login', async (req, res) => {
         // Create JWT token
         const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '12h' });
 
+        // Parse work_types
+        let work_types = [];
+        if (user.work_types) {
+            try { work_types = typeof user.work_types === 'string' ? JSON.parse(user.work_types) : user.work_types; } catch(e) { work_types = []; }
+        }
+        // Parse allowed_circles / allowed_oas
+        let allowed_circles = [], allowed_oas = [];
+        try { allowed_circles = JSON.parse(user.allowed_circles || '[]'); } catch(e) {}
+        try { allowed_oas = JSON.parse(user.allowed_oas || '[]'); } catch(e) {}
+
         res.json({ token, user: {
             id: user.id,
             username: user.username,
             role: user.role,
             name: user.name,
             permissions: permissions,
+            work_types: work_types,
+            allowed_circles: allowed_circles,
+            allowed_oas: allowed_oas,
             allowed_circle: user.allowed_circle,
             allowed_oa: user.allowed_oa,
             backdate_rights: user.backdate_rights
