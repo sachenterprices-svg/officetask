@@ -775,7 +775,9 @@ async function initBillTasksTable() {
             ['gst_id', "VARCHAR(100) DEFAULT ''"],
             ['cgst', 'DECIMAL(12,2) DEFAULT 0'],
             ['sgst', 'DECIMAL(12,2) DEFAULT 0'],
-            ['igst', 'DECIMAL(12,2) DEFAULT 0']
+            ['igst', 'DECIMAL(12,2) DEFAULT 0'],
+            ['circle_id', 'INT DEFAULT NULL'],
+            ['oa_id', 'INT DEFAULT NULL']
         ];
         for (const [col, def] of revCols) {
             try {
@@ -4731,8 +4733,8 @@ app.post('/api/bill-tasks', authenticateToken, async (req, res) => {
                 modem_rental, claim_fixed_charges, total_charges, remarks,
                 rev_fixed_per_month, rev_fixed_per_line, rev_fixed_per_vas,
                 rev_rent_share_pct, rev_calling_share_pct, rev_rg_share_pct,
-                gst_id, cgst, sgst, igst, created_by
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                gst_id, cgst, sgst, igst, circle_id, oa_id, created_by
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             [
                 b.bsnl_bill_no || '', b.bill_for_month || '', b.customer_name || '', b.customer_ph_no || '',
                 b.from_date || null, b.to_date || null,
@@ -4749,6 +4751,7 @@ app.post('/api/bill-tasks', authenticateToken, async (req, res) => {
                 b.rev_fixed_per_month || 0, b.rev_fixed_per_line || 0, b.rev_fixed_per_vas || 0,
                 b.rev_rent_share_pct || 0, b.rev_calling_share_pct || 0, b.rev_rg_share_pct || 0,
                 b.gst_id || '', b.cgst || 0, b.sgst || 0, b.igst || 0,
+                b.circle_id || null, b.oa_id || null,
                 req.user.id
             ]
         );
@@ -4769,22 +4772,29 @@ app.get('/api/bill-tasks', authenticateToken, async (req, res) => {
         const sortDir = (req.query.sortDir || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
         const allowedSorts = ['id','bsnl_bill_no','bill_for_month','customer_name','customer_ph_no',
-            'total_bill','net_bill_amount','total_charges','created_at'];
+            'total_bill','net_bill_amount','total_charges','created_at','circle_id','oa_id'];
         const safeSort = allowedSorts.includes(sortBy) ? sortBy : 'created_at';
 
         let where = '1=1';
         const params = [];
         if (search) {
-            where += ` AND (customer_name LIKE ? OR bsnl_bill_no LIKE ? OR customer_ph_no LIKE ? OR claim_no LIKE ?)`;
+            where += ` AND (bt.customer_name LIKE ? OR bt.bsnl_bill_no LIKE ? OR bt.customer_ph_no LIKE ? OR bt.claim_no LIKE ?)`;
             const s = '%' + search + '%';
             params.push(s, s, s, s);
         }
+        if (req.query.circle_id) { where += ` AND bt.circle_id = ?`; params.push(req.query.circle_id); }
+        if (req.query.oa_id) { where += ` AND bt.oa_id = ?`; params.push(req.query.oa_id); }
+        if (req.query.customer_name) { where += ` AND bt.customer_name LIKE ?`; params.push('%' + req.query.customer_name + '%'); }
 
-        const [[{ total }]] = await pool.query(`SELECT COUNT(*) as total FROM bill_tasks WHERE ${where}`, params);
+        const [[{ total }]] = await pool.query(`SELECT COUNT(*) as total FROM bill_tasks bt WHERE ${where}`, params);
         const [rows] = await pool.query(
-            `SELECT bt.*, u.name as created_by_name FROM bill_tasks bt
+            `SELECT bt.*, u.name as created_by_name,
+                    bc.name as circle_name, bo.name as oa_name
+             FROM bill_tasks bt
              LEFT JOIN users u ON u.id = bt.created_by
-             WHERE ${where} ORDER BY ${safeSort} ${sortDir} LIMIT ? OFFSET ?`,
+             LEFT JOIN bsnl_circles bc ON bc.id = bt.circle_id
+             LEFT JOIN bsnl_oas bo ON bo.id = bt.oa_id
+             WHERE ${where} ORDER BY bt.${safeSort} ${sortDir} LIMIT ? OFFSET ?`,
             [...params, limit, offset]
         );
 
@@ -4824,7 +4834,7 @@ app.put('/api/bill-tasks/:id', authenticateToken, async (req, res) => {
                 modem_rental=?, claim_fixed_charges=?, total_charges=?, remarks=?,
                 rev_fixed_per_month=?, rev_fixed_per_line=?, rev_fixed_per_vas=?,
                 rev_rent_share_pct=?, rev_calling_share_pct=?, rev_rg_share_pct=?,
-                gst_id=?, cgst=?, sgst=?, igst=?
+                gst_id=?, cgst=?, sgst=?, igst=?, circle_id=?, oa_id=?
             WHERE id=?`,
             [
                 b.bsnl_bill_no || '', b.bill_for_month || '', b.customer_name || '', b.customer_ph_no || '',
@@ -4842,6 +4852,7 @@ app.put('/api/bill-tasks/:id', authenticateToken, async (req, res) => {
                 b.rev_fixed_per_month || 0, b.rev_fixed_per_line || 0, b.rev_fixed_per_vas || 0,
                 b.rev_rent_share_pct || 0, b.rev_calling_share_pct || 0, b.rev_rg_share_pct || 0,
                 b.gst_id || '', b.cgst || 0, b.sgst || 0, b.igst || 0,
+                b.circle_id || null, b.oa_id || null,
                 req.params.id
             ]
         );
