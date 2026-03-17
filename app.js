@@ -1774,6 +1774,186 @@ app.post('/api/complaints/bulk-auto-assign', authenticateToken, isAdmin, async (
     }
 });
 
+// ══════════════════════════════════════════════════════════════════════════
+// COMPLAINT VIEW REPORT — Senior Engineer / Admin monitoring endpoints
+// ══════════════════════════════════════════════════════════════════════════
+
+// Helper: check if user is senior (has subordinates) or admin
+async function isSeniorOrAdmin(userId, role) {
+    if (role === 'admin') return true;
+    const [[{ cnt }]] = await pool.query('SELECT COUNT(*) as cnt FROM user_managers WHERE manager_id = ?', [userId]);
+    return cnt > 0;
+}
+
+// GET /api/complaints/view-report/summary — per-engineer complaint summary
+app.get('/api/complaints/view-report/summary', authenticateToken, async (req, res) => {
+    const currentUser = req.user;
+    try {
+        const senior = await isSeniorOrAdmin(currentUser.id, currentUser.role);
+        if (!senior) return res.status(403).json({ error: 'Access denied. Only seniors and admins can access this report.' });
+
+        let where = [];
+        const params = [];
+
+        // Non-admin: scope by allowed_circles + allowed_oas + allowed_customers
+        if (currentUser.role !== 'admin') {
+            const [[meRow]] = await pool.query('SELECT allowed_circles, allowed_oas, allowed_customers FROM users WHERE id = ?', [currentUser.id]);
+            let myCircles = []; try { myCircles = JSON.parse(meRow?.allowed_circles || '[]'); } catch(e) {}
+            let myOAs = []; try { myOAs = JSON.parse(meRow?.allowed_oas || '[]'); } catch(e) {}
+            let myCust = (meRow?.allowed_customers || '').split(',').map(s => s.trim()).filter(Boolean);
+
+            const orConds = [];
+            if (myCircles.length) { orConds.push(`c.circle IN (${myCircles.map(()=>'?').join(',')})`); params.push(...myCircles); }
+            if (myOAs.length) { orConds.push(`c.oa_name IN (${myOAs.map(()=>'?').join(',')})`); params.push(...myOAs); }
+            if (myCust.length) { orConds.push(`c.customer_name IN (${myCust.map(()=>'?').join(',')})`); params.push(...myCust); }
+            // Also include complaints assigned to self or subordinates
+            const [subs] = await pool.query('SELECT user_id FROM user_managers WHERE manager_id = ?', [currentUser.id]);
+            const allIds = [currentUser.id, ...subs.map(r => r.user_id)];
+            orConds.push(`c.assigned_to IN (${allIds.map(()=>'?').join(',')})`);
+            params.push(...allIds);
+
+            if (orConds.length) where.push(`(${orConds.join(' OR ')})`);
+        }
+
+        // Apply date filters if provided
+        const { start, end } = req.query;
+        if (start) { where.push('DATE(c.created_at) >= ?'); params.push(start); }
+        if (end) { where.push('DATE(c.created_at) <= ?'); params.push(end); }
+
+        const whereStr = where.length ? 'WHERE ' + where.join(' AND ') : '';
+
+        const [rows] = await pool.query(`
+            SELECT
+                c.assigned_to as engineer_id,
+                COALESCE(u.name, u.username, 'Unassigned') as engineer_name,
+                COUNT(*) as total,
+                SUM(CASE WHEN c.status = 'Pending' THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN c.status = 'In Progress' THEN 1 ELSE 0 END) as in_progress,
+                SUM(CASE WHEN c.status = 'Forward to Senior' THEN 1 ELSE 0 END) as forwarded,
+                SUM(CASE WHEN c.status = 'Resolved' THEN 1 ELSE 0 END) as resolved,
+                SUM(CASE WHEN c.status = 'Cancelled' THEN 1 ELSE 0 END) as cancelled
+            FROM complaints c
+            LEFT JOIN users u ON c.assigned_to = u.id
+            ${whereStr}
+            GROUP BY c.assigned_to, u.name, u.username
+            ORDER BY total DESC
+        `, params);
+
+        // Totals
+        const totals = { total: 0, pending: 0, in_progress: 0, forwarded: 0, resolved: 0, cancelled: 0 };
+        rows.forEach(r => { totals.total += r.total; totals.pending += r.pending; totals.in_progress += r.in_progress; totals.forwarded += r.forwarded; totals.resolved += r.resolved; totals.cancelled += r.cancelled; });
+
+        res.json({ engineers: rows, totals });
+    } catch (err) {
+        console.error('View report summary error:', err);
+        res.status(500).json({ error: 'Failed to fetch summary' });
+    }
+});
+
+// GET /api/complaints/view-report — detailed complaints list for view report
+app.get('/api/complaints/view-report', authenticateToken, async (req, res) => {
+    const currentUser = req.user;
+    try {
+        const senior = await isSeniorOrAdmin(currentUser.id, currentUser.role);
+        if (!senior) return res.status(403).json({ error: 'Access denied.' });
+
+        const { circle, oa, status, engineer_id, search, start, end, limit = 40, offset = 0 } = req.query;
+        let where = [];
+        const params = [];
+
+        // Non-admin: scope
+        if (currentUser.role !== 'admin') {
+            const [[meRow]] = await pool.query('SELECT allowed_circles, allowed_oas, allowed_customers FROM users WHERE id = ?', [currentUser.id]);
+            let myCircles = []; try { myCircles = JSON.parse(meRow?.allowed_circles || '[]'); } catch(e) {}
+            let myOAs = []; try { myOAs = JSON.parse(meRow?.allowed_oas || '[]'); } catch(e) {}
+            let myCust = (meRow?.allowed_customers || '').split(',').map(s => s.trim()).filter(Boolean);
+
+            const orConds = [];
+            if (myCircles.length) { orConds.push(`c.circle IN (${myCircles.map(()=>'?').join(',')})`); params.push(...myCircles); }
+            if (myOAs.length) { orConds.push(`c.oa_name IN (${myOAs.map(()=>'?').join(',')})`); params.push(...myOAs); }
+            if (myCust.length) { orConds.push(`c.customer_name IN (${myCust.map(()=>'?').join(',')})`); params.push(...myCust); }
+            const [subs] = await pool.query('SELECT user_id FROM user_managers WHERE manager_id = ?', [currentUser.id]);
+            const allIds = [currentUser.id, ...subs.map(r => r.user_id)];
+            orConds.push(`c.assigned_to IN (${allIds.map(()=>'?').join(',')})`);
+            params.push(...allIds);
+            if (orConds.length) where.push(`(${orConds.join(' OR ')})`);
+        }
+
+        if (circle) { where.push('c.circle = ?'); params.push(circle); }
+        if (oa) { where.push('c.oa_name = ?'); params.push(oa); }
+        if (status) { where.push('c.status = ?'); params.push(status); }
+        if (engineer_id) { where.push('c.assigned_to = ?'); params.push(parseInt(engineer_id)); }
+        if (search) { where.push('(c.customer_name LIKE ? OR c.complaint_no LIKE ? OR c.telephone_number LIKE ?)'); params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
+        if (start) { where.push('DATE(c.created_at) >= ?'); params.push(start); }
+        if (end) { where.push('DATE(c.created_at) <= ?'); params.push(end); }
+
+        const whereStr = where.length ? 'WHERE ' + where.join(' AND ') : '';
+        const [rows] = await pool.query(`
+            SELECT c.*, u.name as engineer_name
+            FROM complaints c
+            LEFT JOIN users u ON c.assigned_to = u.id
+            ${whereStr}
+            ORDER BY c.created_at DESC
+            LIMIT ? OFFSET ?
+        `, [...params, parseInt(limit), parseInt(offset)]);
+
+        const [[{ total }]] = await pool.query(
+            `SELECT COUNT(*) as total FROM complaints c LEFT JOIN users u ON c.assigned_to = u.id ${whereStr}`, params
+        );
+
+        res.json({ rows, total });
+    } catch (err) {
+        console.error('View report error:', err);
+        res.status(500).json({ error: 'Failed to fetch view report' });
+    }
+});
+
+// PUT /api/complaints/:id/resolve-on-behalf — Senior resolves complaint for another engineer
+app.put('/api/complaints/:id/resolve-on-behalf', authenticateToken, async (req, res) => {
+    const currentUser = req.user;
+    try {
+        const senior = await isSeniorOrAdmin(currentUser.id, currentUser.role);
+        if (!senior) return res.status(403).json({ error: 'Only seniors/admins can resolve on behalf.' });
+
+        const { fault_at, remark } = req.body;
+        if (!fault_at || !String(fault_at).trim()) return res.status(400).json({ error: 'Fault At is required.' });
+        if (!remark || !String(remark).trim()) return res.status(400).json({ error: 'Remark is required.' });
+
+        const resolverName = currentUser.name || currentUser.username;
+        await pool.query(`
+            UPDATE complaints SET
+                status = 'Resolved',
+                fault_at = ?,
+                remark = ?,
+                resolved_by = ?,
+                verification_status = 'Verified',
+                verified_by = ?
+            WHERE id = ?
+        `, [fault_at, remark, resolverName, resolverName, req.params.id]);
+
+        // Send resolution email
+        const [[comp]] = await pool.query('SELECT * FROM complaints WHERE id=?', [req.params.id]);
+        if (comp && comp.email) {
+            sendResolutionEmail({
+                email: comp.email,
+                complaint_no: comp.complaint_no,
+                customer_name: comp.customer_name,
+                complainee_name: comp.complainee_name,
+                telephone_number: comp.telephone_number,
+                std_code: comp.std_code,
+                company_name: comp.customer_name
+            }).catch(err => console.error('Resolution mail error:', err.message));
+        }
+
+        res.json({ message: 'Complaint resolved successfully by ' + resolverName });
+    } catch (err) {
+        console.error('Resolve on behalf error:', err);
+        res.status(500).json({ error: 'Failed to resolve complaint' });
+    }
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+
 app.post('/api/complaints', async (req, res) => {
     const { customer_name, complainee_name, mobile, email, issue_type, description, std_code, telephone_number,
             circle: circleFromBody, oa_name: oaFromBody } = req.body;
