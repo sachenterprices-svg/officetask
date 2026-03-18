@@ -6599,7 +6599,58 @@ async function initializeHRTables() {
             `);
         }
 
-        console.log('✅ HR Module tables initialized');
+        // ── RBAC: Module Permissions ──
+        await conn.query(`CREATE TABLE IF NOT EXISTS hr_module_permissions (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            module VARCHAR(50) NOT NULL,
+            can_view TINYINT(1) DEFAULT 1,
+            can_create TINYINT(1) DEFAULT 0,
+            can_edit TINYINT(1) DEFAULT 0,
+            can_delete TINYINT(1) DEFAULT 0,
+            can_approve TINYINT(1) DEFAULT 0,
+            can_export TINYINT(1) DEFAULT 0,
+            granted_by INT,
+            granted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_user_module (user_id, module)
+        )`);
+
+        // ── Module Registry (for dynamic module tracking) ──
+        await conn.query(`CREATE TABLE IF NOT EXISTS hr_module_registry (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            module_key VARCHAR(50) NOT NULL,
+            module_name VARCHAR(100),
+            module_icon VARCHAR(10) DEFAULT '',
+            category VARCHAR(50) DEFAULT 'HR',
+            sort_order INT DEFAULT 0,
+            is_active TINYINT(1) DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_key (module_key)
+        )`);
+
+        // Insert default modules if empty
+        const [modCount] = await conn.query('SELECT COUNT(*) as c FROM hr_module_registry');
+        if (modCount[0].c === 0) {
+            await conn.query(`INSERT IGNORE INTO hr_module_registry (module_key, module_name, module_icon, category, sort_order) VALUES
+                ('hr_dashboard', 'HR Dashboard', '📊', 'HR', 1),
+                ('hr_employees', 'Employee Management', '👤', 'HR', 2),
+                ('hr_attendance', 'Attendance & GPS', '📅', 'HR', 3),
+                ('hr_leaves', 'Leave Management', '🌴', 'HR', 4),
+                ('hr_expenses', 'Expense & Voucher', '💰', 'HR', 5),
+                ('hr_payroll', 'Payroll', '💲', 'HR', 6),
+                ('hr_comparison', 'Manual vs System', '🔍', 'HR', 7),
+                ('hr_health', 'System Health', '🩺', 'HR', 8),
+                ('hr_config', 'Configuration', '⚙', 'HR', 9),
+                ('hr_permissions', 'Permissions', '🔐', 'HR', 10),
+                ('worklog', 'Work Log Pro', '📓', 'CRM', 11),
+                ('tasks', 'Task Manager', '✅', 'CRM', 12),
+                ('complaints', 'Complaints', '🛠', 'CRM', 13),
+                ('reports', 'Reports', '📊', 'CRM', 14),
+                ('daily_activity', 'Daily Activity', '📝', 'CRM', 15)
+            `);
+        }
+
+        console.log('✅ HR Module tables initialized (with RBAC)');
     } catch(e) {
         console.error('HR tables init error:', e.message);
     } finally {
@@ -7303,6 +7354,124 @@ app.get('/api/hr/users-list', authenticateToken, async (req, res) => {
     try {
         const [rows] = await pool.query('SELECT id, name, username, role FROM users ORDER BY name');
         res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── HR API: Module Registry ──
+app.get('/api/hr/modules', authenticateToken, async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT * FROM hr_module_registry WHERE is_active=1 ORDER BY sort_order');
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── HR API: Permissions CRUD ──
+app.get('/api/hr/permissions', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        const { user_id } = req.query;
+        let sql = `SELECT p.*, u.name as user_name, u.username, m.module_name, m.module_icon
+            FROM hr_module_permissions p
+            LEFT JOIN users u ON p.user_id = u.id
+            LEFT JOIN hr_module_registry m ON p.module = m.module_key
+            WHERE 1=1`;
+        const params = [];
+        if (user_id) { sql += ' AND p.user_id=?'; params.push(user_id); }
+        sql += ' ORDER BY u.name, m.sort_order';
+        const [rows] = await pool.query(sql, params);
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Get MY permissions (for frontend access control)
+app.get('/api/hr/my-permissions', authenticateToken, async (req, res) => {
+    try {
+        // Admin gets all permissions automatically
+        if (req.user.role === 'admin') {
+            const [modules] = await pool.query('SELECT module_key FROM hr_module_registry WHERE is_active=1');
+            const perms = {};
+            modules.forEach(m => { perms[m.module_key] = { can_view:1, can_create:1, can_edit:1, can_delete:1, can_approve:1, can_export:1 }; });
+            return res.json(perms);
+        }
+        const [rows] = await pool.query('SELECT module, can_view, can_create, can_edit, can_delete, can_approve, can_export FROM hr_module_permissions WHERE user_id=?', [req.user.id]);
+        const perms = {};
+        rows.forEach(r => { perms[r.module] = r; });
+        res.json(perms);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Set permissions for a user (bulk)
+app.post('/api/hr/permissions/set', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        const { user_id, permissions } = req.body;
+        // permissions = [{ module, can_view, can_create, can_edit, can_delete, can_approve, can_export }]
+        if (!user_id || !permissions || !permissions.length) return res.status(400).json({ error: 'user_id and permissions required' });
+        const conn = await pool.getConnection();
+        try {
+            for (const p of permissions) {
+                await conn.query(`INSERT INTO hr_module_permissions (user_id, module, can_view, can_create, can_edit, can_delete, can_approve, can_export, granted_by)
+                    VALUES (?,?,?,?,?,?,?,?,?)
+                    ON DUPLICATE KEY UPDATE can_view=VALUES(can_view), can_create=VALUES(can_create), can_edit=VALUES(can_edit),
+                    can_delete=VALUES(can_delete), can_approve=VALUES(can_approve), can_export=VALUES(can_export), granted_by=VALUES(granted_by)`,
+                    [user_id, p.module, p.can_view?1:0, p.can_create?1:0, p.can_edit?1:0, p.can_delete?1:0, p.can_approve?1:0, p.can_export?1:0, req.user.id]);
+            }
+            res.json({ success: true });
+        } finally { conn.release(); }
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Delete permissions for a user
+app.delete('/api/hr/permissions/:userId', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        await pool.query('DELETE FROM hr_module_permissions WHERE user_id=?', [req.params.userId]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── HR API: Expense Heads CRUD (enhanced) ──
+app.put('/api/hr/expense-heads/:id', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        const b = req.body;
+        await pool.query('UPDATE hr_expense_heads SET head_name=?, max_limit=?, requires_receipt=?, applicable_roles=?, is_active=? WHERE id=?',
+            [b.head_name, b.max_limit||0, b.requires_receipt?1:0, b.applicable_roles||'All', b.is_active!==undefined?(b.is_active?1:0):1, req.params.id]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/hr/expense-heads/:id', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        await pool.query('UPDATE hr_expense_heads SET is_active=0 WHERE id=?', [req.params.id]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Seed default expense heads (if table is empty)
+app.post('/api/hr/expense-heads/seed', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        const [count] = await pool.query('SELECT COUNT(*) as c FROM hr_expense_heads');
+        if (count[0].c > 0) return res.json({ success: true, message: 'Heads already exist', count: count[0].c });
+        await pool.query(`INSERT INTO hr_expense_heads (head_name, max_limit, requires_receipt, applicable_roles) VALUES
+            ('Travel - Local', 2000, 1, 'All'),
+            ('Travel - Outstation', 10000, 1, 'All'),
+            ('Food & Meals', 500, 0, 'All'),
+            ('Accommodation / Hotel', 5000, 1, 'All'),
+            ('Office Supplies', 1000, 1, 'All'),
+            ('Communication / Mobile', 500, 0, 'All'),
+            ('Client Entertainment', 3000, 1, 'Manager,Admin'),
+            ('Fuel & Vehicle', 5000, 1, 'All'),
+            ('Medical', 2000, 1, 'All'),
+            ('Tour & Travelling', 8000, 1, 'All'),
+            ('Courier & Postage', 500, 1, 'All'),
+            ('Printing & Stationery', 1000, 1, 'All'),
+            ('Internet & Software', 2000, 1, 'All'),
+            ('Repair & Maintenance', 3000, 1, 'All'),
+            ('Miscellaneous', 1000, 1, 'All')`);
+        res.json({ success: true, seeded: 15 });
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
