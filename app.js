@@ -6658,8 +6658,17 @@ async function initializeHRTables() {
     }
 }
 
+// ── HR Middleware: Ensure tables exist (Vercel cold start safety) ──
+let hrTablesReady = false;
+async function ensureHRTables(req, res, next) {
+    if (!hrTablesReady) {
+        try { await initializeHRTables(); hrTablesReady = true; } catch(e) { console.error('HR init error:', e.message); }
+    }
+    next();
+}
+
 // ── HR API: Dashboard Stats ──
-app.get('/api/hr/dashboard', authenticateToken, async (req, res) => {
+app.get('/api/hr/dashboard', authenticateToken, ensureHRTables, async (req, res) => {
     try {
         const today = new Date().toISOString().split('T')[0];
         const [totalEmp] = await pool.query('SELECT COUNT(*) as c FROM hr_employees WHERE status="Active"');
@@ -7449,10 +7458,21 @@ app.delete('/api/hr/expense-heads/:id', authenticateToken, async (req, res) => {
     } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── HR API: Force Initialize Tables (for Vercel cold start) ──
+app.post('/api/hr/init-tables', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        await initializeHRTables();
+        res.json({ success: true, message: 'All HR tables initialized successfully' });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // Seed default expense heads (if table is empty)
 app.post('/api/hr/expense-heads/seed', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        // Ensure tables exist first (Vercel cold start fix)
+        await initializeHRTables();
         const [count] = await pool.query('SELECT COUNT(*) as c FROM hr_expense_heads');
         if (count[0].c > 0) return res.json({ success: true, message: 'Heads already exist', count: count[0].c });
         await pool.query(`INSERT INTO hr_expense_heads (head_name, max_limit, requires_receipt, applicable_roles) VALUES
