@@ -4387,6 +4387,7 @@ async function startupChecks() {
     await initBillEmailLog();
     await initDiaryTasksTables();
     await initializeHRTables();
+    await initializePRTables();
     await initializeAdmin();
     console.log('🚀 [READY] All startup checks complete. Server is fully ready!');
 }
@@ -6657,6 +6658,573 @@ async function initializeHRTables() {
         conn.release();
     }
 }
+
+// ═══════════════════════════════════════════════════════════════
+// ██  PR MODULE — Communication & Outreach Intelligence System ██
+// ═══════════════════════════════════════════════════════════════
+
+async function initializePRTables() {
+    const conn = await pool.getConnection();
+    try {
+        // PR Contacts
+        await conn.query(`CREATE TABLE IF NOT EXISTS pr_contacts (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(150) NOT NULL,
+            company VARCHAR(150),
+            designation VARCHAR(100),
+            email VARCHAR(150),
+            phone VARCHAR(20),
+            whatsapp VARCHAR(20),
+            category ENUM('Client','Vendor','Partner','Media','Government','Internal','VIP','Other') DEFAULT 'Client',
+            date_of_birth DATE,
+            anniversary DATE,
+            address TEXT,
+            city VARCHAR(50),
+            state VARCHAR(50),
+            tags VARCHAR(255),
+            engagement_score INT DEFAULT 0,
+            consent_whatsapp TINYINT(1) DEFAULT 1,
+            consent_email TINYINT(1) DEFAULT 1,
+            consent_sms TINYINT(1) DEFAULT 1,
+            unsubscribed TINYINT(1) DEFAULT 0,
+            last_contacted DATE,
+            notes TEXT,
+            status ENUM('Active','Inactive','Blocked') DEFAULT 'Active',
+            created_by INT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_category (category),
+            INDEX idx_dob (date_of_birth),
+            INDEX idx_anniversary (anniversary)
+        )`);
+
+        // PR Campaigns
+        await conn.query(`CREATE TABLE IF NOT EXISTS pr_campaigns (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(200) NOT NULL,
+            campaign_type ENUM('Festival','Promotional','Reminder','Birthday','Anniversary','Welcome','Follow-up','Custom') DEFAULT 'Custom',
+            channel ENUM('WhatsApp','Email','SMS','Social','Multi-Channel') DEFAULT 'Multi-Channel',
+            template_id INT,
+            target_audience JSON,
+            target_count INT DEFAULT 0,
+            scheduled_at DATETIME,
+            executed_at DATETIME,
+            status ENUM('Draft','Scheduled','Running','Completed','Paused','Failed') DEFAULT 'Draft',
+            sent_count INT DEFAULT 0,
+            delivered_count INT DEFAULT 0,
+            read_count INT DEFAULT 0,
+            replied_count INT DEFAULT 0,
+            failed_count INT DEFAULT 0,
+            created_by INT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_status (status),
+            INDEX idx_type (campaign_type)
+        )`);
+
+        // PR Templates
+        await conn.query(`CREATE TABLE IF NOT EXISTS pr_templates (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(150) NOT NULL,
+            template_type ENUM('WhatsApp','Email','SMS','Social') DEFAULT 'WhatsApp',
+            category ENUM('Greeting','Promotion','Reminder','Follow-up','Festival','Birthday','Anniversary','Welcome','Custom') DEFAULT 'Custom',
+            subject VARCHAR(255),
+            content TEXT NOT NULL,
+            variables JSON,
+            media_url VARCHAR(500),
+            is_active TINYINT(1) DEFAULT 1,
+            usage_count INT DEFAULT 0,
+            created_by INT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
+
+        // Communication Logs
+        await conn.query(`CREATE TABLE IF NOT EXISTS pr_communication_logs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            contact_id INT,
+            campaign_id INT,
+            channel ENUM('WhatsApp','Email','SMS','Social','Call') DEFAULT 'WhatsApp',
+            direction ENUM('Outbound','Inbound') DEFAULT 'Outbound',
+            message_type VARCHAR(50),
+            content TEXT,
+            status ENUM('Queued','Sent','Delivered','Read','Failed','Bounced') DEFAULT 'Queued',
+            sent_at DATETIME,
+            delivered_at DATETIME,
+            read_at DATETIME,
+            error_message VARCHAR(255),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_contact (contact_id),
+            INDEX idx_campaign (campaign_id),
+            INDEX idx_status (status),
+            INDEX idx_channel (channel)
+        )`);
+
+        // Email Logs (detailed)
+        await conn.query(`CREATE TABLE IF NOT EXISTS pr_email_logs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            comm_log_id INT,
+            to_email VARCHAR(150),
+            subject VARCHAR(255),
+            opened TINYINT(1) DEFAULT 0,
+            opened_at DATETIME,
+            clicked TINYINT(1) DEFAULT 0,
+            clicked_at DATETIME,
+            bounced TINYINT(1) DEFAULT 0,
+            unsubscribed TINYINT(1) DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
+
+        // WhatsApp Logs (detailed)
+        await conn.query(`CREATE TABLE IF NOT EXISTS pr_whatsapp_logs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            comm_log_id INT,
+            to_number VARCHAR(20),
+            message_id VARCHAR(100),
+            delivered TINYINT(1) DEFAULT 0,
+            delivered_at DATETIME,
+            read_flag TINYINT(1) DEFAULT 0,
+            read_at DATETIME,
+            replied TINYINT(1) DEFAULT 0,
+            reply_text TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
+
+        // Reminders & Events
+        await conn.query(`CREATE TABLE IF NOT EXISTS pr_reminders (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            title VARCHAR(200),
+            reminder_type ENUM('Birthday','Anniversary','Festival','Meeting','Follow-up','Gift','Custom') DEFAULT 'Custom',
+            contact_id INT,
+            reminder_date DATE,
+            reminder_time TIME DEFAULT '09:00:00',
+            recurrence ENUM('None','Daily','Weekly','Monthly','Yearly') DEFAULT 'None',
+            auto_action ENUM('None','WhatsApp','Email','Both') DEFAULT 'None',
+            template_id INT,
+            status ENUM('Active','Completed','Cancelled') DEFAULT 'Active',
+            notes TEXT,
+            created_by INT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_date (reminder_date)
+        )`);
+
+        // Gift & Activity
+        await conn.query(`CREATE TABLE IF NOT EXISTS pr_gifts (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            contact_id INT,
+            occasion VARCHAR(100),
+            gift_type VARCHAR(100),
+            gift_description TEXT,
+            amount DECIMAL(10,2) DEFAULT 0,
+            gift_date DATE,
+            delivery_status ENUM('Planned','Ordered','Delivered','Acknowledged') DEFAULT 'Planned',
+            thank_you_sent TINYINT(1) DEFAULT 0,
+            notes TEXT,
+            created_by INT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
+
+        // Social Media Posts
+        await conn.query(`CREATE TABLE IF NOT EXISTS pr_social_posts (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            platform ENUM('Facebook','Instagram','LinkedIn','Twitter','YouTube','Other') DEFAULT 'LinkedIn',
+            post_type ENUM('Image','Video','Story','Reel','Article','Poll') DEFAULT 'Image',
+            content TEXT,
+            media_url VARCHAR(500),
+            hashtags VARCHAR(500),
+            scheduled_at DATETIME,
+            published_at DATETIME,
+            status ENUM('Draft','Scheduled','Published','Failed') DEFAULT 'Draft',
+            likes INT DEFAULT 0,
+            comments INT DEFAULT 0,
+            shares INT DEFAULT 0,
+            reach INT DEFAULT 0,
+            created_by INT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
+
+        // PR Config
+        await conn.query(`CREATE TABLE IF NOT EXISTS pr_config (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            config_key VARCHAR(100) NOT NULL,
+            config_value JSON,
+            category VARCHAR(50) DEFAULT 'general',
+            description VARCHAR(255),
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_key (config_key)
+        )`);
+
+        // PR Error Logs (Self-Healing)
+        await conn.query(`CREATE TABLE IF NOT EXISTS pr_error_logs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            module VARCHAR(50),
+            error_type VARCHAR(50),
+            severity ENUM('Low','Medium','High','Critical') DEFAULT 'Medium',
+            description TEXT,
+            auto_action VARCHAR(100),
+            status ENUM('Detected','Fixed','Escalated') DEFAULT 'Detected',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
+
+        // Seed default configs
+        const [cfgCount] = await conn.query('SELECT COUNT(*) as c FROM pr_config');
+        if (cfgCount[0].c === 0) {
+            await conn.query(`INSERT IGNORE INTO pr_config (config_key, config_value, category, description) VALUES
+                ('birthday_auto_wish', 'true', 'automation', 'Auto send birthday wishes'),
+                ('anniversary_auto_wish', 'true', 'automation', 'Auto send anniversary wishes'),
+                ('birthday_wish_time', '"09:00"', 'automation', 'Time to send birthday wishes'),
+                ('default_whatsapp_channel', '"api"', 'whatsapp', 'WhatsApp send method'),
+                ('email_from_name', '"Coral Infratel"', 'email', 'From name for emails'),
+                ('email_from_address', '"info@coralinfratel.com"', 'email', 'From email address'),
+                ('campaign_retry_count', '3', 'campaign', 'Retry failed messages'),
+                ('engagement_decay_days', '90', 'engagement', 'Days after which engagement score decays'),
+                ('consent_required', 'true', 'compliance', 'Require consent before messaging'),
+                ('unsubscribe_link', 'true', 'compliance', 'Include unsubscribe link in emails')
+            `);
+        }
+
+        // Seed default templates
+        const [tmplCount] = await conn.query('SELECT COUNT(*) as c FROM pr_templates');
+        if (tmplCount[0].c === 0) {
+            await conn.query(`INSERT IGNORE INTO pr_templates (name, template_type, category, subject, content, variables) VALUES
+                ('Birthday Wish', 'WhatsApp', 'Birthday', NULL, 'Dear {Name}, wishing you a very Happy Birthday! May this year bring you great success and happiness. Warm regards, Coral Infratel Pvt. Ltd.', '["Name"]'),
+                ('Anniversary Wish', 'WhatsApp', 'Anniversary', NULL, 'Dear {Name}, wishing you a Happy Anniversary! May your bond grow stronger every year. Best wishes from Coral Infratel.', '["Name"]'),
+                ('Festival Greeting', 'WhatsApp', 'Festival', NULL, 'Dear {Name}, {Festival} ki hardik shubhkamnayein! May this festival bring joy and prosperity. - Coral Infratel', '["Name","Festival"]'),
+                ('Welcome Email', 'Email', 'Welcome', 'Welcome to Coral Infratel!', 'Dear {Name},\\n\\nWelcome to Coral Infratel! We are delighted to have you as our valued {Category}.\\n\\nBest regards,\\nCoral Infratel Pvt. Ltd.', '["Name","Category"]'),
+                ('Follow-up Email', 'Email', 'Follow-up', 'Following up - {Subject}', 'Dear {Name},\\n\\nThis is a follow-up regarding {Subject}. We would love to hear your feedback.\\n\\nBest regards,\\nCoral Infratel', '["Name","Subject"]'),
+                ('Promotional Offer', 'Email', 'Promotion', 'Special Offer for {Company}', 'Dear {Name},\\n\\nWe have an exclusive offer for {Company}. Please connect with us to know more.\\n\\nRegards,\\nCoral Infratel', '["Name","Company"]'),
+                ('Social Post Template', 'Social', 'Custom', NULL, '{Caption}\\n\\n#CoralInfratel #Telecom #BSNL {Hashtags}', '["Caption","Hashtags"]'),
+                ('Diwali Greeting', 'WhatsApp', 'Festival', NULL, 'Dear {Name}, Happy Diwali! May the festival of lights illuminate your life with happiness and prosperity. - Team Coral Infratel', '["Name"]')
+            `);
+        }
+
+        console.log('✅ PR Module tables initialized');
+    } catch(e) {
+        console.error('PR tables init error:', e.message);
+    } finally {
+        conn.release();
+    }
+}
+
+// PR Middleware: Ensure tables
+let prTablesReady = false;
+async function ensurePRTables(req, res, next) {
+    if (!prTablesReady) {
+        try { await initializePRTables(); prTablesReady = true; } catch(e) { console.error('PR init:', e.message); }
+    }
+    next();
+}
+
+// ── PR API: Dashboard ──
+app.get('/api/pr/dashboard', authenticateToken, ensurePRTables, async (req, res) => {
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        const [totalContacts] = await pool.query('SELECT COUNT(*) as c FROM pr_contacts WHERE status="Active"');
+        const [totalCampaigns] = await pool.query('SELECT COUNT(*) as c FROM pr_campaigns');
+        const [activeCampaigns] = await pool.query('SELECT COUNT(*) as c FROM pr_campaigns WHERE status IN ("Scheduled","Running")');
+        const [msgsSent] = await pool.query('SELECT COUNT(*) as c FROM pr_communication_logs WHERE MONTH(created_at)=MONTH(NOW()) AND YEAR(created_at)=YEAR(NOW())');
+        const [msgsDelivered] = await pool.query('SELECT COUNT(*) as c FROM pr_communication_logs WHERE status="Delivered" AND MONTH(created_at)=MONTH(NOW())');
+        const [todayBirthdays] = await pool.query('SELECT COUNT(*) as c FROM pr_contacts WHERE DATE_FORMAT(date_of_birth,"%m-%d")=DATE_FORMAT(?,"%m-%d") AND status="Active"', [today]);
+        const [upcomingBdays] = await pool.query(`SELECT id,name,company,date_of_birth FROM pr_contacts
+            WHERE DATE_FORMAT(date_of_birth,'%m-%d') BETWEEN DATE_FORMAT(?,'%m-%d') AND DATE_FORMAT(DATE_ADD(?,INTERVAL 7 DAY),'%m-%d') AND status='Active' ORDER BY DATE_FORMAT(date_of_birth,'%m-%d') LIMIT 10`, [today, today]);
+        const [recentCampaigns] = await pool.query('SELECT * FROM pr_campaigns ORDER BY created_at DESC LIMIT 5');
+        const [channelStats] = await pool.query(`SELECT channel, COUNT(*) as total,
+            SUM(CASE WHEN status='Delivered' THEN 1 ELSE 0 END) as delivered,
+            SUM(CASE WHEN status='Read' THEN 1 ELSE 0 END) as read_count,
+            SUM(CASE WHEN status='Failed' THEN 1 ELSE 0 END) as failed
+            FROM pr_communication_logs WHERE MONTH(created_at)=MONTH(NOW()) GROUP BY channel`);
+        const [templates] = await pool.query('SELECT COUNT(*) as c FROM pr_templates WHERE is_active=1');
+        res.json({
+            stats: { totalContacts: totalContacts[0].c, totalCampaigns: totalCampaigns[0].c, activeCampaigns: activeCampaigns[0].c,
+                msgsSentMonth: msgsSent[0].c, msgsDelivered: msgsDelivered[0].c, todayBirthdays: todayBirthdays[0].c, templates: templates[0].c },
+            upcomingBirthdays: upcomingBdays, recentCampaigns, channelStats
+        });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── PR API: Contacts CRUD ──
+app.get('/api/pr/contacts', authenticateToken, ensurePRTables, async (req, res) => {
+    try {
+        const { category, search, status } = req.query;
+        let sql = 'SELECT * FROM pr_contacts WHERE 1=1';
+        const params = [];
+        if (category) { sql += ' AND category=?'; params.push(category); }
+        if (status) { sql += ' AND status=?'; params.push(status); }
+        if (search) { sql += ' AND (name LIKE ? OR company LIKE ? OR email LIKE ? OR phone LIKE ?)'; params.push(`%${search}%`,`%${search}%`,`%${search}%`,`%${search}%`); }
+        sql += ' ORDER BY name LIMIT 500';
+        const [rows] = await pool.query(sql, params);
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/pr/contacts', authenticateToken, ensurePRTables, async (req, res) => {
+    try {
+        const b = req.body;
+        const [result] = await pool.query(`INSERT INTO pr_contacts (name,company,designation,email,phone,whatsapp,category,date_of_birth,anniversary,address,city,state,tags,notes,created_by)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [b.name,b.company,b.designation,b.email,b.phone,b.whatsapp||b.phone,b.category||'Client',b.date_of_birth||null,b.anniversary||null,b.address,b.city,b.state,b.tags,b.notes,req.user.id]);
+        res.json({ success: true, id: result.insertId });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/pr/contacts/:id', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body; const fields = []; const vals = [];
+        const allowed = ['name','company','designation','email','phone','whatsapp','category','date_of_birth','anniversary','address','city','state','tags','notes','status','consent_whatsapp','consent_email','consent_sms','unsubscribed'];
+        allowed.forEach(f => { if (b[f] !== undefined) { fields.push(`${f}=?`); vals.push(b[f]); }});
+        if (!fields.length) return res.json({ success: true });
+        vals.push(req.params.id);
+        await pool.query(`UPDATE pr_contacts SET ${fields.join(',')} WHERE id=?`, vals);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── PR API: Templates CRUD ──
+app.get('/api/pr/templates', authenticateToken, ensurePRTables, async (req, res) => {
+    try {
+        const { type, category } = req.query;
+        let sql = 'SELECT * FROM pr_templates WHERE is_active=1';
+        const params = [];
+        if (type) { sql += ' AND template_type=?'; params.push(type); }
+        if (category) { sql += ' AND category=?'; params.push(category); }
+        sql += ' ORDER BY name';
+        const [rows] = await pool.query(sql, params);
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/pr/templates', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        const [result] = await pool.query(`INSERT INTO pr_templates (name,template_type,category,subject,content,variables,media_url,created_by)
+            VALUES (?,?,?,?,?,?,?,?)`, [b.name,b.template_type,b.category,b.subject,b.content,JSON.stringify(b.variables||[]),b.media_url,req.user.id]);
+        res.json({ success: true, id: result.insertId });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/pr/templates/:id', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        await pool.query(`UPDATE pr_templates SET name=?,template_type=?,category=?,subject=?,content=?,variables=?,media_url=?,is_active=? WHERE id=?`,
+            [b.name,b.template_type,b.category,b.subject,b.content,JSON.stringify(b.variables||[]),b.media_url,b.is_active!==undefined?(b.is_active?1:0):1,req.params.id]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── PR API: Campaigns CRUD ──
+app.get('/api/pr/campaigns', authenticateToken, ensurePRTables, async (req, res) => {
+    try {
+        const { status } = req.query;
+        let sql = 'SELECT c.*, t.name as template_name FROM pr_campaigns c LEFT JOIN pr_templates t ON c.template_id=t.id WHERE 1=1';
+        const params = [];
+        if (status) { sql += ' AND c.status=?'; params.push(status); }
+        sql += ' ORDER BY c.created_at DESC LIMIT 100';
+        const [rows] = await pool.query(sql, params);
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/pr/campaigns', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        const [result] = await pool.query(`INSERT INTO pr_campaigns (name,campaign_type,channel,template_id,target_audience,target_count,scheduled_at,status,created_by)
+            VALUES (?,?,?,?,?,?,?,?,?)`, [b.name,b.campaign_type,b.channel,b.template_id||null,JSON.stringify(b.target_audience||{}),b.target_count||0,b.scheduled_at||null,b.status||'Draft',req.user.id]);
+        res.json({ success: true, id: result.insertId });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/pr/campaigns/:id', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body; const fields = []; const vals = [];
+        ['name','campaign_type','channel','template_id','target_count','scheduled_at','status'].forEach(f => {
+            if (b[f] !== undefined) { fields.push(`${f}=?`); vals.push(b[f]); }
+        });
+        if (b.target_audience) { fields.push('target_audience=?'); vals.push(JSON.stringify(b.target_audience)); }
+        vals.push(req.params.id);
+        await pool.query(`UPDATE pr_campaigns SET ${fields.join(',')} WHERE id=?`, vals);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── PR API: Communication Logs ──
+app.get('/api/pr/comm-logs', authenticateToken, ensurePRTables, async (req, res) => {
+    try {
+        const { contact_id, channel, campaign_id } = req.query;
+        let sql = `SELECT cl.*, c.name as contact_name, c.company FROM pr_communication_logs cl
+            LEFT JOIN pr_contacts c ON cl.contact_id=c.id WHERE 1=1`;
+        const params = [];
+        if (contact_id) { sql += ' AND cl.contact_id=?'; params.push(contact_id); }
+        if (channel) { sql += ' AND cl.channel=?'; params.push(channel); }
+        if (campaign_id) { sql += ' AND cl.campaign_id=?'; params.push(campaign_id); }
+        sql += ' ORDER BY cl.created_at DESC LIMIT 200';
+        const [rows] = await pool.query(sql, params);
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Simulate sending message (for demo/testing)
+app.post('/api/pr/send-message', authenticateToken, async (req, res) => {
+    try {
+        const { contact_id, channel, content, campaign_id, template_id } = req.body;
+        const now = new Date().toISOString().slice(0,19).replace('T',' ');
+        const statuses = ['Delivered','Delivered','Delivered','Read','Sent','Failed'];
+        const simStatus = statuses[Math.floor(Math.random()*statuses.length)];
+
+        const [result] = await pool.query(`INSERT INTO pr_communication_logs (contact_id,campaign_id,channel,direction,content,status,sent_at,delivered_at)
+            VALUES (?,?,?,?,?,?,?,?)`, [contact_id,campaign_id||null,channel||'WhatsApp','Outbound',content,simStatus,now,simStatus!=='Failed'?now:null]);
+
+        // Update contact last_contacted
+        await pool.query('UPDATE pr_contacts SET last_contacted=CURDATE(), engagement_score=LEAST(engagement_score+5,100) WHERE id=?', [contact_id]);
+
+        // Channel-specific log
+        if (channel === 'WhatsApp') {
+            const [contact] = await pool.query('SELECT whatsapp FROM pr_contacts WHERE id=?', [contact_id]);
+            await pool.query('INSERT INTO pr_whatsapp_logs (comm_log_id,to_number,delivered,read_flag) VALUES (?,?,?,?)',
+                [result.insertId, contact[0]?.whatsapp||'', simStatus!=='Failed'?1:0, simStatus==='Read'?1:0]);
+        } else if (channel === 'Email') {
+            const [contact] = await pool.query('SELECT email FROM pr_contacts WHERE id=?', [contact_id]);
+            await pool.query('INSERT INTO pr_email_logs (comm_log_id,to_email,subject,opened) VALUES (?,?,?,?)',
+                [result.insertId, contact[0]?.email||'', 'Message from Coral Infratel', simStatus==='Read'?1:0]);
+        }
+
+        res.json({ success: true, id: result.insertId, status: simStatus });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── PR API: Reminders ──
+app.get('/api/pr/reminders', authenticateToken, ensurePRTables, async (req, res) => {
+    try {
+        const [rows] = await pool.query(`SELECT r.*, c.name as contact_name, c.company FROM pr_reminders r
+            LEFT JOIN pr_contacts c ON r.contact_id=c.id WHERE r.status='Active' ORDER BY r.reminder_date LIMIT 50`);
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/pr/reminders', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        const [result] = await pool.query(`INSERT INTO pr_reminders (title,reminder_type,contact_id,reminder_date,reminder_time,recurrence,auto_action,template_id,notes,created_by)
+            VALUES (?,?,?,?,?,?,?,?,?,?)`, [b.title,b.reminder_type,b.contact_id||null,b.reminder_date,b.reminder_time||'09:00',b.recurrence||'None',b.auto_action||'None',b.template_id||null,b.notes,req.user.id]);
+        res.json({ success: true, id: result.insertId });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── PR API: Gifts ──
+app.get('/api/pr/gifts', authenticateToken, ensurePRTables, async (req, res) => {
+    try {
+        const [rows] = await pool.query(`SELECT g.*, c.name as contact_name, c.company FROM pr_gifts g
+            LEFT JOIN pr_contacts c ON g.contact_id=c.id ORDER BY g.gift_date DESC LIMIT 100`);
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/pr/gifts', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        const [result] = await pool.query(`INSERT INTO pr_gifts (contact_id,occasion,gift_type,gift_description,amount,gift_date,notes,created_by)
+            VALUES (?,?,?,?,?,?,?,?)`, [b.contact_id,b.occasion,b.gift_type,b.gift_description,b.amount||0,b.gift_date,b.notes,req.user.id]);
+        res.json({ success: true, id: result.insertId });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── PR API: Social Posts ──
+app.get('/api/pr/social-posts', authenticateToken, ensurePRTables, async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT * FROM pr_social_posts ORDER BY created_at DESC LIMIT 50');
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/pr/social-posts', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        const [result] = await pool.query(`INSERT INTO pr_social_posts (platform,post_type,content,media_url,hashtags,scheduled_at,status,created_by)
+            VALUES (?,?,?,?,?,?,?,?)`, [b.platform,b.post_type,b.content,b.media_url,b.hashtags,b.scheduled_at||null,b.status||'Draft',req.user.id]);
+        res.json({ success: true, id: result.insertId });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── PR API: Config ──
+app.get('/api/pr/config', authenticateToken, ensurePRTables, async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT * FROM pr_config ORDER BY category, config_key');
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/pr/config/:key', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        await pool.query('UPDATE pr_config SET config_value=? WHERE config_key=?', [JSON.stringify(req.body.value), req.params.key]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── PR API: Analytics ──
+app.get('/api/pr/analytics', authenticateToken, ensurePRTables, async (req, res) => {
+    try {
+        const [channelPerf] = await pool.query(`SELECT channel, COUNT(*) as total,
+            SUM(CASE WHEN status IN ('Delivered','Read') THEN 1 ELSE 0 END) as success,
+            SUM(CASE WHEN status='Failed' THEN 1 ELSE 0 END) as failed
+            FROM pr_communication_logs GROUP BY channel`);
+        const [dailyTrend] = await pool.query(`SELECT DATE(created_at) as date, COUNT(*) as total,
+            SUM(CASE WHEN status='Delivered' THEN 1 ELSE 0 END) as delivered
+            FROM pr_communication_logs WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            GROUP BY DATE(created_at) ORDER BY date`);
+        const [topContacts] = await pool.query(`SELECT c.name, c.company, c.engagement_score, COUNT(cl.id) as msg_count
+            FROM pr_contacts c LEFT JOIN pr_communication_logs cl ON c.id=cl.contact_id
+            WHERE c.status='Active' GROUP BY c.id ORDER BY c.engagement_score DESC LIMIT 10`);
+        const [campaignPerf] = await pool.query(`SELECT name, campaign_type, channel, sent_count, delivered_count, read_count, failed_count, status
+            FROM pr_campaigns ORDER BY created_at DESC LIMIT 10`);
+        res.json({ channelPerformance: channelPerf, dailyTrend, topContacts, campaignPerformance: campaignPerf });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── PR API: Demo Data Generator ──
+app.post('/api/pr/generate-demo', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        await initializePRTables();
+        const conn = await pool.getConnection();
+        try {
+            const names = ['Rajesh Kumar','Priya Sharma','Amit Singh','Neha Gupta','Vikram Patel','Sunita Verma','Karan Mehta','Deepa Nair','Rohit Jain','Anjali Mishra','Suresh Reddy','Kavita Iyer','Manish Agarwal','Pooja Rao','Sanjay Tiwari'];
+            const companies = ['TechCorp','InfoSys','Reliance','Tata Group','Wipro','HCL','Bharti Airtel','Adani','Mahindra','Godrej'];
+            const categories = ['Client','Vendor','Partner','Media','VIP'];
+            const cities = ['Delhi','Mumbai','Bangalore','Chennai','Hyderabad','Pune','Kolkata','Jaipur'];
+            let contactCount = 0;
+            for (const name of names) {
+                const [exists] = await conn.query('SELECT id FROM pr_contacts WHERE name=?', [name]);
+                if (exists.length) continue;
+                const company = companies[Math.floor(Math.random()*companies.length)];
+                const cat = categories[Math.floor(Math.random()*categories.length)];
+                const city = cities[Math.floor(Math.random()*cities.length)];
+                const month = String(1+Math.floor(Math.random()*12)).padStart(2,'0');
+                const day = String(1+Math.floor(Math.random()*28)).padStart(2,'0');
+                await conn.query(`INSERT INTO pr_contacts (name,company,designation,email,phone,whatsapp,category,date_of_birth,city,engagement_score,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+                    [name,company,'Manager',name.toLowerCase().replace(/\s/g,'.')+'@'+company.toLowerCase()+'.com',
+                     '98'+String(Math.floor(10000000+Math.random()*90000000)),'98'+String(Math.floor(10000000+Math.random()*90000000)),
+                     cat,'1985-'+month+'-'+day,city,Math.floor(Math.random()*100),req.user.id]);
+                contactCount++;
+            }
+
+            // Generate comm logs
+            const [contacts] = await conn.query('SELECT id FROM pr_contacts LIMIT 10');
+            let commCount = 0;
+            const channels = ['WhatsApp','Email','WhatsApp','WhatsApp','Email'];
+            const statuses = ['Delivered','Delivered','Read','Sent','Failed','Delivered'];
+            for (const c of contacts) {
+                for (let i = 0; i < 5; i++) {
+                    const ch = channels[Math.floor(Math.random()*channels.length)];
+                    const st = statuses[Math.floor(Math.random()*statuses.length)];
+                    const daysAgo = Math.floor(Math.random()*30);
+                    await conn.query(`INSERT INTO pr_communication_logs (contact_id,channel,direction,content,status,sent_at,created_at)
+                        VALUES (?,?,'Outbound','Demo message',?,DATE_SUB(NOW(),INTERVAL ? DAY),DATE_SUB(NOW(),INTERVAL ? DAY))`,
+                        [c.id,ch,st,daysAgo,daysAgo]);
+                    commCount++;
+                }
+            }
+            res.json({ success: true, generated: { contacts: contactCount, communications: commCount } });
+        } finally { conn.release(); }
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
 
 // ── HR Middleware: Ensure tables exist (Vercel cold start safety) ──
 let hrTablesReady = false;
