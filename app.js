@@ -4386,6 +4386,7 @@ async function startupChecks() {
     await initBaLevelsTable();
     await initBillEmailLog();
     await initDiaryTasksTables();
+    await initializeHRTables();
     await initializeAdmin();
     console.log('🚀 [READY] All startup checks complete. Server is fully ready!');
 }
@@ -6264,6 +6265,1045 @@ app.get('/api/diary/stats', authenticateToken, async (req, res) => {
     } catch(e) {
         res.status(500).json({ error: e.message });
     }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// ██  HR MODULE — Enterprise Workforce Intelligence System  ██
+// ═══════════════════════════════════════════════════════════════
+
+async function initializeHRTables() {
+    const conn = await pool.getConnection();
+    try {
+        // Dynamic configuration table (no hardcoding)
+        await conn.query(`CREATE TABLE IF NOT EXISTS hr_config (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            config_key VARCHAR(100) NOT NULL,
+            config_value JSON,
+            category VARCHAR(50) DEFAULT 'general',
+            description VARCHAR(255),
+            updated_by INT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_key (config_key)
+        )`);
+
+        // Employee extended profile
+        await conn.query(`CREATE TABLE IF NOT EXISTS hr_employees (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            emp_code VARCHAR(20),
+            designation VARCHAR(100),
+            department VARCHAR(100),
+            date_of_joining DATE,
+            date_of_birth DATE,
+            gender ENUM('Male','Female','Other'),
+            phone VARCHAR(20),
+            emergency_contact VARCHAR(20),
+            address TEXT,
+            city VARCHAR(50),
+            state VARCHAR(50),
+            blood_group VARCHAR(5),
+            pan_number VARCHAR(20),
+            aadhar_number VARCHAR(20),
+            bank_name VARCHAR(100),
+            bank_account VARCHAR(30),
+            ifsc_code VARCHAR(15),
+            base_salary DECIMAL(12,2) DEFAULT 0,
+            status ENUM('Active','Inactive','Terminated','On Leave') DEFAULT 'Active',
+            profile_photo VARCHAR(255),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_user (user_id),
+            UNIQUE KEY uk_code (emp_code)
+        )`);
+
+        // GPS Logs
+        await conn.query(`CREATE TABLE IF NOT EXISTS hr_gps_logs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            latitude DECIMAL(10,8),
+            longitude DECIMAL(11,8),
+            accuracy FLOAT,
+            address TEXT,
+            log_type ENUM('auto','checkin','checkout','field_visit','lunch_start','lunch_end') DEFAULT 'auto',
+            captured_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_user_date (user_id, captured_at)
+        )`);
+
+        // Attendance
+        await conn.query(`CREATE TABLE IF NOT EXISTS hr_attendance (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            attendance_date DATE NOT NULL,
+            check_in TIME,
+            check_out TIME,
+            check_in_lat DECIMAL(10,8),
+            check_in_lng DECIMAL(11,8),
+            check_in_address VARCHAR(255),
+            check_out_lat DECIMAL(10,8),
+            check_out_lng DECIMAL(11,8),
+            check_out_address VARCHAR(255),
+            total_hours DECIMAL(5,2) DEFAULT 0,
+            overtime_hours DECIMAL(5,2) DEFAULT 0,
+            status ENUM('Present','Absent','Half Day','Late','On Leave','Holiday','Week Off') DEFAULT 'Present',
+            source ENUM('system','manual','gps','corrected') DEFAULT 'system',
+            remarks VARCHAR(255),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_user_date (user_id, attendance_date)
+        )`);
+
+        // Leave Policy (dynamic)
+        await conn.query(`CREATE TABLE IF NOT EXISTS hr_leave_policy (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            leave_type VARCHAR(50) NOT NULL,
+            total_days INT DEFAULT 0,
+            carry_forward TINYINT(1) DEFAULT 0,
+            max_carry INT DEFAULT 0,
+            applicable_to VARCHAR(100) DEFAULT 'All',
+            paid TINYINT(1) DEFAULT 1,
+            description VARCHAR(255),
+            is_active TINYINT(1) DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
+
+        // Leave Requests
+        await conn.query(`CREATE TABLE IF NOT EXISTS hr_leaves (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            leave_type VARCHAR(50),
+            from_date DATE,
+            to_date DATE,
+            total_days DECIMAL(4,1),
+            reason TEXT,
+            status ENUM('Pending','Approved','Rejected','Cancelled') DEFAULT 'Pending',
+            approved_by INT,
+            approved_at DATETIME,
+            rejection_reason VARCHAR(255),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_user (user_id),
+            INDEX idx_status (status)
+        )`);
+
+        // Expense Heads (dynamic)
+        await conn.query(`CREATE TABLE IF NOT EXISTS hr_expense_heads (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            head_name VARCHAR(100) NOT NULL,
+            max_limit DECIMAL(10,2) DEFAULT 0,
+            requires_receipt TINYINT(1) DEFAULT 1,
+            applicable_roles VARCHAR(255) DEFAULT 'All',
+            is_active TINYINT(1) DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
+
+        // Expenses
+        await conn.query(`CREATE TABLE IF NOT EXISTS hr_expenses (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            expense_date DATE,
+            head_id INT,
+            amount DECIMAL(10,2),
+            description TEXT,
+            receipt_url VARCHAR(255),
+            task_id INT,
+            status ENUM('Pending','Approved','Rejected','Paid') DEFAULT 'Pending',
+            approved_by INT,
+            approved_at DATETIME,
+            rejection_reason VARCHAR(255),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_user (user_id)
+        )`);
+
+        // Approval Workflow
+        await conn.query(`CREATE TABLE IF NOT EXISTS hr_approvals (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            module VARCHAR(50),
+            record_id INT,
+            level INT DEFAULT 1,
+            approver_id INT,
+            status ENUM('Pending','Approved','Rejected') DEFAULT 'Pending',
+            comments TEXT,
+            acted_at DATETIME,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
+
+        // Manual Reports (user-entered)
+        await conn.query(`CREATE TABLE IF NOT EXISTS hr_manual_reports (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            report_date DATE,
+            check_in_time TIME,
+            check_out_time TIME,
+            location VARCHAR(255),
+            work_summary TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_user_date (user_id, report_date)
+        )`);
+
+        // System Reports (auto-generated from GPS)
+        await conn.query(`CREATE TABLE IF NOT EXISTS hr_system_reports (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            report_date DATE,
+            first_location_time TIME,
+            last_location_time TIME,
+            total_locations INT DEFAULT 0,
+            distance_km DECIMAL(8,2) DEFAULT 0,
+            office_time_mins INT DEFAULT 0,
+            field_time_mins INT DEFAULT 0,
+            generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_user_date (user_id, report_date)
+        )`);
+
+        // Comparison Results
+        await conn.query(`CREATE TABLE IF NOT EXISTS hr_comparison_results (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            comparison_date DATE,
+            time_mismatch_mins INT DEFAULT 0,
+            location_mismatch TINYINT(1) DEFAULT 0,
+            severity ENUM('None','Low','Medium','High','Critical') DEFAULT 'None',
+            details JSON,
+            auto_action VARCHAR(100),
+            reviewed_by INT,
+            reviewed_at DATETIME,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
+
+        // Error Logs (Self-Healing)
+        await conn.query(`CREATE TABLE IF NOT EXISTS hr_error_logs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            module VARCHAR(50),
+            error_type ENUM('logic','data_mismatch','gps_inconsistency','api_failure','validation','workflow_break') DEFAULT 'logic',
+            severity ENUM('Low','Medium','High','Critical') DEFAULT 'Medium',
+            description TEXT,
+            stack_trace TEXT,
+            affected_record_id INT,
+            affected_user_id INT,
+            status ENUM('Detected','Analyzing','Fixing','Fixed','Escalated','Ignored') DEFAULT 'Detected',
+            auto_fixable TINYINT(1) DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_status (status),
+            INDEX idx_module (module)
+        )`);
+
+        // Fix Logs (Self-Healing)
+        await conn.query(`CREATE TABLE IF NOT EXISTS hr_fix_logs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            error_id INT,
+            fix_type ENUM('auto','suggested','manual','escalated') DEFAULT 'auto',
+            fix_rule VARCHAR(100),
+            fix_description TEXT,
+            before_value TEXT,
+            after_value TEXT,
+            success TINYINT(1) DEFAULT 0,
+            applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (error_id) REFERENCES hr_error_logs(id) ON DELETE CASCADE
+        )`);
+
+        // Test Results (Self-Testing)
+        await conn.query(`CREATE TABLE IF NOT EXISTS hr_test_results (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            test_module VARCHAR(50),
+            test_name VARCHAR(100),
+            test_type ENUM('unit','integration','validation','stress') DEFAULT 'unit',
+            status ENUM('Pass','Fail','Warning','Skipped') DEFAULT 'Pass',
+            execution_time_ms INT DEFAULT 0,
+            details JSON,
+            error_message TEXT,
+            run_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_module (test_module)
+        )`);
+
+        // System Health
+        await conn.query(`CREATE TABLE IF NOT EXISTS hr_system_health (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            metric_name VARCHAR(100),
+            metric_value DECIMAL(10,2),
+            metric_unit VARCHAR(20),
+            status ENUM('Healthy','Warning','Critical') DEFAULT 'Healthy',
+            details JSON,
+            checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
+
+        // Payroll
+        await conn.query(`CREATE TABLE IF NOT EXISTS hr_payroll (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            month INT,
+            year INT,
+            base_salary DECIMAL(12,2) DEFAULT 0,
+            hra DECIMAL(10,2) DEFAULT 0,
+            da DECIMAL(10,2) DEFAULT 0,
+            special_allowance DECIMAL(10,2) DEFAULT 0,
+            bonus DECIMAL(10,2) DEFAULT 0,
+            overtime_pay DECIMAL(10,2) DEFAULT 0,
+            pf_deduction DECIMAL(10,2) DEFAULT 0,
+            esi_deduction DECIMAL(10,2) DEFAULT 0,
+            tds DECIMAL(10,2) DEFAULT 0,
+            other_deductions DECIMAL(10,2) DEFAULT 0,
+            leave_deduction DECIMAL(10,2) DEFAULT 0,
+            net_salary DECIMAL(12,2) DEFAULT 0,
+            status ENUM('Draft','Processed','Paid') DEFAULT 'Draft',
+            paid_date DATE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_user_month (user_id, month, year)
+        )`);
+
+        // Insert default configs if empty
+        const [configCount] = await conn.query('SELECT COUNT(*) as c FROM hr_config');
+        if (configCount[0].c === 0) {
+            await conn.query(`INSERT IGNORE INTO hr_config (config_key, config_value, category, description) VALUES
+                ('office_start_time', '"09:30"', 'attendance', 'Office start time'),
+                ('office_end_time', '"18:30"', 'attendance', 'Office end time'),
+                ('late_threshold_mins', '15', 'attendance', 'Minutes after start time to mark late'),
+                ('half_day_hours', '4', 'attendance', 'Minimum hours for half day'),
+                ('full_day_hours', '8', 'attendance', 'Minimum hours for full day'),
+                ('overtime_start_hours', '9', 'attendance', 'Hours after which overtime counts'),
+                ('week_off_days', '["Sunday"]', 'attendance', 'Weekly off days'),
+                ('salary_components', '{"hra_percent":40,"da_percent":10,"pf_percent":12,"esi_percent":1.75}', 'payroll', 'Salary component percentages'),
+                ('approval_levels', '{"leave":1,"expense":2,"attendance_correction":1}', 'workflow', 'Approval levels per module'),
+                ('gps_capture_interval', '15', 'gps', 'GPS capture interval in minutes'),
+                ('office_latitude', '0', 'gps', 'Office GPS latitude'),
+                ('office_longitude', '0', 'gps', 'Office GPS longitude'),
+                ('office_radius_meters', '200', 'gps', 'Office geo-fence radius')
+            `);
+        }
+
+        // Insert default leave policies if empty
+        const [leaveCount] = await conn.query('SELECT COUNT(*) as c FROM hr_leave_policy');
+        if (leaveCount[0].c === 0) {
+            await conn.query(`INSERT IGNORE INTO hr_leave_policy (leave_type, total_days, carry_forward, max_carry, paid, description) VALUES
+                ('Casual Leave', 12, 0, 0, 1, 'For personal or urgent matters'),
+                ('Sick Leave', 12, 1, 6, 1, 'For medical reasons with certificate'),
+                ('Earned Leave', 15, 1, 30, 1, 'Privilege leave earned per month'),
+                ('Maternity Leave', 180, 0, 0, 1, 'As per Maternity Benefit Act'),
+                ('Paternity Leave', 15, 0, 0, 1, 'For new fathers'),
+                ('Compensatory Off', 0, 0, 0, 1, 'For working on holidays/weekends'),
+                ('Loss of Pay', 0, 0, 0, 0, 'Unpaid leave')
+            `);
+        }
+
+        // Insert default expense heads if empty
+        const [expCount] = await conn.query('SELECT COUNT(*) as c FROM hr_expense_heads');
+        if (expCount[0].c === 0) {
+            await conn.query(`INSERT IGNORE INTO hr_expense_heads (head_name, max_limit, requires_receipt, applicable_roles) VALUES
+                ('Travel - Local', 2000, 1, 'All'),
+                ('Travel - Outstation', 10000, 1, 'All'),
+                ('Food & Meals', 500, 0, 'All'),
+                ('Accommodation', 5000, 1, 'All'),
+                ('Office Supplies', 1000, 1, 'All'),
+                ('Communication', 500, 0, 'All'),
+                ('Client Entertainment', 3000, 1, 'Manager,Admin'),
+                ('Fuel & Vehicle', 5000, 1, 'All'),
+                ('Medical', 2000, 1, 'All'),
+                ('Miscellaneous', 1000, 1, 'All')
+            `);
+        }
+
+        console.log('✅ HR Module tables initialized');
+    } catch(e) {
+        console.error('HR tables init error:', e.message);
+    } finally {
+        conn.release();
+    }
+}
+
+// ── HR API: Dashboard Stats ──
+app.get('/api/hr/dashboard', authenticateToken, async (req, res) => {
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        const [totalEmp] = await pool.query('SELECT COUNT(*) as c FROM hr_employees WHERE status="Active"');
+        const [presentToday] = await pool.query('SELECT COUNT(*) as c FROM hr_attendance WHERE attendance_date=? AND status IN ("Present","Late")', [today]);
+        const [onLeave] = await pool.query('SELECT COUNT(*) as c FROM hr_leaves WHERE status="Approved" AND from_date<=? AND to_date>=?', [today, today]);
+        const [pendingLeaves] = await pool.query('SELECT COUNT(*) as c FROM hr_leaves WHERE status="Pending"');
+        const [pendingExpenses] = await pool.query('SELECT COUNT(*) as c FROM hr_expenses WHERE status="Pending"');
+        const [totalExpMonth] = await pool.query('SELECT COALESCE(SUM(amount),0) as total FROM hr_expenses WHERE MONTH(expense_date)=MONTH(NOW()) AND YEAR(expense_date)=YEAR(NOW()) AND status IN ("Approved","Paid")');
+        const [errors] = await pool.query('SELECT COUNT(*) as c FROM hr_error_logs WHERE status IN ("Detected","Analyzing")');
+        const [healthScore] = await pool.query('SELECT COALESCE(AVG(metric_value),100) as score FROM hr_system_health WHERE checked_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)');
+
+        // Attendance trend (7 days)
+        const [attTrend] = await pool.query(`SELECT attendance_date as date,
+            SUM(CASE WHEN status IN ('Present','Late') THEN 1 ELSE 0 END) as present,
+            SUM(CASE WHEN status='Absent' THEN 1 ELSE 0 END) as absent,
+            SUM(CASE WHEN status='Late' THEN 1 ELSE 0 END) as late
+            FROM hr_attendance WHERE attendance_date >= DATE_SUB(?, INTERVAL 7 DAY)
+            GROUP BY attendance_date ORDER BY attendance_date`, [today]);
+
+        // Department distribution
+        const [deptDist] = await pool.query('SELECT department, COUNT(*) as count FROM hr_employees WHERE status="Active" GROUP BY department ORDER BY count DESC');
+
+        // Recent errors
+        const [recentErrors] = await pool.query('SELECT id, module, error_type, severity, description, status, created_at FROM hr_error_logs ORDER BY created_at DESC LIMIT 5');
+
+        res.json({
+            stats: {
+                totalEmployees: totalEmp[0].c,
+                presentToday: presentToday[0].c,
+                onLeave: onLeave[0].c,
+                pendingLeaves: pendingLeaves[0].c,
+                pendingExpenses: pendingExpenses[0].c,
+                monthlyExpenses: totalExpMonth[0].total,
+                activeErrors: errors[0].c,
+                healthScore: Math.round(healthScore[0].score)
+            },
+            attendanceTrend: attTrend,
+            departmentDistribution: deptDist,
+            recentErrors
+        });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── HR API: Employees ──
+app.get('/api/hr/employees', authenticateToken, async (req, res) => {
+    try {
+        const { status, department, search } = req.query;
+        let sql = `SELECT e.*, u.name as user_name, u.username, u.role
+                    FROM hr_employees e
+                    LEFT JOIN users u ON e.user_id = u.id WHERE 1=1`;
+        const params = [];
+        if (status) { sql += ' AND e.status=?'; params.push(status); }
+        if (department) { sql += ' AND e.department=?'; params.push(department); }
+        if (search) { sql += ' AND (u.name LIKE ? OR e.emp_code LIKE ? OR e.designation LIKE ?)'; params.push(`%${search}%`,`%${search}%`,`%${search}%`); }
+        sql += ' ORDER BY e.emp_code ASC';
+        const [rows] = await pool.query(sql, params);
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/hr/employees', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        const [result] = await pool.query(`INSERT INTO hr_employees
+            (user_id, emp_code, designation, department, date_of_joining, date_of_birth, gender, phone,
+             emergency_contact, address, city, state, blood_group, pan_number, aadhar_number,
+             bank_name, bank_account, ifsc_code, base_salary, status)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [b.user_id, b.emp_code, b.designation, b.department, b.date_of_joining, b.date_of_birth,
+             b.gender, b.phone, b.emergency_contact, b.address, b.city, b.state, b.blood_group,
+             b.pan_number, b.aadhar_number, b.bank_name, b.bank_account, b.ifsc_code,
+             b.base_salary || 0, b.status || 'Active']);
+        res.json({ success: true, id: result.insertId });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/hr/employees/:id', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        const fields = [];
+        const vals = [];
+        const allowed = ['emp_code','designation','department','date_of_joining','date_of_birth','gender','phone',
+            'emergency_contact','address','city','state','blood_group','pan_number','aadhar_number',
+            'bank_name','bank_account','ifsc_code','base_salary','status'];
+        allowed.forEach(f => { if (b[f] !== undefined) { fields.push(`${f}=?`); vals.push(b[f]); }});
+        if (!fields.length) return res.json({ success: true });
+        vals.push(req.params.id);
+        await pool.query(`UPDATE hr_employees SET ${fields.join(',')} WHERE id=?`, vals);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── HR API: Attendance ──
+app.get('/api/hr/attendance', authenticateToken, async (req, res) => {
+    try {
+        const { user_id, from_date, to_date, status } = req.query;
+        let sql = `SELECT a.*, u.name as user_name, e.emp_code, e.department
+                    FROM hr_attendance a
+                    LEFT JOIN users u ON a.user_id = u.id
+                    LEFT JOIN hr_employees e ON a.user_id = e.user_id WHERE 1=1`;
+        const params = [];
+        if (user_id) { sql += ' AND a.user_id=?'; params.push(user_id); }
+        if (from_date) { sql += ' AND a.attendance_date>=?'; params.push(from_date); }
+        if (to_date) { sql += ' AND a.attendance_date<=?'; params.push(to_date); }
+        if (status) { sql += ' AND a.status=?'; params.push(status); }
+        if (req.user.role !== 'admin') { sql += ' AND a.user_id=?'; params.push(req.user.id); }
+        sql += ' ORDER BY a.attendance_date DESC, u.name ASC LIMIT 500';
+        const [rows] = await pool.query(sql, params);
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/hr/attendance/checkin', authenticateToken, async (req, res) => {
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        const now = new Date().toTimeString().split(' ')[0];
+        const { latitude, longitude, address } = req.body;
+
+        // Get office start time from config
+        const [cfg] = await pool.query("SELECT config_value FROM hr_config WHERE config_key='office_start_time'");
+        const startTime = cfg.length ? JSON.parse(cfg[0].config_value) : '09:30';
+        const [lateCfg] = await pool.query("SELECT config_value FROM hr_config WHERE config_key='late_threshold_mins'");
+        const lateMins = lateCfg.length ? parseInt(lateCfg[0].config_value) : 15;
+
+        // Check if late
+        const [sh, sm] = startTime.split(':').map(Number);
+        const lateLimit = new Date(); lateLimit.setHours(sh, sm + lateMins, 0);
+        const currentTime = new Date(); currentTime.setHours(...now.split(':').map(Number));
+        const isLate = currentTime > lateLimit;
+
+        const [existing] = await pool.query('SELECT id FROM hr_attendance WHERE user_id=? AND attendance_date=?', [req.user.id, today]);
+        if (existing.length) {
+            return res.status(409).json({ error: 'Already checked in today' });
+        }
+
+        await pool.query(`INSERT INTO hr_attendance (user_id, attendance_date, check_in, check_in_lat, check_in_lng, check_in_address, status, source)
+            VALUES (?,?,?,?,?,?,?,?)`, [req.user.id, today, now, latitude, longitude, address, isLate ? 'Late' : 'Present', 'system']);
+
+        // Log GPS
+        if (latitude && longitude) {
+            await pool.query('INSERT INTO hr_gps_logs (user_id, latitude, longitude, address, log_type) VALUES (?,?,?,?,?)',
+                [req.user.id, latitude, longitude, address, 'checkin']);
+        }
+
+        res.json({ success: true, isLate, checkInTime: now });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/hr/attendance/checkout', authenticateToken, async (req, res) => {
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        const now = new Date().toTimeString().split(' ')[0];
+        const { latitude, longitude, address } = req.body;
+
+        const [att] = await pool.query('SELECT * FROM hr_attendance WHERE user_id=? AND attendance_date=?', [req.user.id, today]);
+        if (!att.length) return res.status(404).json({ error: 'No check-in found for today' });
+        if (att[0].check_out) return res.status(409).json({ error: 'Already checked out' });
+
+        // Calculate hours
+        const checkIn = att[0].check_in;
+        const [h1,m1] = checkIn.split(':').map(Number);
+        const [h2,m2] = now.split(':').map(Number);
+        const totalHrs = ((h2*60+m2) - (h1*60+m1)) / 60;
+
+        // Get overtime config
+        const [otCfg] = await pool.query("SELECT config_value FROM hr_config WHERE config_key='overtime_start_hours'");
+        const otHrs = otCfg.length ? parseInt(otCfg[0].config_value) : 9;
+        const overtime = Math.max(0, totalHrs - otHrs);
+
+        // Half day check
+        const [hdCfg] = await pool.query("SELECT config_value FROM hr_config WHERE config_key='half_day_hours'");
+        const hdHrs = hdCfg.length ? parseInt(hdCfg[0].config_value) : 4;
+        let status = att[0].status;
+        if (totalHrs < hdHrs) status = 'Half Day';
+
+        await pool.query(`UPDATE hr_attendance SET check_out=?, check_out_lat=?, check_out_lng=?, check_out_address=?,
+            total_hours=?, overtime_hours=?, status=? WHERE id=?`,
+            [now, latitude, longitude, address, totalHrs.toFixed(2), overtime.toFixed(2), status, att[0].id]);
+
+        if (latitude && longitude) {
+            await pool.query('INSERT INTO hr_gps_logs (user_id, latitude, longitude, address, log_type) VALUES (?,?,?,?,?)',
+                [req.user.id, latitude, longitude, address, 'checkout']);
+        }
+
+        res.json({ success: true, totalHours: totalHrs.toFixed(2), overtime: overtime.toFixed(2) });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── HR API: Leave Management ──
+app.get('/api/hr/leave-policy', authenticateToken, async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT * FROM hr_leave_policy WHERE is_active=1 ORDER BY leave_type');
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/hr/leave-policy', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        const b = req.body;
+        const [result] = await pool.query(`INSERT INTO hr_leave_policy (leave_type, total_days, carry_forward, max_carry, paid, applicable_to, description)
+            VALUES (?,?,?,?,?,?,?)`, [b.leave_type, b.total_days, b.carry_forward?1:0, b.max_carry||0, b.paid?1:0, b.applicable_to||'All', b.description]);
+        res.json({ success: true, id: result.insertId });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/hr/leave-policy/:id', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        const b = req.body;
+        await pool.query(`UPDATE hr_leave_policy SET leave_type=?, total_days=?, carry_forward=?, max_carry=?, paid=?, applicable_to=?, description=?, is_active=? WHERE id=?`,
+            [b.leave_type, b.total_days, b.carry_forward?1:0, b.max_carry||0, b.paid?1:0, b.applicable_to||'All', b.description, b.is_active?1:0, req.params.id]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/hr/leaves', authenticateToken, async (req, res) => {
+    try {
+        const { status, user_id } = req.query;
+        let sql = `SELECT l.*, u.name as user_name, e.emp_code, e.department, a.name as approver_name
+                    FROM hr_leaves l
+                    LEFT JOIN users u ON l.user_id = u.id
+                    LEFT JOIN hr_employees e ON l.user_id = e.user_id
+                    LEFT JOIN users a ON l.approved_by = a.id WHERE 1=1`;
+        const params = [];
+        if (status) { sql += ' AND l.status=?'; params.push(status); }
+        if (req.user.role !== 'admin') { sql += ' AND l.user_id=?'; params.push(req.user.id); }
+        else if (user_id) { sql += ' AND l.user_id=?'; params.push(user_id); }
+        sql += ' ORDER BY l.created_at DESC LIMIT 200';
+        const [rows] = await pool.query(sql, params);
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/hr/leaves', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        const from = new Date(b.from_date); const to = new Date(b.to_date);
+        const diffDays = Math.ceil((to - from) / (1000*60*60*24)) + 1;
+        const [result] = await pool.query(`INSERT INTO hr_leaves (user_id, leave_type, from_date, to_date, total_days, reason)
+            VALUES (?,?,?,?,?,?)`, [req.user.id, b.leave_type, b.from_date, b.to_date, diffDays, b.reason]);
+        res.json({ success: true, id: result.insertId });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/hr/leaves/:id/approve', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        const { status, rejection_reason } = req.body;
+        await pool.query('UPDATE hr_leaves SET status=?, approved_by=?, approved_at=NOW(), rejection_reason=? WHERE id=?',
+            [status, req.user.id, rejection_reason || null, req.params.id]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── HR API: Leave Balance ──
+app.get('/api/hr/leave-balance', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.query.user_id || req.user.id;
+        const year = new Date().getFullYear();
+        const [policies] = await pool.query('SELECT * FROM hr_leave_policy WHERE is_active=1');
+        const [taken] = await pool.query(`SELECT leave_type, COALESCE(SUM(total_days),0) as used
+            FROM hr_leaves WHERE user_id=? AND status='Approved' AND YEAR(from_date)=?
+            GROUP BY leave_type`, [userId, year]);
+        const takenMap = {};
+        taken.forEach(t => takenMap[t.leave_type] = t.used);
+        const balance = policies.map(p => ({
+            leave_type: p.leave_type, total: p.total_days, used: takenMap[p.leave_type] || 0,
+            remaining: p.total_days - (takenMap[p.leave_type] || 0), paid: p.paid
+        }));
+        res.json(balance);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── HR API: Expense Heads ──
+app.get('/api/hr/expense-heads', authenticateToken, async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT * FROM hr_expense_heads WHERE is_active=1 ORDER BY head_name');
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/hr/expense-heads', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        const b = req.body;
+        const [result] = await pool.query('INSERT INTO hr_expense_heads (head_name, max_limit, requires_receipt, applicable_roles) VALUES (?,?,?,?)',
+            [b.head_name, b.max_limit||0, b.requires_receipt?1:0, b.applicable_roles||'All']);
+        res.json({ success: true, id: result.insertId });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── HR API: Expenses ──
+app.get('/api/hr/expenses', authenticateToken, async (req, res) => {
+    try {
+        const { status, from_date, to_date } = req.query;
+        let sql = `SELECT ex.*, u.name as user_name, e.emp_code, h.head_name, a.name as approver_name
+                    FROM hr_expenses ex
+                    LEFT JOIN users u ON ex.user_id = u.id
+                    LEFT JOIN hr_employees e ON ex.user_id = e.user_id
+                    LEFT JOIN hr_expense_heads h ON ex.head_id = h.id
+                    LEFT JOIN users a ON ex.approved_by = a.id WHERE 1=1`;
+        const params = [];
+        if (status) { sql += ' AND ex.status=?'; params.push(status); }
+        if (from_date) { sql += ' AND ex.expense_date>=?'; params.push(from_date); }
+        if (to_date) { sql += ' AND ex.expense_date<=?'; params.push(to_date); }
+        if (req.user.role !== 'admin') { sql += ' AND ex.user_id=?'; params.push(req.user.id); }
+        sql += ' ORDER BY ex.created_at DESC LIMIT 300';
+        const [rows] = await pool.query(sql, params);
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/hr/expenses', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        const [result] = await pool.query(`INSERT INTO hr_expenses (user_id, expense_date, head_id, amount, description, task_id)
+            VALUES (?,?,?,?,?,?)`, [req.user.id, b.expense_date, b.head_id, b.amount, b.description, b.task_id||null]);
+        res.json({ success: true, id: result.insertId });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/hr/expenses/:id/approve', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        const { status, rejection_reason } = req.body;
+        await pool.query('UPDATE hr_expenses SET status=?, approved_by=?, approved_at=NOW(), rejection_reason=? WHERE id=?',
+            [status, req.user.id, rejection_reason || null, req.params.id]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── HR API: GPS Logs ──
+app.post('/api/hr/gps-log', authenticateToken, async (req, res) => {
+    try {
+        const { latitude, longitude, accuracy, address, log_type } = req.body;
+        await pool.query('INSERT INTO hr_gps_logs (user_id, latitude, longitude, accuracy, address, log_type) VALUES (?,?,?,?,?,?)',
+            [req.user.id, latitude, longitude, accuracy, address, log_type || 'auto']);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/hr/gps-logs', authenticateToken, async (req, res) => {
+    try {
+        const { user_id, date } = req.query;
+        const targetUser = (req.user.role === 'admin' && user_id) ? user_id : req.user.id;
+        const targetDate = date || new Date().toISOString().split('T')[0];
+        const [rows] = await pool.query(`SELECT * FROM hr_gps_logs WHERE user_id=? AND DATE(captured_at)=? ORDER BY captured_at`,
+            [targetUser, targetDate]);
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── HR API: Configuration ──
+app.get('/api/hr/config', authenticateToken, async (req, res) => {
+    try {
+        const { category } = req.query;
+        let sql = 'SELECT * FROM hr_config';
+        const params = [];
+        if (category) { sql += ' WHERE category=?'; params.push(category); }
+        sql += ' ORDER BY category, config_key';
+        const [rows] = await pool.query(sql, params);
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/hr/config/:key', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        const { value } = req.body;
+        await pool.query('UPDATE hr_config SET config_value=?, updated_by=? WHERE config_key=?',
+            [JSON.stringify(value), req.user.id, req.params.key]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── HR API: Manual Reports ──
+app.post('/api/hr/manual-report', authenticateToken, async (req, res) => {
+    try {
+        const b = req.body;
+        await pool.query(`INSERT INTO hr_manual_reports (user_id, report_date, check_in_time, check_out_time, location, work_summary)
+            VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE check_in_time=VALUES(check_in_time), check_out_time=VALUES(check_out_time),
+            location=VALUES(location), work_summary=VALUES(work_summary)`,
+            [req.user.id, b.report_date, b.check_in_time, b.check_out_time, b.location, b.work_summary]);
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── HR API: Comparison Engine ──
+app.get('/api/hr/comparison', authenticateToken, async (req, res) => {
+    try {
+        const { user_id, from_date, to_date } = req.query;
+        let sql = `SELECT c.*, u.name as user_name, e.emp_code
+            FROM hr_comparison_results c
+            LEFT JOIN users u ON c.user_id = u.id
+            LEFT JOIN hr_employees e ON c.user_id = e.user_id WHERE 1=1`;
+        const params = [];
+        if (user_id) { sql += ' AND c.user_id=?'; params.push(user_id); }
+        if (from_date) { sql += ' AND c.comparison_date>=?'; params.push(from_date); }
+        if (to_date) { sql += ' AND c.comparison_date<=?'; params.push(to_date); }
+        if (req.user.role !== 'admin') { sql += ' AND c.user_id=?'; params.push(req.user.id); }
+        sql += ' ORDER BY c.comparison_date DESC LIMIT 200';
+        const [rows] = await pool.query(sql, params);
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── HR API: Self-Healing — Error Logs ──
+app.get('/api/hr/errors', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        const { status, module: mod } = req.query;
+        let sql = 'SELECT * FROM hr_error_logs WHERE 1=1';
+        const params = [];
+        if (status) { sql += ' AND status=?'; params.push(status); }
+        if (mod) { sql += ' AND module=?'; params.push(mod); }
+        sql += ' ORDER BY created_at DESC LIMIT 100';
+        const [rows] = await pool.query(sql, params);
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/hr/fix-logs', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        const [rows] = await pool.query(`SELECT f.*, e.module, e.error_type, e.severity as error_severity
+            FROM hr_fix_logs f LEFT JOIN hr_error_logs e ON f.error_id = e.id ORDER BY f.applied_at DESC LIMIT 100`);
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── HR API: Self-Test Module ──
+app.get('/api/hr/test-results', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        const [rows] = await pool.query('SELECT * FROM hr_test_results ORDER BY run_at DESC LIMIT 100');
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/hr/run-tests', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        const testResults = [];
+        const runTest = async (mod, name, type, testFn) => {
+            const start = Date.now();
+            try {
+                const result = await testFn();
+                const ms = Date.now() - start;
+                const status = result.pass ? 'Pass' : 'Fail';
+                await pool.query(`INSERT INTO hr_test_results (test_module, test_name, test_type, status, execution_time_ms, details, error_message)
+                    VALUES (?,?,?,?,?,?,?)`, [mod, name, type, status, ms, JSON.stringify(result.details || {}), result.error || null]);
+                testResults.push({ module: mod, name, status, ms, details: result.details });
+            } catch(e) {
+                const ms = Date.now() - start;
+                await pool.query(`INSERT INTO hr_test_results (test_module, test_name, test_type, status, execution_time_ms, error_message)
+                    VALUES (?,?,?,?,?,?)`, [mod, name, type, 'Fail', ms, e.message]);
+                testResults.push({ module: mod, name, status: 'Fail', ms, error: e.message });
+            }
+        };
+
+        // Test 1: Database connectivity
+        await runTest('System', 'Database Connection', 'unit', async () => {
+            const [r] = await pool.query('SELECT 1 as ok');
+            return { pass: r[0].ok === 1, details: { connected: true } };
+        });
+
+        // Test 2: HR Tables exist
+        await runTest('System', 'HR Tables Integrity', 'integration', async () => {
+            const tables = ['hr_employees','hr_attendance','hr_leaves','hr_expenses','hr_gps_logs','hr_config',
+                'hr_error_logs','hr_fix_logs','hr_test_results','hr_system_health'];
+            const missing = [];
+            for (const t of tables) {
+                const [r] = await pool.query(`SELECT COUNT(*) as c FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?`, [t]);
+                if (r[0].c === 0) missing.push(t);
+            }
+            return { pass: missing.length === 0, details: { totalTables: tables.length, missing } };
+        });
+
+        // Test 3: Config integrity
+        await runTest('Config', 'Configuration Completeness', 'validation', async () => {
+            const requiredKeys = ['office_start_time','office_end_time','late_threshold_mins','half_day_hours','full_day_hours'];
+            const [configs] = await pool.query('SELECT config_key FROM hr_config');
+            const existing = configs.map(c => c.config_key);
+            const missing = requiredKeys.filter(k => !existing.includes(k));
+            return { pass: missing.length === 0, details: { total: requiredKeys.length, missing } };
+        });
+
+        // Test 4: Leave policy check
+        await runTest('Leave', 'Leave Policy Exists', 'validation', async () => {
+            const [r] = await pool.query('SELECT COUNT(*) as c FROM hr_leave_policy WHERE is_active=1');
+            return { pass: r[0].c > 0, details: { activePolicies: r[0].c } };
+        });
+
+        // Test 5: Expense heads check
+        await runTest('Expense', 'Expense Heads Exist', 'validation', async () => {
+            const [r] = await pool.query('SELECT COUNT(*) as c FROM hr_expense_heads WHERE is_active=1');
+            return { pass: r[0].c > 0, details: { activeHeads: r[0].c } };
+        });
+
+        // Test 6: Attendance data consistency
+        await runTest('Attendance', 'Attendance Data Consistency', 'validation', async () => {
+            const [bad] = await pool.query('SELECT COUNT(*) as c FROM hr_attendance WHERE check_out IS NOT NULL AND total_hours<=0');
+            return { pass: bad[0].c === 0, details: { inconsistentRecords: bad[0].c } };
+        });
+
+        // Update system health
+        const passCount = testResults.filter(t => t.status === 'Pass').length;
+        const healthPct = (passCount / testResults.length) * 100;
+        await pool.query(`INSERT INTO hr_system_health (metric_name, metric_value, metric_unit, status, details)
+            VALUES ('test_pass_rate', ?, 'percent', ?, ?)`,
+            [healthPct, healthPct >= 80 ? 'Healthy' : healthPct >= 50 ? 'Warning' : 'Critical',
+             JSON.stringify({ total: testResults.length, passed: passCount })]);
+
+        res.json({ success: true, results: testResults, summary: { total: testResults.length, passed: passCount, failed: testResults.length - passCount } });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── HR API: System Health ──
+app.get('/api/hr/system-health', authenticateToken, async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT * FROM hr_system_health ORDER BY checked_at DESC LIMIT 50');
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── HR API: Demo Data Generator ──
+app.post('/api/hr/generate-demo', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        const conn = await pool.getConnection();
+        try {
+            const depts = ['Technology','Sales','HR','Finance','Operations','Marketing'];
+            const designations = ['Software Engineer','Sr. Engineer','Team Lead','Manager','Executive','Analyst','Coordinator'];
+            const cities = ['Delhi','Mumbai','Bangalore','Hyderabad','Chennai','Pune','Kolkata'];
+            const bloodGroups = ['A+','A-','B+','B-','O+','O-','AB+','AB-'];
+
+            // Get all users
+            const [users] = await conn.query('SELECT id, name FROM users LIMIT 20');
+            let empCount = 0;
+
+            for (const u of users) {
+                const [exists] = await conn.query('SELECT id FROM hr_employees WHERE user_id=?', [u.id]);
+                if (exists.length) continue;
+
+                const dept = depts[Math.floor(Math.random() * depts.length)];
+                const desig = designations[Math.floor(Math.random() * designations.length)];
+                const city = cities[Math.floor(Math.random() * cities.length)];
+                const salary = Math.round((25000 + Math.random() * 75000) / 1000) * 1000;
+
+                await conn.query(`INSERT INTO hr_employees (user_id, emp_code, designation, department, date_of_joining, gender, phone, city, state, blood_group, base_salary, status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active')`,
+                    [u.id, 'CI' + String(u.id).padStart(4,'0'), desig, dept,
+                     '2024-' + String(1+Math.floor(Math.random()*12)).padStart(2,'0') + '-01',
+                     Math.random() > 0.5 ? 'Male' : 'Female',
+                     '9' + String(Math.floor(1000000000 + Math.random() * 9000000000)).substring(0,9),
+                     city, 'India', bloodGroups[Math.floor(Math.random() * bloodGroups.length)], salary]);
+                empCount++;
+            }
+
+            // Generate 30 days attendance for all employees
+            const [emps] = await conn.query('SELECT user_id FROM hr_employees WHERE status="Active"');
+            let attCount = 0;
+            for (const emp of emps) {
+                for (let d = 29; d >= 0; d--) {
+                    const date = new Date(); date.setDate(date.getDate() - d);
+                    if (date.getDay() === 0) continue; // Skip Sunday
+                    const dateStr = date.toISOString().split('T')[0];
+                    const [exists] = await conn.query('SELECT id FROM hr_attendance WHERE user_id=? AND attendance_date=?', [emp.user_id, dateStr]);
+                    if (exists.length) continue;
+
+                    const rand = Math.random();
+                    if (rand < 0.08) { // 8% absent
+                        await conn.query('INSERT INTO hr_attendance (user_id, attendance_date, status, source) VALUES (?,?,?,?)',
+                            [emp.user_id, dateStr, 'Absent', 'system']);
+                    } else {
+                        const lateRand = Math.random();
+                        const checkInH = lateRand < 0.15 ? 10 : 9;
+                        const checkInM = Math.floor(Math.random() * 30) + (lateRand < 0.15 ? 0 : 15);
+                        const checkOutH = 17 + Math.floor(Math.random() * 3);
+                        const checkOutM = Math.floor(Math.random() * 60);
+                        const totalH = ((checkOutH*60+checkOutM) - (checkInH*60+checkInM)) / 60;
+                        const status = lateRand < 0.15 ? 'Late' : 'Present';
+                        const lat = 28.6 + (Math.random() * 0.1);
+                        const lng = 77.2 + (Math.random() * 0.1);
+
+                        await conn.query(`INSERT INTO hr_attendance (user_id, attendance_date, check_in, check_out, check_in_lat, check_in_lng,
+                            total_hours, status, source) VALUES (?,?,?,?,?,?,?,?,?)`,
+                            [emp.user_id, dateStr,
+                             `${String(checkInH).padStart(2,'0')}:${String(checkInM).padStart(2,'0')}:00`,
+                             `${String(checkOutH).padStart(2,'0')}:${String(checkOutM).padStart(2,'0')}:00`,
+                             lat, lng, totalH.toFixed(2), status, 'system']);
+                    }
+                    attCount++;
+                }
+            }
+
+            // Generate some leave requests
+            let leaveCount = 0;
+            for (const emp of emps.slice(0, 5)) {
+                const leaveTypes = ['Casual Leave','Sick Leave','Earned Leave'];
+                const lt = leaveTypes[Math.floor(Math.random() * leaveTypes.length)];
+                const fromD = new Date(); fromD.setDate(fromD.getDate() + Math.floor(Math.random()*30));
+                const toD = new Date(fromD); toD.setDate(toD.getDate() + Math.floor(Math.random()*3));
+                const statuses = ['Pending','Approved','Pending'];
+                await conn.query(`INSERT INTO hr_leaves (user_id, leave_type, from_date, to_date, total_days, reason, status)
+                    VALUES (?,?,?,?,?,?,?)`,
+                    [emp.user_id, lt, fromD.toISOString().split('T')[0], toD.toISOString().split('T')[0],
+                     Math.ceil((toD-fromD)/(1000*60*60*24))+1, 'Demo leave request',
+                     statuses[Math.floor(Math.random()*statuses.length)]]);
+                leaveCount++;
+            }
+
+            // Generate some expenses
+            let expCount = 0;
+            const [heads] = await conn.query('SELECT id FROM hr_expense_heads LIMIT 5');
+            for (const emp of emps.slice(0, 8)) {
+                for (let i = 0; i < 3; i++) {
+                    const head = heads[Math.floor(Math.random() * heads.length)];
+                    const amt = Math.round(100 + Math.random() * 4000);
+                    const expDate = new Date(); expDate.setDate(expDate.getDate() - Math.floor(Math.random()*30));
+                    await conn.query(`INSERT INTO hr_expenses (user_id, expense_date, head_id, amount, description, status)
+                        VALUES (?,?,?,?,?,?)`,
+                        [emp.user_id, expDate.toISOString().split('T')[0], head.id, amt, 'Demo expense',
+                         ['Pending','Approved','Pending'][Math.floor(Math.random()*3)]]);
+                    expCount++;
+                }
+            }
+
+            res.json({ success: true, generated: { employees: empCount, attendance: attCount, leaves: leaveCount, expenses: expCount } });
+        } finally { conn.release(); }
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── HR API: Payroll ──
+app.get('/api/hr/payroll', authenticateToken, async (req, res) => {
+    try {
+        const { month, year } = req.query;
+        let sql = `SELECT p.*, u.name as user_name, e.emp_code, e.department, e.designation
+            FROM hr_payroll p
+            LEFT JOIN users u ON p.user_id = u.id
+            LEFT JOIN hr_employees e ON p.user_id = e.user_id WHERE 1=1`;
+        const params = [];
+        if (month) { sql += ' AND p.month=?'; params.push(month); }
+        if (year) { sql += ' AND p.year=?'; params.push(year); }
+        if (req.user.role !== 'admin') { sql += ' AND p.user_id=?'; params.push(req.user.id); }
+        sql += ' ORDER BY u.name';
+        const [rows] = await pool.query(sql, params);
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/hr/payroll/generate', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        const { month, year } = req.body;
+        const [emps] = await pool.query('SELECT * FROM hr_employees WHERE status="Active"');
+        const [salaryConfig] = await pool.query("SELECT config_value FROM hr_config WHERE config_key='salary_components'");
+        const comp = salaryConfig.length ? JSON.parse(salaryConfig[0].config_value) : { hra_percent:40, da_percent:10, pf_percent:12, esi_percent:1.75 };
+
+        let count = 0;
+        for (const emp of emps) {
+            const [exists] = await pool.query('SELECT id FROM hr_payroll WHERE user_id=? AND month=? AND year=?', [emp.user_id, month, year]);
+            if (exists.length) continue;
+
+            const base = emp.base_salary || 0;
+            const hra = base * (comp.hra_percent / 100);
+            const da = base * (comp.da_percent / 100);
+            const gross = base + hra + da;
+            const pf = base * (comp.pf_percent / 100);
+            const esi = gross * (comp.esi_percent / 100);
+
+            // Count absent/leave days for deduction
+            const [absentDays] = await pool.query(`SELECT COUNT(*) as c FROM hr_attendance
+                WHERE user_id=? AND MONTH(attendance_date)=? AND YEAR(attendance_date)=? AND status IN ('Absent')`, [emp.user_id, month, year]);
+            const perDaySalary = base / 30;
+            const leaveDeduction = absentDays[0].c * perDaySalary;
+
+            const net = gross - pf - esi - leaveDeduction;
+
+            await pool.query(`INSERT INTO hr_payroll (user_id, month, year, base_salary, hra, da, pf_deduction, esi_deduction, leave_deduction, net_salary, status)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+                [emp.user_id, month, year, base, hra.toFixed(2), da.toFixed(2), pf.toFixed(2), esi.toFixed(2), leaveDeduction.toFixed(2), net.toFixed(2), 'Draft']);
+            count++;
+        }
+        res.json({ success: true, generated: count });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── HR API: Users list (for dropdowns) ──
+app.get('/api/hr/users-list', authenticateToken, async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT id, name, username, role FROM users ORDER BY name');
+        res.json(rows);
+    } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // Catch-all route to serve the frontend — MUST be LAST
