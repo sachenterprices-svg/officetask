@@ -6009,11 +6009,22 @@ app.get('/api/diary/pending-check', authenticateToken, async (req, res) => {
     try {
         const userId = req.user.id;
         const today = new Date(); today.setHours(0,0,0,0);
+        const todayStr = today.toISOString().split('T')[0];
+
+        // Auto-cancel tasks overdue by more than 2 days to prevent user lockout
+        const twoDaysAgo = new Date(today); twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+        const twoDaysAgoStr = twoDaysAgo.toISOString().split('T')[0];
+        await pool.query(
+            `UPDATE diary_tasks SET status='Cancelled', delay_reason='Auto-cancelled: overdue by 2+ days'
+             WHERE user_id = ? AND due_date < ? AND status IN ('Pending','In Progress')`,
+            [userId, twoDaysAgoStr]
+        );
+
         const [rows] = await pool.query(
             `SELECT id, title, due_date, priority, status FROM diary_tasks
              WHERE user_id = ? AND due_date < ? AND status IN ('Pending','In Progress')
              ORDER BY due_date ASC`,
-            [userId, today.toISOString().split('T')[0]]
+            [userId, todayStr]
         );
         res.json({ hasPending: rows.length > 0, count: rows.length, tasks: rows });
     } catch(e) {
