@@ -436,6 +436,11 @@
     <script>
         var llPage = 0;
         var llLimit = 50;
+        var waPage = 0;
+        var waLimit = 50;
+        var waSortCol = 'created_at';
+        var waSortDir = 'desc';
+        var waData = [];
         checkAuth();
 
         function switchTab(tabId, btn) {
@@ -564,12 +569,6 @@
         }
 
         // --- ANALYTICS LOGIC ---
-        var waPage = 0;
-        var waLimit = 50;
-        var waSortCol = 'created_at';
-        var waSortDir = 'desc';
-        var waData = [];
-
         function waSort(col) {
             if (waSortCol === col) {
                 waSortDir = waSortDir === 'asc' ? 'desc' : 'asc';
