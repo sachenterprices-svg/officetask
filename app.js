@@ -1488,15 +1488,19 @@ app.get('/api/complaints', authenticateToken, async (req, res) => {
                      FROM complaints c LEFT JOIN users u ON c.assigned_to = u.id
                      ORDER BY c.created_at DESC`;
         } else {
-            // Get user's own DB row (for allowed_circles)
+            // Get user's own DB row (for allowed_circles + view_circles/oas + allowed_customers)
             const [[meRow]] = await pool.query(
-                'SELECT id, allowed_circles FROM users WHERE id = ?', [user.id]
+                'SELECT id, allowed_circles, allowed_oas, view_circles, view_oas, allowed_customers FROM users WHERE id = ?', [user.id]
             );
             const myId = meRow?.id || user.id;
 
-            // Parse allowed circles
-            let myCircles = [];
+            // Parse circle/OA arrays
+            let myCircles = [], myOAs = [], viewCircles = [], viewOAs = [], myCustomers = [];
             try { myCircles = JSON.parse(meRow?.allowed_circles || '[]'); } catch (e) {}
+            try { myOAs = JSON.parse(meRow?.allowed_oas || '[]'); } catch (e) {}
+            try { viewCircles = JSON.parse(meRow?.view_circles || '[]'); } catch (e) {}
+            try { viewOAs = JSON.parse(meRow?.view_oas || '[]'); } catch (e) {}
+            try { myCustomers = JSON.parse(meRow?.allowed_customers || '[]'); } catch (e) {}
 
             // Get subordinates (engineers managed by this user)
             const [subs] = await pool.query(
@@ -1515,6 +1519,20 @@ app.get('/api/complaints', authenticateToken, async (req, res) => {
                 const circlePH = myCircles.map(() => '?').join(',');
                 where += ` OR (c.assigned_to IS NULL AND c.circle IN (${circlePH}))`;
                 params.push(...myCircles);
+            }
+
+            // View purpose: show complaints from view_circles
+            if (viewCircles.length > 0) {
+                const vcPH = viewCircles.map(() => '?').join(',');
+                where += ` OR c.circle IN (${vcPH})`;
+                params.push(...viewCircles);
+            }
+
+            // View purpose: show complaints from view_oas
+            if (viewOAs.length > 0) {
+                const voPH = viewOAs.map(() => '?').join(',');
+                where += ` OR c.oa IN (${voPH})`;
+                params.push(...viewOAs);
             }
 
             query = `SELECT c.*, u.name as assigned_username, u.username as assigned_user
@@ -1542,7 +1560,7 @@ app.get('/api/complaints/report', authenticateToken, async (req, res) => {
         // ── Access control: non-admin sees only own area ───────────────────
         if (currentUser.role !== 'admin') {
             const [[meRow]] = await pool.query(
-                'SELECT id, allowed_circles, allowed_oas FROM users WHERE id = ?', [currentUser.id]
+                'SELECT id, allowed_circles, allowed_oas, view_circles, view_oas FROM users WHERE id = ?', [currentUser.id]
             );
             const myId = meRow?.id || currentUser.id;
 
@@ -1553,19 +1571,32 @@ app.get('/api/complaints/report', authenticateToken, async (req, res) => {
             const subIds = subs.map(r => r.user_id);
             const allIds = [myId, ...subIds];
 
-            // Allowed circles
-            let myCircles = [];
+            // Allowed circles + view circles/OAs
+            let myCircles = [], viewCircles = [], viewOAs = [];
             try { myCircles = JSON.parse(meRow?.allowed_circles || '[]'); } catch(e) {}
+            try { viewCircles = JSON.parse(meRow?.view_circles || '[]'); } catch(e) {}
+            try { viewOAs = JSON.parse(meRow?.view_oas || '[]'); } catch(e) {}
 
             const idPH = allIds.map(() => '?').join(',');
+            let accessParts = [`c.assigned_to IN (${idPH})`];
+            params.push(...allIds);
+
             if (myCircles.length > 0) {
                 const cirPH = myCircles.map(() => '?').join(',');
-                where.push(`(c.assigned_to IN (${idPH}) OR (c.assigned_to IS NULL AND c.circle IN (${cirPH})))`);
-                params.push(...allIds, ...myCircles);
-            } else {
-                where.push(`c.assigned_to IN (${idPH})`);
-                params.push(...allIds);
+                accessParts.push(`(c.assigned_to IS NULL AND c.circle IN (${cirPH}))`);
+                params.push(...myCircles);
             }
+            if (viewCircles.length > 0) {
+                const vcPH = viewCircles.map(() => '?').join(',');
+                accessParts.push(`c.circle IN (${vcPH})`);
+                params.push(...viewCircles);
+            }
+            if (viewOAs.length > 0) {
+                const voPH = viewOAs.map(() => '?').join(',');
+                accessParts.push(`c.oa IN (${voPH})`);
+                params.push(...viewOAs);
+            }
+            where.push(`(${accessParts.join(' OR ')})`);
         }
         // ──────────────────────────────────────────────────────────────────
 
