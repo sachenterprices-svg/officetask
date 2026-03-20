@@ -51,6 +51,9 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-coral-bsnl-key-2026';
 
+// Trust proxy (Vercel / Cloudflare) — correct client IP via X-Forwarded-For
+app.set('trust proxy', true);
+
 // --- MIDDLEWARE ---
 // MUST BE AT THE TOP to parse bodies before hitting routes!
 app.use(cors());
@@ -1068,6 +1071,29 @@ async function upgradeCustomersTableAdvanced() {
     }
 }
 
+// ── Login Logs Table ──────────────────────────────────────────
+async function initLoginLogsTable() {
+    try {
+        await pool.query(`CREATE TABLE IF NOT EXISTS login_logs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            username VARCHAR(100),
+            user_name VARCHAR(150),
+            ip_address VARCHAR(50),
+            city VARCHAR(100),
+            region VARCHAR(100),
+            country VARCHAR(100),
+            isp VARCHAR(200),
+            user_agent TEXT,
+            login_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_user (user_id),
+            INDEX idx_login_at (login_at)
+        )`);
+    } catch (err) {
+        console.error('Login logs table init error:', err.message);
+    }
+}
+
 // Create Default Admin User if none exists
 async function initializeAdmin() {
     try {
@@ -1133,6 +1159,34 @@ app.post('/api/login', async (req, res) => {
         try { allowed_circles = JSON.parse(user.allowed_circles || '[]'); } catch(e) {}
         try { allowed_oas = JSON.parse(user.allowed_oas || '[]'); } catch(e) {}
 
+        // ── Log login (IP + geolocation) — fire-and-forget ──────
+        const clientIP = req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '';
+        const userAgent = req.headers['user-agent'] || '';
+        (async () => {
+            try {
+                let city = '', region = '', country = '', isp = '';
+                // Use free ip-api.com for geolocation (no key needed, 45 req/min)
+                const cleanIP = clientIP.replace('::ffff:', '');
+                if (cleanIP && cleanIP !== '127.0.0.1' && cleanIP !== '::1') {
+                    const geoRes = await fetch(`http://ip-api.com/json/${cleanIP}?fields=city,regionName,country,isp`);
+                    if (geoRes.ok) {
+                        const geo = await geoRes.json();
+                        city = geo.city || '';
+                        region = geo.regionName || '';
+                        country = geo.country || '';
+                        isp = geo.isp || '';
+                    }
+                }
+                await pool.query(
+                    `INSERT INTO login_logs (user_id, username, user_name, ip_address, city, region, country, isp, user_agent)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [user.id, user.username, user.name, cleanIP, city, region, country, isp, userAgent]
+                );
+            } catch (logErr) {
+                console.error('Login log error:', logErr.message);
+            }
+        })();
+
         res.json({ token, user: {
             id: user.id,
             username: user.username,
@@ -1149,6 +1203,31 @@ app.post('/api/login', async (req, res) => {
     } catch (error) {
         console.error('Login error:', error);
         res.status(500).json({ error: 'Server error during login', details: error.message });
+    }
+});
+
+// --- LOGIN LOGS API (admin only) ---
+app.get('/api/login-logs', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    try {
+        const { user_id, start, end, limit = 100, offset = 0 } = req.query;
+        let where = [];
+        const params = [];
+        if (user_id) { where.push('l.user_id = ?'); params.push(user_id); }
+        if (start) { where.push('DATE(l.login_at) >= ?'); params.push(start); }
+        if (end) { where.push('DATE(l.login_at) <= ?'); params.push(end); }
+        const whereStr = where.length ? 'WHERE ' + where.join(' AND ') : '';
+        const [rows] = await pool.query(`
+            SELECT l.* FROM login_logs l ${whereStr}
+            ORDER BY l.login_at DESC LIMIT ? OFFSET ?
+        `, [...params, parseInt(limit), parseInt(offset)]);
+        const [[{ total }]] = await pool.query(
+            `SELECT COUNT(*) as total FROM login_logs l ${whereStr}`, params
+        );
+        res.json({ rows, total });
+    } catch (err) {
+        console.error('Login logs error:', err);
+        res.status(500).json({ error: 'Failed to fetch login logs' });
     }
 });
 
@@ -4420,6 +4499,7 @@ async function startupChecks() {
     await initDiaryTasksTables();
     await initializeHRTables();
     await initializePRTables();
+    await initLoginLogsTable();
     await initializeAdmin();
     console.log('🚀 [READY] All startup checks complete. Server is fully ready!');
 }

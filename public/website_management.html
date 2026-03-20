@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="auth.js"></script>
+    <script src="shield.js"></script>
     <style>
         :root {
             --primary: #002d72;
@@ -47,36 +48,31 @@
             align-items: center;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
             z-index: 1000;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.5);
-        }
-
-        .header-brand {
-            font-size: 1.4rem;
-            font-weight: 800;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
+            border-bottom: 2px solid #e2e8f0;
         }
 
         .user-meta {
             display: flex;
-            align-items: center;
-            gap: 20px;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 5px;
         }
 
         .logout-btn {
-            background: #e31837;
+            background: #64748b;
             color: white;
-            border: none;
+            border: 1px solid transparent;
             padding: 8px 18px;
             border-radius: 8px;
             cursor: pointer;
             font-weight: 700;
-            transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-family: 'Inter', sans-serif;
+            transition: 0.2s ease;
         }
 
         .logout-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(227, 24, 55, 0.2);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
 
         /* --- MAIN LAYOUT --- */
@@ -285,21 +281,20 @@
 
 <body>
     <header class="top-header">
-        <div class="header-brand">
-            <span style="color: #002d72;">Coral</span> <span style="color: #f97316;">Infratel</span>
+        <div class="header-left" style="display: flex; align-items: center; gap: 20px;">
+            <div class="header-brand">
+                <img src="assets/Coral Infratel logo.jpg" alt="Coral Infratel Pvt. Ltd." height="46" style="display:block; object-fit:contain;">
+            </div>
+            <div style="width: 2px; height: 30px; background: rgba(15, 23, 42, 0.1); border-radius: 2px;"></div>
+            <div style="color: var(--text-muted); font-weight: 700; font-size: 1rem; text-transform: uppercase; letter-spacing: 2px;">Website Management</div>
         </div>
         <div class="user-meta">
-            <div class="header-row">
-                <span id="userInfoDisplay" style="color: var(--primary); font-weight:700;"></span>
-                <button onclick="window.logout()" class="logout-btn"
-                    style="background: #64748b; padding: 4px 12px; font-size: 0.85rem;">Logout</button>
-            </div>
+            <span id="userInfoDisplay" style="color:var(--primary);font-weight:700;font-size:0.88rem;"></span>
         </div>
     </header>
 
     <div class="app-body">
         <aside class="tile-sidebar">
-            <div class="sidebar-header">USER & SYSTEM</div>
             <a href="dashboard.html" class="module-tile"><i>🏠</i>
                 <div class="tile-content">
                     <h4>Dashboard</h4>
@@ -330,6 +325,9 @@
                     </button>
                     <button class="tab-btn" onclick="switchTab('analyticsTab', this)">
                         <i>📊</i> Website Analytics
+                    </button>
+                    <button class="tab-btn" onclick="switchTab('loginLogsTab', this)">
+                        <i>🔐</i> Login Logs
                     </button>
                 </nav>
 
@@ -390,11 +388,48 @@
                         </tbody>
                     </table>
                 </div>
+
+                <!-- Login Logs Tab -->
+                <div id="loginLogsTab" class="tab-content">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+                        <h2 style="color:var(--primary); margin:0;">Login Logs</h2>
+                        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                            <select id="llUserFilter" style="padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                                <option value="">All Users</option>
+                            </select>
+                            <input type="date" id="llStartDate" style="padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                            <input type="date" id="llEndDate" style="padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                            <button onclick="loadLoginLogs()" style="background:var(--primary); color:white; border:none; padding:10px 20px; border-radius:8px; font-weight:700; cursor:pointer;">Search</button>
+                        </div>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="analytics-table">
+                            <thead>
+                                <tr>
+                                    <th>Date & Time</th>
+                                    <th>User</th>
+                                    <th>Username</th>
+                                    <th>IP Address</th>
+                                    <th>City</th>
+                                    <th>Region</th>
+                                    <th>Country</th>
+                                    <th>ISP</th>
+                                </tr>
+                            </thead>
+                            <tbody id="loginLogsBody">
+                                <tr><td colspan="8" style="text-align:center; padding:50px;">Select filters and click Search</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="llPagination" style="display:flex; justify-content:center; gap:10px; margin-top:15px;"></div>
+                </div>
             </div>
         </main>
     </div>
 
     <script>
+        var llPage = 0;
+        var llLimit = 50;
         checkAuth();
 
         function switchTab(tabId, btn) {
@@ -403,6 +438,7 @@
             document.getElementById(tabId).classList.add('active');
             btn.classList.add('active');
             if (tabId === 'analyticsTab') loadAnalytics();
+            if (tabId === 'loginLogsTab') loadLoginLogs();
         }
 
         // --- CMS LOGIC ---
@@ -449,6 +485,77 @@
                 btn.textContent = 'Update Website';
             }
         };
+
+        // --- LOGIN LOGS LOGIC ---
+        async function loadLoginLogsUsers() {
+            try {
+                const res = await window.apiFetch('/api/users');
+                if (res.ok) {
+                    const users = await res.json();
+                    const sel = document.getElementById('llUserFilter');
+                    users.forEach(u => {
+                        const opt = document.createElement('option');
+                        opt.value = u.id;
+                        opt.textContent = u.name + ' (' + u.username + ')';
+                        sel.appendChild(opt);
+                    });
+                }
+            } catch(e) {}
+        }
+        loadLoginLogsUsers();
+
+        async function loadLoginLogs(page) {
+            if (page !== undefined) llPage = page;
+            var body = document.getElementById('loginLogsBody');
+            body.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:30px;">Loading...</td></tr>';
+            try {
+                var userId = document.getElementById('llUserFilter').value;
+                var start = document.getElementById('llStartDate').value;
+                var end = document.getElementById('llEndDate').value;
+                var url = '/api/login-logs?limit=' + llLimit + '&offset=' + (llPage * llLimit);
+                if (userId) url += '&user_id=' + userId;
+                if (start) url += '&start=' + start;
+                if (end) url += '&end=' + end;
+                var token = localStorage.getItem('crm_token');
+                var res = await fetch((window.API_BASE_URL || '') + url, {
+                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+                });
+                if (res.ok) {
+                    var data = await res.json();
+                    if (data.rows.length === 0) {
+                        body.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:50px; color:#94a3b8;">No login logs found</td></tr>';
+                    } else {
+                        body.innerHTML = data.rows.map(function(r) {
+                            return '<tr>'
+                                + '<td>' + new Date(r.login_at).toLocaleString('en-IN') + '</td>'
+                                + '<td style="font-weight:600;">' + (r.user_name || '-') + '</td>'
+                                + '<td>' + (r.username || '-') + '</td>'
+                                + '<td><span style="font-family:monospace; background:#eef2ff; padding:2px 6px; border-radius:4px;">' + (r.ip_address || '-') + '</span></td>'
+                                + '<td>' + (r.city || '-') + '</td>'
+                                + '<td>' + (r.region || '-') + '</td>'
+                                + '<td>' + (r.country || '-') + '</td>'
+                                + '<td style="font-size:0.85rem; color:#64748b;">' + (r.isp || '-') + '</td>'
+                                + '</tr>';
+                        }).join('');
+                    }
+                    // Pagination
+                    var totalPages = Math.ceil(data.total / llLimit);
+                    var pgDiv = document.getElementById('llPagination');
+                    if (totalPages > 1) {
+                        var btns = '';
+                        if (llPage > 0) btns += '<button onclick="loadLoginLogs(' + (llPage - 1) + ')" style="padding:6px 14px; border:1px solid #e2e8f0; border-radius:6px; cursor:pointer; background:white;">Previous</button>';
+                        btns += '<span style="padding:6px 12px; font-weight:600;">Page ' + (llPage + 1) + ' of ' + totalPages + '</span>';
+                        if (llPage < totalPages - 1) btns += '<button onclick="loadLoginLogs(' + (llPage + 1) + ')" style="padding:6px 14px; border:1px solid #e2e8f0; border-radius:6px; cursor:pointer; background:white;">Next</button>';
+                        pgDiv.innerHTML = btns;
+                    } else {
+                        pgDiv.innerHTML = '';
+                    }
+                }
+            } catch (e) {
+                console.error('Login logs load error:', e);
+                body.innerHTML = '<tr><td colspan="8" style="text-align:center; color:#ef4444;">Error loading login logs</td></tr>';
+            }
+        }
 
         // --- ANALYTICS LOGIC ---
         async function loadAnalytics() {
