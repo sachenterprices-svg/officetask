@@ -364,32 +364,35 @@
 
                 <!-- Analytics Tab -->
                 <div id="analyticsTab" class="tab-content">
-                    <div
-                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
                         <h2 style="color:var(--primary); margin:0;">Visitor Analytics</h2>
-                        <button onclick="loadAnalytics()"
-                            style="background:var(--primary); color:white; border:none; padding:10px 20px; border-radius:8px; font-weight:700; cursor:pointer;">Refresh
-                            Logs</button>
+                        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                            <input type="text" id="waSearch" placeholder="Search IP, City, Page..." style="padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem; width:200px;">
+                            <input type="date" id="waStartDate" style="padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                            <input type="date" id="waEndDate" style="padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                            <button onclick="waPage=0; loadAnalytics()" style="background:var(--primary); color:white; border:none; padding:10px 20px; border-radius:8px; font-weight:700; cursor:pointer;">Search</button>
+                        </div>
                     </div>
-                    <table class="analytics-table">
-                        <thead>
-                            <tr>
-                                <th>Time</th>
-                                <th>IP Address</th>
-                                <th>City</th>
-                                <th>Region</th>
-                                <th>Country</th>
-                                <th>Page Path</th>
-                                <th>Action</th>
-                                <th>Details</th>
-                            </tr>
-                        </thead>
-                        <tbody id="analyticsBody">
-                            <tr>
-                                <td colspan="8" style="text-align:center; padding:50px;">Fetching logs...</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <div style="overflow-x:auto;">
+                        <table class="analytics-table">
+                            <thead>
+                                <tr>
+                                    <th style="cursor:pointer;" onclick="waSort('created_at')">Time <span id="waSortcreated_at"></span></th>
+                                    <th style="cursor:pointer;" onclick="waSort('ip_address')">IP Address <span id="waSortip_address"></span></th>
+                                    <th style="cursor:pointer;" onclick="waSort('city')">City <span id="waSortcity"></span></th>
+                                    <th style="cursor:pointer;" onclick="waSort('region')">Region <span id="waSortregion"></span></th>
+                                    <th style="cursor:pointer;" onclick="waSort('country')">Country <span id="waSortcountry"></span></th>
+                                    <th style="cursor:pointer;" onclick="waSort('page_url')">Page Path <span id="waSortpage_url"></span></th>
+                                    <th>Action</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody id="analyticsBody">
+                                <tr><td colspan="8" style="text-align:center; padding:50px;">Click Search to load data</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="waPagination" style="display:flex; justify-content:center; gap:10px; margin-top:15px;"></div>
                 </div>
 
                 <!-- Login Logs Tab -->
@@ -561,26 +564,93 @@
         }
 
         // --- ANALYTICS LOGIC ---
-        async function loadAnalytics() {
+        var waPage = 0;
+        var waLimit = 50;
+        var waSortCol = 'created_at';
+        var waSortDir = 'desc';
+        var waData = [];
+
+        function waSort(col) {
+            if (waSortCol === col) {
+                waSortDir = waSortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                waSortCol = col;
+                waSortDir = 'desc';
+            }
+            // Client-side sort on loaded data
+            waData.sort(function(a, b) {
+                var va = (a[col] || '').toString().toLowerCase();
+                var vb = (b[col] || '').toString().toLowerCase();
+                if (col === 'created_at') { va = a[col] || ''; vb = b[col] || ''; }
+                if (va < vb) return waSortDir === 'asc' ? -1 : 1;
+                if (va > vb) return waSortDir === 'asc' ? 1 : -1;
+                return 0;
+            });
+            waRenderTable();
+            // Update sort indicators
+            document.querySelectorAll('[id^="waSort"]').forEach(function(s) { s.textContent = ''; });
+            var el = document.getElementById('waSort' + col);
+            if (el) el.textContent = waSortDir === 'asc' ? ' ▲' : ' ▼';
+        }
+
+        function waRenderTable() {
             var body = document.getElementById('analyticsBody');
+            if (waData.length === 0) {
+                body.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:50px; color:#94a3b8;">No records found</td></tr>';
+                return;
+            }
+            body.innerHTML = waData.map(function(log) {
+                return '<tr>'
+                    + '<td>' + new Date(log.created_at).toLocaleString('en-IN') + '</td>'
+                    + '<td><span style="font-family:monospace; background:#eef2ff; padding:2px 6px; border-radius:4px;">' + (log.ip_address || '-') + '</span></td>'
+                    + '<td>' + (log.city || '-') + '</td>'
+                    + '<td>' + (log.region || '-') + '</td>'
+                    + '<td>' + (log.country || '-') + '</td>'
+                    + '<td>' + (log.page_url || '-') + '</td>'
+                    + '<td><span style="font-weight:700; color:#4a6ee0;">' + (log.action_type || '-') + '</span></td>'
+                    + '<td>' + (log.details || '-') + '</td>'
+                    + '</tr>';
+            }).join('');
+        }
+
+        async function loadAnalytics(page) {
+            if (page !== undefined) waPage = page;
+            var body = document.getElementById('analyticsBody');
+            body.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:30px;">Loading...</td></tr>';
             try {
-                var res = await window.apiFetch('/api/analytics/report');
+                var search = document.getElementById('waSearch').value;
+                var start = document.getElementById('waStartDate').value;
+                var end = document.getElementById('waEndDate').value;
+                var url = '/api/analytics/report?limit=' + waLimit + '&offset=' + (waPage * waLimit);
+                if (search) url += '&search=' + encodeURIComponent(search);
+                if (start) url += '&start=' + start;
+                if (end) url += '&end=' + end;
+                var res = await window.apiFetch(url);
                 if (res.ok) {
-                    var data = await res.json();
-                    body.innerHTML = data.map(function(log) {
-                        return '<tr>'
-                            + '<td>' + new Date(log.created_at).toLocaleString() + '</td>'
-                            + '<td><span style="font-family:monospace; background:#eef2ff; padding:2px 6px; border-radius:4px;">' + (log.ip_address || '-') + '</span></td>'
-                            + '<td>' + (log.city || '-') + '</td>'
-                            + '<td>' + (log.region || '-') + '</td>'
-                            + '<td>' + (log.country || '-') + '</td>'
-                            + '<td>' + (log.page_url || '-') + '</td>'
-                            + '<td><span style="font-weight:700; color:#4a6ee0;">' + (log.action_type || '-') + '</span></td>'
-                            + '<td>' + (log.details || '-') + '</td>'
-                            + '</tr>';
-                    }).join('');
+                    var result = await res.json();
+                    // Support both old format (array) and new format ({rows, total})
+                    waData = Array.isArray(result) ? result : (result.rows || []);
+                    var total = Array.isArray(result) ? result.length : (result.total || 0);
+                    waRenderTable();
+                    // Update sort indicator
+                    var sortEl = document.getElementById('waSort' + waSortCol);
+                    if (sortEl) sortEl.textContent = waSortDir === 'asc' ? ' ▲' : ' ▼';
+                    // Pagination
+                    var totalPages = Math.ceil(total / waLimit);
+                    var pgDiv = document.getElementById('waPagination');
+                    if (totalPages > 1) {
+                        var btns = '';
+                        if (waPage > 0) btns += '<button onclick="loadAnalytics(' + (waPage - 1) + ')" style="padding:6px 14px; border:1px solid #e2e8f0; border-radius:6px; cursor:pointer; background:white;">Previous</button>';
+                        btns += '<span style="padding:6px 12px; font-weight:600;">Page ' + (waPage + 1) + ' of ' + totalPages + ' (' + total + ' records)</span>';
+                        if (waPage < totalPages - 1) btns += '<button onclick="loadAnalytics(' + (waPage + 1) + ')" style="padding:6px 14px; border:1px solid #e2e8f0; border-radius:6px; cursor:pointer; background:white;">Next</button>';
+                        pgDiv.innerHTML = btns;
+                    } else {
+                        pgDiv.innerHTML = total > 0 ? '<span style="color:#64748b; font-size:0.9rem;">' + total + ' records</span>' : '';
+                    }
                 }
-            } catch (e) { body.innerHTML = '<tr><td colspan="8">Error loading logs</td></tr>'; }
+            } catch (e) {
+                body.innerHTML = '<tr><td colspan="8" style="text-align:center; color:#ef4444;">Error loading analytics</td></tr>';
+            }
         }
     </script>
 </body>

@@ -1170,16 +1170,15 @@ app.post('/api/login', async (req, res) => {
         (async () => {
             try {
                 let city = '', region = '', country = '', isp = '';
-                // Use free ip-api.com for geolocation (no key needed, 45 req/min)
                 const cleanIP = clientIP.replace('::ffff:', '');
                 if (cleanIP && cleanIP !== '127.0.0.1' && cleanIP !== '::1') {
-                    const geoRes = await fetch(`http://ip-api.com/json/${cleanIP}?fields=city,regionName,country,isp`);
+                    const geoRes = await fetch('https://ipapi.co/' + cleanIP + '/json/');
                     if (geoRes.ok) {
                         const geo = await geoRes.json();
                         city = geo.city || '';
-                        region = geo.regionName || '';
-                        country = geo.country || '';
-                        isp = geo.isp || '';
+                        region = geo.region || '';
+                        country = geo.country_name || '';
+                        isp = geo.org || '';
                     }
                 }
                 await pool.query(
@@ -3601,13 +3600,13 @@ app.post('/api/analytics/track', async (req, res) => {
         let city = '', region = '', country = '', isp = '';
         if (ip && ip !== '127.0.0.1' && ip !== '::1') {
             try {
-                const geoRes = await fetch('http://ip-api.com/json/' + ip + '?fields=city,regionName,country,isp');
+                const geoRes = await fetch('https://ipapi.co/' + ip + '/json/');
                 if (geoRes.ok) {
                     const geo = await geoRes.json();
                     city = geo.city || '';
-                    region = geo.regionName || '';
-                    country = geo.country || '';
-                    isp = geo.isp || '';
+                    region = geo.region || '';
+                    country = geo.country_name || '';
+                    isp = geo.org || '';
                 }
             } catch(geoErr) {}
         }
@@ -3620,11 +3619,24 @@ app.post('/api/analytics/track', async (req, res) => {
     }
 });
 
-// Admin endpoint for report
+// Admin endpoint for report (with filters)
 app.get('/api/analytics/report', authenticateToken, isAdmin, async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT * FROM website_analytics ORDER BY created_at DESC LIMIT 500');
-        res.json(rows);
+        const { start, end, search, limit = 200, offset = 0 } = req.query;
+        let where = [];
+        const params = [];
+        if (start) { where.push('DATE(created_at) >= ?'); params.push(start); }
+        if (end) { where.push('DATE(created_at) <= ?'); params.push(end); }
+        if (search) { where.push('(ip_address LIKE ? OR page_url LIKE ? OR city LIKE ? OR region LIKE ? OR country LIKE ?)'); params.push('%'+search+'%','%'+search+'%','%'+search+'%','%'+search+'%','%'+search+'%'); }
+        const whereStr = where.length ? 'WHERE ' + where.join(' AND ') : '';
+        const [rows] = await pool.query(
+            'SELECT * FROM website_analytics ' + whereStr + ' ORDER BY created_at DESC LIMIT ? OFFSET ?',
+            [...params, parseInt(limit), parseInt(offset)]
+        );
+        const [[{ total }]] = await pool.query(
+            'SELECT COUNT(*) as total FROM website_analytics ' + whereStr, params
+        );
+        res.json({ rows, total });
     } catch (err) {
         console.error('Analytics fetch error:', err);
         res.status(500).json({ error: 'Failed to fetch analytics' });
