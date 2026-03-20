@@ -1263,6 +1263,7 @@ app.get('/api/users', authenticateToken, isAdmin, async (req, res) => {
                    u1.view_circles, u1.view_oas,
                    u1.permissions, u1.reports_to, u1.created_at,
                    u1.department, u1.work_types, u1.allowed_customers,
+                   u1.backdate_rights,
                    u2.name as manager_name, u2.username as manager_username
             FROM users u1
             LEFT JOIN users u2 ON u1.reports_to = u2.id
@@ -1302,11 +1303,11 @@ app.post('/api/users', authenticateToken, isAdmin, async (req, res) => {
 });
 
 app.put('/api/users/:id', authenticateToken, isAdmin, async (req, res) => {
-    const { role, name, mobile, email, permissions, reports_to, manager_ids, department, work_types, allowed_circles, allowed_oas, view_circles, view_oas } = req.body;
+    const { role, name, mobile, email, permissions, reports_to, manager_ids, department, work_types, allowed_circles, allowed_oas, view_circles, view_oas, allowed_customers } = req.body;
     try {
         await pool.query(
-            'UPDATE users SET role=?, name=?, mobile=?, email=?, permissions=?, reports_to=?, backdate_rights=?, department=?, work_types=?, allowed_circles=?, allowed_oas=?, view_circles=?, view_oas=? WHERE id=?',
-            [role, name || null, mobile || null, email || null, JSON.stringify(permissions || []), reports_to || null, req.body.backdate_rights || false, department || 'Technical', JSON.stringify(work_types || []), JSON.stringify(allowed_circles || []), JSON.stringify(allowed_oas || []), JSON.stringify(view_circles || []), JSON.stringify(view_oas || []), req.params.id]
+            'UPDATE users SET role=?, name=?, mobile=?, email=?, permissions=?, reports_to=?, backdate_rights=?, department=?, work_types=?, allowed_circles=?, allowed_oas=?, view_circles=?, view_oas=?, allowed_customers=? WHERE id=?',
+            [role, name || null, mobile || null, email || null, JSON.stringify(permissions || []), reports_to || null, req.body.backdate_rights || false, department || 'Technical', JSON.stringify(work_types || []), JSON.stringify(allowed_circles || []), JSON.stringify(allowed_oas || []), JSON.stringify(view_circles || []), JSON.stringify(view_oas || []), allowed_customers || null, req.params.id]
         );
         // Update multiple managers in user_managers table
         const userId = parseInt(req.params.id);
@@ -6066,15 +6067,43 @@ app.post('/api/diary/tasks', authenticateToken, async (req, res) => {
         const { title, description, category, priority, task_type, start_date, due_date, estimated_time, notes } = req.body;
         if (!title || !due_date) return res.status(400).json({ error: 'Title and due date required' });
 
+        // Date validation: start_date >= today, due_date >= start_date
+        const today = new Date().toISOString().split('T')[0];
+        const effectiveStart = start_date || today;
+        const finalStart = effectiveStart < today ? today : effectiveStart;
+        const finalDue = due_date < finalStart ? finalStart : due_date;
+
         const [result] = await pool.query(
             `INSERT INTO diary_tasks (user_id, title, description, category, priority, task_type, start_date, due_date, estimated_time, notes, source_type)
              VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
             [userId, title, description || null, category || 'General', priority || 'Medium', task_type || 'Work',
-             start_date || due_date, due_date, estimated_time || null, notes || null, 'manual']
+             finalStart, finalDue, estimated_time || null, notes || null, 'manual']
         );
         await pool.query('INSERT INTO diary_task_history (task_id, previous_status, new_status, comment, changed_by) VALUES (?,?,?,?,?)',
             [result.insertId, null, 'Pending', 'Task created', userId]);
         res.status(201).json({ success: true, id: result.insertId });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- Admin: Force-resolve all overdue diary tasks for a user ---
+app.post('/api/diary/admin-resolve-overdue', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const { user_id } = req.body;
+        if (!user_id) return res.status(400).json({ error: 'user_id required' });
+        const today = new Date().toISOString().split('T')[0];
+        const [rows] = await pool.query(
+            `SELECT id, status FROM diary_tasks WHERE user_id = ? AND due_date < ? AND status IN ('Pending','In Progress')`,
+            [user_id, today]
+        );
+        if (!rows.length) return res.json({ message: 'No overdue tasks found', count: 0 });
+        for (const r of rows) {
+            await pool.query(`UPDATE diary_tasks SET status='Cancelled', delay_reason='Auto-resolved by admin' WHERE id=?`, [r.id]);
+            await pool.query('INSERT INTO diary_task_history (task_id, previous_status, new_status, comment, changed_by) VALUES (?,?,?,?,?)',
+                [r.id, r.status, 'Cancelled', 'Auto-resolved by admin to unblock user', req.user.id]);
+        }
+        res.json({ message: `Resolved ${rows.length} overdue tasks`, count: rows.length });
     } catch(e) {
         res.status(500).json({ error: e.message });
     }
