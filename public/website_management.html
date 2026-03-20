@@ -500,12 +500,15 @@
         // --- LOGIN LOGS LOGIC ---
         async function loadLoginLogsUsers() {
             try {
-                const res = await window.apiFetch('/api/users');
+                var token = localStorage.getItem('crm_token');
+                var res = await fetch((window.API_BASE_URL || '') + '/api/users', {
+                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+                });
                 if (res.ok) {
-                    const users = await res.json();
-                    const sel = document.getElementById('llUserFilter');
-                    users.forEach(u => {
-                        const opt = document.createElement('option');
+                    var users = await res.json();
+                    var sel = document.getElementById('llUserFilter');
+                    users.forEach(function(u) {
+                        var opt = document.createElement('option');
                         opt.value = u.id;
                         opt.textContent = u.name + ' (' + u.username + ')';
                         sel.appendChild(opt);
@@ -624,10 +627,12 @@
                 if (search) url += '&search=' + encodeURIComponent(search);
                 if (start) url += '&start=' + start;
                 if (end) url += '&end=' + end;
-                var res = await window.apiFetch(url);
+                var token = localStorage.getItem('crm_token');
+                var res = await fetch((window.API_BASE_URL || '') + url, {
+                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+                });
                 if (res.ok) {
                     var result = await res.json();
-                    // Support both old format (array) and new format ({rows, total})
                     waData = Array.isArray(result) ? result : (result.rows || []);
                     var total = Array.isArray(result) ? result.length : (result.total || 0);
                     waRenderTable();
