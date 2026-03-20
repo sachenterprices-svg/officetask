@@ -714,6 +714,11 @@ async function initializeAnalyticsTable() {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB
         `);
+        // Add geolocation columns if missing
+        const [cols] = await pool.query(`SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'website_analytics' AND COLUMN_NAME = 'city'`);
+        if (cols.length === 0) {
+            await pool.query(`ALTER TABLE website_analytics ADD COLUMN city VARCHAR(100) DEFAULT NULL, ADD COLUMN region VARCHAR(100) DEFAULT NULL, ADD COLUMN country VARCHAR(100) DEFAULT NULL, ADD COLUMN isp VARCHAR(200) DEFAULT NULL`);
+        }
         console.log('✅ Website Analytics table initialized.');
     } catch (err) {
         console.error('⚠️ Could not initialize website_analytics table:', err.message);
@@ -3586,18 +3591,32 @@ app.get('/api/dashboard/v2-stats', authenticateToken, async (req, res) => {
 // Public endpoint for tracking
 app.post('/api/analytics/track', async (req, res) => {
     const { page_url, action_type, details } = req.body;
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const ip = (req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').replace('::ffff:', '');
     const userAgent = req.headers['user-agent'];
 
+    // Respond immediately, log geo in background
+    res.status(200).end();
+
     try {
+        let city = '', region = '', country = '', isp = '';
+        if (ip && ip !== '127.0.0.1' && ip !== '::1') {
+            try {
+                const geoRes = await fetch('http://ip-api.com/json/' + ip + '?fields=city,regionName,country,isp');
+                if (geoRes.ok) {
+                    const geo = await geoRes.json();
+                    city = geo.city || '';
+                    region = geo.regionName || '';
+                    country = geo.country || '';
+                    isp = geo.isp || '';
+                }
+            } catch(geoErr) {}
+        }
         await pool.query(
-            'INSERT INTO website_analytics (ip_address, user_agent, page_url, action_type, details) VALUES (?, ?, ?, ?, ?)',
-            [ip, userAgent, page_url, action_type || 'visit', details || null]
+            'INSERT INTO website_analytics (ip_address, user_agent, page_url, action_type, details, city, region, country, isp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [ip, userAgent, page_url, action_type || 'visit', details || null, city, region, country, isp]
         );
-        res.status(200).end();
     } catch (err) {
         console.error('Track error:', err);
-        res.status(500).end();
     }
 });
 
