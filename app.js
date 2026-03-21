@@ -4561,6 +4561,13 @@ app.get('/api/health', async (req, res) => {
     }
 });
 
+// --- KEEP WARM: Self-ping every 5 minutes to prevent Vercel cold starts ---
+if (process.env.VERCEL) {
+    setInterval(() => {
+        fetch('https://officetask-roan.vercel.app/api/health').catch(() => {});
+    }, 5 * 60 * 1000); // Every 5 minutes
+}
+
 // --- AUTOMATED MAINTENANCE SYSTEM ---
 let isMaintenanceRunning = false;
 global.lastMaintenanceDate = null;
