@@ -15,6 +15,8 @@ const fs = require('fs');
 const http = require('http');
 const https = require('https');
 require('dotenv').config();
+const OpenAI = require('openai');
+const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'sk-placeholder' });
 
 // ── BULK PDF JOB STORE ────────────────────────────────────────────────────────
 // jobId -> { zipPath, createdAt }
@@ -9045,6 +9047,230 @@ app.post('/api/hr/expense-heads/seed', authenticateToken, async (req, res) => {
             ('Miscellaneous', 1000, 1, 'All')`);
         res.json({ success: true, seeded: 15 });
     } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// VOICE BOT APIs (Public - No Auth Required)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Voice Transcribe - Whisper STT
+const voiceUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
+app.post('/api/voice/transcribe', voiceUpload.single('audio'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'No audio file' });
+        if (!process.env.OPENAI_API_KEY) return res.status(500).json({ error: 'OpenAI API key not configured' });
+
+        const tempPath = path.join(os.tmpdir(), `voice_${Date.now()}.webm`);
+        fs.writeFileSync(tempPath, req.file.buffer);
+
+        const transcription = await openaiClient.audio.transcriptions.create({
+            model: 'whisper-1',
+            file: fs.createReadStream(tempPath),
+            language: undefined, // auto-detect Hindi/English
+        });
+
+        fs.unlinkSync(tempPath);
+        res.json({ text: transcription.text, language: 'auto' });
+    } catch(e) {
+        console.error('Voice transcribe error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Voice TTS - Text to Speech
+app.post('/api/voice/speak', async (req, res) => {
+    try {
+        const { text, language } = req.body;
+        if (!text) return res.status(400).json({ error: 'No text provided' });
+        if (!process.env.OPENAI_API_KEY) return res.status(500).json({ error: 'OpenAI API key not configured' });
+
+        const mp3 = await openaiClient.audio.speech.create({
+            model: 'tts-1',
+            voice: 'nova',
+            input: text,
+            speed: 0.95,
+        });
+
+        const buffer = Buffer.from(await mp3.arrayBuffer());
+        res.set({ 'Content-Type': 'audio/mpeg', 'Content-Length': buffer.length });
+        res.send(buffer);
+    } catch(e) {
+        console.error('Voice speak error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Voice Chat - Guided Complaint Flow (No OpenAI needed - rule-based)
+app.post('/api/voice/chat', async (req, res) => {
+    try {
+        const { message, session } = req.body;
+        if (!message) return res.status(400).json({ error: 'No message' });
+
+        const step = (session && session.step) || 'greeting';
+        const data = (session && session.data) || {};
+        let reply = '';
+        let nextStep = step;
+        let nextData = { ...data };
+        let action = null;
+
+        // Step-by-step guided conversation
+        switch (step) {
+            case 'greeting':
+                reply = 'Namaste! Coral Infratel Support mein aapka swagat hai. Kripya apna STD Code batayein (jaise 0129, 0131).';
+                nextStep = 'ask_std';
+                break;
+
+            case 'ask_std': {
+                const stdCode = message.replace(/[^0-9]/g, '').trim();
+                if (!stdCode || stdCode.length < 2) {
+                    reply = 'Yeh valid STD code nahi hai. Kripya sirf numbers mein STD code batayein (jaise 0129, 0131).';
+                } else {
+                    nextData.std_code = stdCode;
+                    reply = 'STD Code: ' + stdCode + '. Ab apna Telephone Number batayein.';
+                    nextStep = 'ask_phone';
+                }
+                break;
+            }
+
+            case 'ask_phone': {
+                const phone = message.replace(/[^0-9]/g, '').trim();
+                if (!phone || phone.length < 6) {
+                    reply = 'Yeh valid telephone number nahi hai. Kripya sirf numbers mein telephone number batayein.';
+                } else {
+                    nextData.telephone_number = phone;
+                    reply = 'Telephone: ' + phone + '. Aapka account verify kar rahe hain...';
+                    nextStep = 'verify_customer';
+                    action = 'lookup';
+                }
+                break;
+            }
+
+            case 'verify_customer': {
+                // Frontend will call customer lookup API and pass result
+                if (data.customer_found) {
+                    reply = 'Customer: ' + data.customer_name + '. Kya yeh sahi hai? Haan ya Naa bolein.';
+                    nextStep = 'confirm_customer';
+                } else {
+                    reply = 'Is STD Code aur Telephone Number se koi customer nahi mila. Kripya dubara check karein. Apna STD Code batayein.';
+                    nextStep = 'ask_std';
+                    nextData = {};
+                }
+                break;
+            }
+
+            case 'confirm_customer': {
+                const lower = message.toLowerCase().trim();
+                if (lower.includes('haan') || lower.includes('han') || lower.includes('yes') || lower.includes('ha') || lower.includes('ji') || lower === 'y') {
+                    if (data.has_duplicate) {
+                        reply = 'Aapki ek complaint pehle se registered hai - Ticket: ' + data.duplicate_ticket + '. Nayi complaint register nahi ho sakti jab tak purani resolve na ho. Kuch aur madad chahiye?';
+                        nextStep = 'done';
+                    } else {
+                        reply = 'Bahut achha! Ab apna poora naam batayein jo complaint mein likhna hai.';
+                        nextStep = 'ask_name';
+                    }
+                } else {
+                    reply = 'Theek hai, phir se try karte hain. Apna STD Code batayein.';
+                    nextStep = 'ask_std';
+                    nextData = {};
+                }
+                break;
+            }
+
+            case 'ask_name': {
+                if (message.trim().length < 2) {
+                    reply = 'Kripya apna poora naam batayein.';
+                } else {
+                    nextData.complainee_name = message.trim();
+                    reply = 'Naam: ' + message.trim() + '. Ab apna 10-digit Mobile Number batayein.';
+                    nextStep = 'ask_mobile';
+                }
+                break;
+            }
+
+            case 'ask_mobile': {
+                const mobile = message.replace(/[^0-9]/g, '').trim();
+                if (!mobile || mobile.length !== 10) {
+                    reply = 'Kripya 10-digit mobile number batayein (jaise 9876543210).';
+                } else {
+                    nextData.mobile = mobile;
+                    reply = 'Mobile: ' + mobile + '. Ab apni Email ID batayein.';
+                    nextStep = 'ask_email';
+                }
+                break;
+            }
+
+            case 'ask_email': {
+                const email = message.trim().toLowerCase();
+                if (!email.includes('@') || !email.includes('.')) {
+                    reply = 'Yeh valid email nahi lag raha. Kripya sahi email address batayein (jaise name@gmail.com).';
+                } else {
+                    nextData.email = email;
+                    reply = 'Email: ' + email + '. Ab apni samasya batayein - kya issue hai? Detail mein batayen.';
+                    nextStep = 'ask_issue';
+                }
+                break;
+            }
+
+            case 'ask_issue': {
+                if (message.trim().length < 5) {
+                    reply = 'Kripya apni samasya thodi detail mein batayen.';
+                } else {
+                    nextData.description = message.trim();
+                    reply = 'Confirm karein:\n'
+                        + '• Naam: ' + nextData.complainee_name + '\n'
+                        + '• Mobile: ' + nextData.mobile + '\n'
+                        + '• Email: ' + nextData.email + '\n'
+                        + '• Samasya: ' + nextData.description.substring(0, 100) + '\n\n'
+                        + 'Kya complaint submit karein? Haan ya Naa bolein.';
+                    nextStep = 'confirm_submit';
+                }
+                break;
+            }
+
+            case 'confirm_submit': {
+                const lower = message.toLowerCase().trim();
+                if (lower.includes('haan') || lower.includes('han') || lower.includes('yes') || lower.includes('ha') || lower.includes('ji') || lower === 'y') {
+                    reply = 'Complaint submit ho rahi hai...';
+                    nextStep = 'submitting';
+                    action = 'submit';
+                } else {
+                    reply = 'Complaint cancel kar di gayi. Kya aap dubara try karna chahenge? STD Code batayein ya "nahi" bolein.';
+                    nextStep = 'ask_std';
+                    nextData = {};
+                }
+                break;
+            }
+
+            case 'submitted': {
+                reply = 'Aapki complaint register ho gayi hai!\n'
+                    + '• Ticket ID: ' + (data.ticket_id || '') + '\n'
+                    + '• Complaint No: ' + (data.complaint_no || '') + '\n\n'
+                    + 'Aapko Email aur WhatsApp par notification milega. Dhanyavaad!';
+                nextStep = 'done';
+                break;
+            }
+
+            case 'done':
+                reply = 'Dhanyavaad! Kya kuch aur madad chahiye? Nayi complaint ke liye "haan" bolein.';
+                const lower2 = message.toLowerCase().trim();
+                if (lower2.includes('haan') || lower2.includes('han') || lower2.includes('yes') || lower2.includes('ha')) {
+                    nextStep = 'ask_std';
+                    nextData = {};
+                    reply = 'Theek hai! Apna STD Code batayein.';
+                }
+                break;
+
+            default:
+                reply = 'Kuch gadbad ho gayi. Phir se shuru karte hain. Apna STD Code batayein.';
+                nextStep = 'ask_std';
+                nextData = {};
+        }
+
+        res.json({ reply, session: { step: nextStep, data: nextData }, action });
+    } catch(e) {
+        console.error('Voice chat error:', e);
+        res.status(500).json({ error: e.message });
+    }
 });
 
 // Catch-all route to serve the frontend — MUST be LAST
