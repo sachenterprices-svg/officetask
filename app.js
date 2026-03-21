@@ -1242,7 +1242,7 @@ app.get('/api/login-logs', authenticateToken, async (req, res) => {
         res.json({ rows, total });
     } catch (err) {
         console.error('Login logs error:', err);
-        res.status(500).json({ error: 'Failed to fetch login logs' });
+        res.status(500).json({ error: 'Failed to fetch login logs', detail: err.message, code: err.code });
     }
 });
 
