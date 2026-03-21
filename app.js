@@ -235,6 +235,24 @@ async function initializeComplaintsTable() {
                 await pool.query(`ALTER TABLE complaints ADD COLUMN ${col.name} ${col.type}`);
             } catch (e) { /* column already exists */ }
         }
+        // Complaint reassignment tracking table
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS complaint_reassignments (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                from_user_id INT NOT NULL,
+                to_user_id INT NOT NULL,
+                from_name VARCHAR(100),
+                to_name VARCHAR(100),
+                leave_from DATE,
+                leave_to DATE,
+                complaint_ids TEXT,
+                complaint_count INT DEFAULT 0,
+                status ENUM('active','cancelled') DEFAULT 'active',
+                reassigned_by INT,
+                reassigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                cancelled_at TIMESTAMP NULL
+            ) ENGINE=InnoDB
+        `);
         console.log('✅ Complaints table initialized.');
     } catch (err) {
         console.error('⚠️ Could not initialize complaints table:', err.message);
@@ -1952,32 +1970,111 @@ app.put('/api/complaints/:id/verify', authenticateToken, async (req, res) => {
 app.post('/api/complaints/bulk-reassign', authenticateToken, async (req, res) => {
     const currentUser = req.user;
     try {
-        // Only admin or senior (user with subordinates) can do this
         const [[subCnt]] = await pool.query('SELECT COUNT(*) as cnt FROM user_managers WHERE manager_id = ?', [currentUser.id]);
         const isSeniorOrAdmin = currentUser.role === 'admin' || subCnt.cnt > 0;
         if (!isSeniorOrAdmin) return res.status(403).json({ error: 'Only admin or senior engineer can reassign complaints.' });
 
-        const { from_id, to_id } = req.body;
+        const { from_id, to_id, leave_from, leave_to } = req.body;
         if (!from_id || !to_id) return res.status(400).json({ error: 'from_id and to_id are required.' });
         if (String(from_id) === String(to_id)) return res.status(400).json({ error: 'From and To engineer cannot be the same.' });
 
+        // Get names
+        const [[fromUser]] = await pool.query('SELECT name FROM users WHERE id = ?', [from_id]);
+        const [[toUser]] = await pool.query('SELECT name FROM users WHERE id = ?', [to_id]);
+
+        // Get complaint IDs before reassign (for tracking)
+        const [affectedComplaints] = await pool.query(
+            `SELECT id FROM complaints WHERE assigned_to = ? AND status NOT IN ('Resolved', 'Cancelled')`,
+            [from_id]
+        );
+        const complaintIds = affectedComplaints.map(c => c.id);
+
         // Reassign only active (non-resolved/non-cancelled) complaints
         const [result] = await pool.query(
-            `UPDATE complaints
-             SET assigned_to = ?
-             WHERE assigned_to = ?
-               AND status NOT IN ('Resolved', 'Cancelled')`,
+            `UPDATE complaints SET assigned_to = ? WHERE assigned_to = ? AND status NOT IN ('Resolved', 'Cancelled')`,
             [to_id, from_id]
         );
         const count = result.affectedRows;
+
+        // Track reassignment history
+        if (count > 0) {
+            await pool.query(
+                `INSERT INTO complaint_reassignments (from_user_id, to_user_id, from_name, to_name, leave_from, leave_to, complaint_ids, complaint_count, reassigned_by)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [from_id, to_id, fromUser?.name || '', toUser?.name || '', leave_from || null, leave_to || null, JSON.stringify(complaintIds), count, currentUser.id]
+            );
+        }
+
         res.json({
             success: true,
             reassigned: count,
-            message: `${count} active complaint(s) reassigned successfully.`
+            message: `${count} active complaint(s) reassigned from ${fromUser?.name} to ${toUser?.name}.`
         });
     } catch (err) {
         console.error('Bulk reassign error:', err);
         res.status(500).json({ error: 'Bulk reassign failed: ' + err.message });
+    }
+});
+
+// GET active reassignments list
+app.get('/api/complaints/reassignments', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            const [[subCnt]] = await pool.query('SELECT COUNT(*) as cnt FROM user_managers WHERE manager_id = ?', [req.user.id]);
+            if (subCnt.cnt === 0) return res.status(403).json({ error: 'Unauthorized' });
+        }
+        const [rows] = await pool.query(
+            `SELECT r.*, rb.name as reassigned_by_name
+             FROM complaint_reassignments r
+             LEFT JOIN users rb ON r.reassigned_by = rb.id
+             ORDER BY r.reassigned_at DESC LIMIT 50`
+        );
+        res.json(rows);
+    } catch (err) {
+        console.error('Get reassignments error:', err);
+        res.status(500).json({ error: 'Failed to fetch reassignments' });
+    }
+});
+
+// Cancel/Revert a reassignment — move complaints back to original engineer
+app.post('/api/complaints/cancel-reassignment', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            const [[subCnt]] = await pool.query('SELECT COUNT(*) as cnt FROM user_managers WHERE manager_id = ?', [req.user.id]);
+            if (subCnt.cnt === 0) return res.status(403).json({ error: 'Unauthorized' });
+        }
+        const { reassignment_id } = req.body;
+        if (!reassignment_id) return res.status(400).json({ error: 'reassignment_id required' });
+
+        // Get reassignment record
+        const [[record]] = await pool.query('SELECT * FROM complaint_reassignments WHERE id = ? AND status = "active"', [reassignment_id]);
+        if (!record) return res.status(404).json({ error: 'Active reassignment not found' });
+
+        const complaintIds = JSON.parse(record.complaint_ids || '[]');
+        if (complaintIds.length === 0) return res.status(400).json({ error: 'No complaints to revert' });
+
+        // Revert: move complaints back — only those still assigned to to_user and still active
+        const placeholders = complaintIds.map(() => '?').join(',');
+        const [result] = await pool.query(
+            `UPDATE complaints SET assigned_to = ?
+             WHERE id IN (${placeholders}) AND assigned_to = ? AND status NOT IN ('Resolved', 'Cancelled')`,
+            [record.from_user_id, ...complaintIds, record.to_user_id]
+        );
+
+        // Mark reassignment as cancelled
+        await pool.query(
+            'UPDATE complaint_reassignments SET status = "cancelled", cancelled_at = NOW() WHERE id = ?',
+            [reassignment_id]
+        );
+
+        res.json({
+            success: true,
+            reverted: result.affectedRows,
+            message: `${result.affectedRows} complaint(s) reverted back to ${record.from_name}.`
+        });
+    } catch (err) {
+        console.error('Cancel reassignment error:', err);
+        res.status(500).json({ error: 'Cancel failed: ' + err.message });
     }
 });
 
