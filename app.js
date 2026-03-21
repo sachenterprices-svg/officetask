@@ -3755,6 +3755,311 @@ app.get('/api/dashboard/v2-stats', authenticateToken, async (req, res) => {
     }
 });
 
+// ═══ MODULE DASHBOARD STATS (for dashboard graph boxes) ═══
+
+// --- Work Log Pro Dashboard Stats ---
+app.get('/api/diary/dashboard-stats', authenticateToken, async (req, res) => {
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        const isAdmin = req.user.role === 'admin';
+        let userFilter = '';
+        let userParams = [];
+
+        if (!isAdmin) {
+            // Own + subordinates (users who report to this user)
+            const [subs] = await pool.query(
+                'SELECT user_id FROM user_managers WHERE manager_id = ?', [req.user.id]
+            );
+            const subIds = subs.map(s => s.user_id);
+            const allIds = [req.user.id, ...subIds];
+            userFilter = 'WHERE dt.user_id IN (' + allIds.map(() => '?').join(',') + ')';
+            userParams = allIds;
+        }
+
+        // User-wise pending/completed/overdue
+        const [userStats] = await pool.query(
+            `SELECT u.name, dt.user_id,
+                SUM(CASE WHEN dt.status IN ('Pending','In Progress') THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN dt.status = 'Completed' THEN 1 ELSE 0 END) as completed,
+                SUM(CASE WHEN dt.status IN ('Pending','In Progress') AND dt.due_date < ? THEN 1 ELSE 0 END) as overdue
+             FROM diary_tasks dt
+             LEFT JOIN users u ON dt.user_id = u.id
+             ${userFilter}
+             GROUP BY dt.user_id, u.name
+             ORDER BY pending DESC`,
+            [today, ...userParams]
+        );
+
+        // 30-day completion trend
+        const [trend30] = await pool.query(
+            `SELECT DATE(dt.due_date) as date,
+                SUM(CASE WHEN dt.status = 'Completed' THEN 1 ELSE 0 END) as completed,
+                COUNT(*) as total
+             FROM diary_tasks dt
+             ${userFilter ? userFilter + ' AND' : 'WHERE'} dt.due_date >= DATE_SUB(?, INTERVAL 30 DAY) AND dt.due_date <= ?
+             GROUP BY DATE(dt.due_date) ORDER BY date`,
+            [...userParams, today, today]
+        );
+
+        res.json({ userStats, trend30 });
+    } catch(e) {
+        console.error('Diary dashboard stats error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- Work Log Pro Drill-down ---
+app.get('/api/diary/dashboard-drilldown', authenticateToken, async (req, res) => {
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        const { user_id, category } = req.query;
+
+        if (!user_id) return res.status(400).json({ error: 'user_id required' });
+
+        // Level 3: specific category tasks for a user
+        if (category) {
+            const [tasks] = await pool.query(
+                `SELECT id, title, status, priority, task_type, category, due_date,
+                    CASE WHEN status IN ('Pending','In Progress') AND due_date < ? THEN 1 ELSE 0 END as is_overdue
+                 FROM diary_tasks WHERE user_id = ? AND category = ?
+                 ORDER BY FIELD(status,'In Progress','Pending','Rescheduled','Completed','Closed','Cancelled'), due_date ASC`,
+                [today, user_id, category]
+            );
+            return res.json({ level: 3, tasks });
+        }
+
+        // Level 2: category-wise breakdown for a user
+        const [categories] = await pool.query(
+            `SELECT category,
+                COUNT(*) as total,
+                SUM(CASE WHEN status IN ('Pending','In Progress') THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) as completed,
+                SUM(CASE WHEN status IN ('Pending','In Progress') AND due_date < ? THEN 1 ELSE 0 END) as overdue
+             FROM diary_tasks WHERE user_id = ?
+             GROUP BY category ORDER BY pending DESC`,
+            [today, user_id]
+        );
+        const [[userInfo]] = await pool.query('SELECT name FROM users WHERE id = ?', [user_id]);
+        res.json({ level: 2, userName: userInfo ? userInfo.name : 'Unknown', categories });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- New Business Drill-down ---
+app.get('/api/proposals/dashboard-drilldown', authenticateToken, async (req, res) => {
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        const { user_id, head } = req.query;
+
+        if (!user_id) return res.status(400).json({ error: 'user_id required' });
+
+        // Level 3: specific head's proposals
+        if (head) {
+            let statusFilter = '';
+            if (head === 'overdue_followup') statusFilter = `AND p.next_followup_date IS NOT NULL AND p.next_followup_date < '${today}'`;
+            else if (head === 'upcoming_followup') statusFilter = `AND p.next_followup_date IS NOT NULL AND p.next_followup_date >= '${today}'`;
+            else if (head === 'direct_sale') statusFilter = 'AND p.direct_sale = 1';
+
+            const [proposals] = await pool.query(
+                `SELECT p.id, p.customer_name, p.customer_category, p.next_followup_date, p.direct_sale, p.created_at,
+                    CASE WHEN p.next_followup_date IS NOT NULL AND p.next_followup_date < ? THEN 1 ELSE 0 END as is_overdue
+                 FROM proposals p WHERE p.user_id = ? ${statusFilter}
+                 ORDER BY p.created_at DESC`,
+                [today, user_id]
+            );
+            return res.json({ level: 3, proposals });
+        }
+
+        // Level 2: head-wise breakdown for a user
+        const [[stats]] = await pool.query(
+            `SELECT COUNT(*) as total,
+                SUM(CASE WHEN next_followup_date IS NOT NULL AND next_followup_date >= ? THEN 1 ELSE 0 END) as upcoming_followup,
+                SUM(CASE WHEN next_followup_date IS NOT NULL AND next_followup_date < ? THEN 1 ELSE 0 END) as overdue_followup,
+                SUM(CASE WHEN direct_sale = 1 THEN 1 ELSE 0 END) as direct_sale
+             FROM proposals WHERE user_id = ?`,
+            [today, today, user_id]
+        );
+        const [[userInfo]] = await pool.query('SELECT name FROM users WHERE id = ?', [user_id]);
+        res.json({ level: 2, userName: userInfo ? userInfo.name : 'Unknown', heads: [
+            { name: 'Total Proposals', key: 'all', count: stats.total },
+            { name: 'Upcoming Followups', key: 'upcoming_followup', count: stats.upcoming_followup },
+            { name: 'Overdue Followups', key: 'overdue_followup', count: stats.overdue_followup },
+            { name: 'Direct Sales', key: 'direct_sale', count: stats.direct_sale }
+        ]});
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- BSNL ERP Drill-down ---
+app.get('/api/erp/dashboard-drilldown', authenticateToken, async (req, res) => {
+    try {
+        const { user_id, head } = req.query;
+
+        if (!user_id) return res.status(400).json({ error: 'user_id required' });
+
+        // Level 3: specific head's bill tasks
+        if (head) {
+            const [bills] = await pool.query(
+                `SELECT bt.id, bt.bsnl_bill_no, bt.customer_name, bt.customer_ph_no, bt.bill_for_month,
+                    bt.total_bill, bt.total_charges, bt.claim_no, bt.created_at
+                 FROM bill_tasks bt WHERE bt.created_by = ?
+                 ORDER BY bt.created_at DESC LIMIT 50`,
+                [user_id]
+            );
+            return res.json({ level: 3, bills });
+        }
+
+        // Level 2: summary breakdown for a user
+        const [[stats]] = await pool.query(
+            `SELECT COUNT(*) as total_bills,
+                SUM(total_bill) as total_amount,
+                SUM(total_charges) as total_claims,
+                COUNT(DISTINCT bill_for_month) as months_covered
+             FROM bill_tasks WHERE created_by = ?`,
+            [user_id]
+        );
+        const [[userInfo]] = await pool.query('SELECT name FROM users WHERE id = ?', [user_id]);
+        res.json({ level: 2, userName: userInfo ? userInfo.name : 'Unknown', heads: [
+            { name: 'Total Bills', key: 'bills', count: stats.total_bills },
+            { name: 'Total Amount', key: 'amount', count: '₹' + Math.round(stats.total_amount || 0).toLocaleString() },
+            { name: 'Total Claims', key: 'claims', count: '₹' + Math.round(stats.total_claims || 0).toLocaleString() },
+            { name: 'Months Covered', key: 'months', count: stats.months_covered }
+        ]});
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- Complaints Drill-down ---
+app.get('/api/complaints/dashboard-drilldown', authenticateToken, async (req, res) => {
+    try {
+        const { user_id, head } = req.query;
+
+        if (!user_id) return res.status(400).json({ error: 'user_id required' });
+
+        // Level 3: specific status complaints
+        if (head) {
+            let statusFilter = '';
+            if (head === 'active') statusFilter = "AND c.status IN ('Pending','In Progress')";
+            else if (head === 'resolved') statusFilter = "AND c.status = 'Resolved'";
+            else if (head === 'escalated') statusFilter = "AND c.status = 'Escalated'";
+
+            const [complaints] = await pool.query(
+                `SELECT c.id, c.complaint_no, c.customer_name, c.status, c.priority, c.circle, c.oa_name, c.created_at
+                 FROM complaints c WHERE c.assigned_to = ? ${statusFilter}
+                 ORDER BY c.created_at DESC LIMIT 50`,
+                [user_id]
+            );
+            return res.json({ level: 3, complaints });
+        }
+
+        // Level 2: status-wise breakdown for a user
+        const [statuses] = await pool.query(
+            `SELECT status, COUNT(*) as count FROM complaints WHERE assigned_to = ? GROUP BY status`,
+            [user_id]
+        );
+        const [[userInfo]] = await pool.query('SELECT name FROM users WHERE id = ?', [user_id]);
+        const statusMap = {};
+        statuses.forEach(s => { statusMap[s.status] = s.count; });
+        res.json({ level: 2, userName: userInfo ? userInfo.name : 'Unknown', heads: [
+            { name: 'Active', key: 'active', count: (statusMap['Pending'] || 0) + (statusMap['In Progress'] || 0) },
+            { name: 'Resolved', key: 'resolved', count: statusMap['Resolved'] || 0 },
+            { name: 'Escalated', key: 'escalated', count: statusMap['Escalated'] || 0 },
+            { name: 'Closed', key: 'closed', count: statusMap['Closed'] || 0 }
+        ]});
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- New Business Dashboard Stats ---
+app.get('/api/proposals/dashboard-stats', authenticateToken, async (req, res) => {
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        const isAdmin = req.user.role === 'admin';
+
+        let userFilter = '';
+        let userParams = [];
+        if (!isAdmin) {
+            userFilter = 'WHERE p.user_id = ?';
+            userParams = [req.user.id];
+        }
+
+        // User-wise proposal stats
+        const [userStats] = await pool.query(
+            `SELECT u.name, p.user_id,
+                COUNT(*) as total,
+                SUM(CASE WHEN p.next_followup_date IS NOT NULL AND p.next_followup_date >= ? THEN 1 ELSE 0 END) as upcoming_followup,
+                SUM(CASE WHEN p.next_followup_date IS NOT NULL AND p.next_followup_date < ? THEN 1 ELSE 0 END) as overdue_followup,
+                SUM(CASE WHEN p.direct_sale = 1 THEN 1 ELSE 0 END) as direct_sales
+             FROM proposals p
+             LEFT JOIN users u ON p.user_id = u.id
+             ${userFilter}
+             GROUP BY p.user_id, u.name
+             ORDER BY total DESC`,
+            [today, today, ...userParams]
+        );
+
+        // Overall counts
+        const [[totals]] = await pool.query(
+            `SELECT COUNT(*) as total,
+                SUM(CASE WHEN p.direct_sale = 1 THEN 1 ELSE 0 END) as direct_sales,
+                SUM(CASE WHEN p.next_followup_date IS NOT NULL AND p.next_followup_date < ? THEN 1 ELSE 0 END) as overdue_followups
+             FROM proposals p ${userFilter}`,
+            [today, ...userParams]
+        );
+
+        res.json({ userStats, totals });
+    } catch(e) {
+        console.error('Proposals dashboard stats error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- BSNL ERP Dashboard Stats ---
+app.get('/api/erp/dashboard-stats', authenticateToken, async (req, res) => {
+    try {
+        const isAdmin = req.user.role === 'admin';
+
+        let userFilter = '';
+        let userParams = [];
+        if (!isAdmin) {
+            userFilter = 'WHERE bt.created_by = ?';
+            userParams = [req.user.id];
+        }
+
+        // User-wise bill task stats
+        const [userStats] = await pool.query(
+            `SELECT u.name, bt.created_by as user_id,
+                COUNT(*) as total_bills,
+                SUM(bt.total_bill) as total_amount,
+                SUM(bt.total_charges) as total_claims
+             FROM bill_tasks bt
+             LEFT JOIN users u ON bt.created_by = u.id
+             ${userFilter}
+             GROUP BY bt.created_by, u.name
+             ORDER BY total_bills DESC`,
+            userParams
+        );
+
+        // Overall summary
+        const [[totals]] = await pool.query(
+            `SELECT COUNT(*) as total_bills,
+                SUM(total_bill) as total_amount,
+                SUM(total_charges) as total_claims
+             FROM bill_tasks bt ${userFilter}`,
+            userParams
+        );
+
+        res.json({ userStats, totals });
+    } catch(e) {
+        console.error('ERP dashboard stats error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // --- WEBSITE ANALYTICS ROUTES ---
 // Public endpoint for tracking
 app.post('/api/analytics/track', async (req, res) => {
