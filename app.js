@@ -1175,14 +1175,16 @@ app.post('/api/login', async (req, res) => {
                 if (cleanIP && cleanIP !== '127.0.0.1' && cleanIP !== '::1') {
                     const controller = new AbortController();
                     const timeout = setTimeout(() => controller.abort(), 5000);
-                    const geoRes = await fetch('https://ipapi.co/' + cleanIP + '/json/', { signal: controller.signal });
+                    const geoRes = await fetch('http://ip-api.com/json/' + cleanIP + '?fields=city,regionName,country,isp,status', { signal: controller.signal });
                     clearTimeout(timeout);
                     if (geoRes.ok) {
                         const geo = await geoRes.json();
-                        city = geo.city || '';
-                        region = geo.region || '';
-                        country = geo.country_name || '';
-                        isp = geo.org || '';
+                        if (geo.status === 'success') {
+                            city = geo.city || '';
+                            region = geo.regionName || '';
+                            country = geo.country || '';
+                            isp = geo.isp || '';
+                        }
                     }
                 }
             } catch (geoErr) {
