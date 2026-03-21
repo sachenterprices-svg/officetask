@@ -4040,42 +4040,55 @@ app.get('/api/proposals/dashboard-stats', authenticateToken, async (req, res) =>
     }
 });
 
-// --- BSNL ERP Dashboard Stats ---
+// --- BSNL ERP Dashboard Stats (Pending Products/Lines by Circle) ---
 app.get('/api/erp/dashboard-stats', authenticateToken, async (req, res) => {
     try {
         const isAdmin = req.user.role === 'admin';
+        let whereClause = 'WHERE 1=1';
+        let params = [];
 
-        let userFilter = '';
-        let userParams = [];
         if (!isAdmin) {
-            userFilter = 'WHERE bt.created_by = ?';
-            userParams = [req.user.id];
+            const [userData] = await pool.query('SELECT allowed_circles, allowed_oas FROM users WHERE id = ?', [req.user.id]);
+            const u = userData[0];
+            const parseArr = v => { try { const a = JSON.parse(v); return Array.isArray(a) ? a.filter(Boolean) : []; } catch(e) { return []; } };
+            const circles = parseArr(u.allowed_circles);
+            const oas = parseArr(u.allowed_oas);
+            if (circles.length > 0) {
+                whereClause += ` AND c.circle IN (${circles.map(() => '?').join(',')})`;
+                params.push(...circles);
+            }
+            if (oas.length > 0) {
+                whereClause += ` AND c.oa_name IN (${oas.map(() => '?').join(',')})`;
+                params.push(...oas);
+            }
         }
 
-        // User-wise bill task stats
-        const [userStats] = await pool.query(
-            `SELECT u.name, bt.created_by as user_id,
-                COUNT(*) as total_bills,
-                SUM(bt.total_bill) as total_amount,
-                SUM(bt.total_charges) as total_claims
-             FROM bill_tasks bt
-             LEFT JOIN users u ON bt.created_by = u.id
-             ${userFilter}
-             GROUP BY bt.created_by, u.name
-             ORDER BY total_bills DESC`,
-            userParams
+        // Circle-wise pending products
+        const [circleStats] = await pool.query(
+            `SELECT c.circle as name, c.circle as circle_id,
+                COUNT(*) as total_customers,
+                SUM(CASE WHEN (SELECT COUNT(*) FROM customer_orders WHERE customer_id = c.id) = 0
+                    OR c.product_plan IS NULL OR c.product_plan = '' THEN 1 ELSE 0 END) as pending_products,
+                SUM(CASE WHEN (SELECT COUNT(*) FROM customer_lines WHERE customer_id = c.id) = 0 THEN 1 ELSE 0 END) as pending_lines
+             FROM customers c
+             ${whereClause}
+             GROUP BY c.circle
+             HAVING pending_products > 0 OR pending_lines > 0
+             ORDER BY pending_products DESC`,
+            params
         );
 
-        // Overall summary
+        // Overall totals
         const [[totals]] = await pool.query(
-            `SELECT COUNT(*) as total_bills,
-                SUM(total_bill) as total_amount,
-                SUM(total_charges) as total_claims
-             FROM bill_tasks bt ${userFilter}`,
-            userParams
+            `SELECT COUNT(*) as total_customers,
+                SUM(CASE WHEN (SELECT COUNT(*) FROM customer_orders WHERE customer_id = c.id) = 0
+                    OR c.product_plan IS NULL OR c.product_plan = '' THEN 1 ELSE 0 END) as pending_products,
+                SUM(CASE WHEN (SELECT COUNT(*) FROM customer_lines WHERE customer_id = c.id) = 0 THEN 1 ELSE 0 END) as pending_lines
+             FROM customers c ${whereClause}`,
+            params
         );
 
-        res.json({ userStats, totals });
+        res.json({ userStats: circleStats, totals });
     } catch(e) {
         console.error('ERP dashboard stats error:', e);
         res.status(500).json({ error: e.message });
