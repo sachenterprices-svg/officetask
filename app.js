@@ -141,7 +141,9 @@ async function upgradeUsersTable() {
             { name: 'allowed_circles', type: 'TEXT' },   // JSON array of circle names (multi-select, for engineers)
             { name: 'allowed_oas', type: 'TEXT' },       // JSON array of OA names (multi-select, for engineers)
             { name: 'view_circles', type: 'TEXT' },      // JSON array of circle names (for view purpose)
-            { name: 'view_oas', type: 'TEXT' }           // JSON array of OA names (for view purpose)
+            { name: 'view_oas', type: 'TEXT' },          // JSON array of OA names (for view purpose)
+            { name: 'purpose_technical', type: 'BOOLEAN DEFAULT FALSE' },  // Technical purpose (complaints, fault mgmt)
+            { name: 'purpose_clerical', type: 'BOOLEAN DEFAULT FALSE' }    // Clerical purpose (billing, customer data)
         ];
 
         for (const col of columns) {
@@ -1248,7 +1250,9 @@ app.post('/api/login', async (req, res) => {
             allowed_oas: allowed_oas,
             allowed_circle: user.allowed_circle,
             allowed_oa: user.allowed_oa,
-            backdate_rights: user.backdate_rights
+            backdate_rights: user.backdate_rights,
+            purpose_technical: !!user.purpose_technical,
+            purpose_clerical: !!user.purpose_clerical
         }});
     } catch (error) {
         console.error('Login error:', error);
@@ -1442,11 +1446,11 @@ app.post('/api/users', authenticateToken, isAdmin, async (req, res) => {
 });
 
 app.put('/api/users/:id', authenticateToken, isAdmin, async (req, res) => {
-    const { role, name, mobile, email, permissions, reports_to, manager_ids, department, work_types, allowed_circles, allowed_oas, view_circles, view_oas, allowed_customers } = req.body;
+    const { role, name, mobile, email, permissions, reports_to, manager_ids, department, work_types, allowed_circles, allowed_oas, view_circles, view_oas, allowed_customers, purpose_technical, purpose_clerical } = req.body;
     try {
         await pool.query(
-            'UPDATE users SET role=?, name=?, mobile=?, email=?, permissions=?, reports_to=?, backdate_rights=?, department=?, work_types=?, allowed_circles=?, allowed_oas=?, view_circles=?, view_oas=?, allowed_customers=? WHERE id=?',
-            [role, name || null, mobile || null, email || null, JSON.stringify(permissions || []), reports_to || null, req.body.backdate_rights || false, department || 'Technical', JSON.stringify(work_types || []), JSON.stringify(allowed_circles || []), JSON.stringify(allowed_oas || []), JSON.stringify(view_circles || []), JSON.stringify(view_oas || []), allowed_customers || null, req.params.id]
+            'UPDATE users SET role=?, name=?, mobile=?, email=?, permissions=?, reports_to=?, backdate_rights=?, department=?, work_types=?, allowed_circles=?, allowed_oas=?, view_circles=?, view_oas=?, allowed_customers=?, purpose_technical=?, purpose_clerical=? WHERE id=?',
+            [role, name || null, mobile || null, email || null, JSON.stringify(permissions || []), reports_to || null, req.body.backdate_rights || false, department || 'Technical', JSON.stringify(work_types || []), JSON.stringify(allowed_circles || []), JSON.stringify(allowed_oas || []), JSON.stringify(view_circles || []), JSON.stringify(view_oas || []), allowed_customers || null, purpose_technical ? 1 : 0, purpose_clerical ? 1 : 0, req.params.id]
         );
         // Update multiple managers in user_managers table
         const userId = parseInt(req.params.id);
