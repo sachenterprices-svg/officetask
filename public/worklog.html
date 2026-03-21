@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <script src="auth.js"></script>
     <script src="shield.js"></script>
     <style>
@@ -117,6 +118,8 @@
                     <button class="view-tab" data-view="kanban" onclick="switchView('kanban',this)">📊 Kanban</button>
                     <button class="view-tab" data-view="analytics" onclick="switchView('analytics',this)">📈 Analytics</button>
                     <button class="view-tab" data-view="daily" onclick="switchView('daily',this)">📝 Work Log Pro</button>
+                    <button class="view-tab admin-only-tab" data-view="bulkupload" onclick="switchView('bulkupload',this)" style="display:none;">📤 Bulk Upload</button>
+                    <button class="view-tab admin-only-tab" data-view="consolidated" onclick="switchView('consolidated',this)" style="display:none;">📊 Team Report</button>
                 </div>
             </div>
             <div class="wl-filters">
@@ -143,6 +146,114 @@
         </div>
         <div id="dailyView" style="display:none;">
             <iframe id="dailyFrame" src="about:blank" style="width:100%;border:none;border-radius:14px;background:#fff;min-height:700px;height:700px;"></iframe>
+        </div>
+
+        <!-- ═══ BULK UPLOAD TAB (Admin Only) ═══ -->
+        <div id="bulkUploadView" style="display:none;">
+            <div style="background:#fff;border-radius:14px;padding:24px 28px;box-shadow:0 2px 10px rgba(0,0,0,.06);border:1px solid #e8ecf1;margin-bottom:20px;">
+                <h3 style="font-size:1.05rem;font-weight:800;color:#1e293b;margin:0 0 18px;">📤 Excel Bulk Upload — Import Tasks</h3>
+                <div class="wl-form-grid">
+                    <div>
+                        <label>Target User *</label>
+                        <select id="bulkUser" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;font-family:Inter,sans-serif;">
+                            <option value="">-- Select User --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Mode *</label>
+                        <div style="display:flex;gap:16px;align-items:center;padding:8px 0;">
+                            <label style="font-size:.85rem;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:4px;">
+                                <input type="radio" name="bulkMode" value="onetime" checked> One-time Tasks
+                            </label>
+                            <label style="font-size:.85rem;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:4px;">
+                                <input type="radio" name="bulkMode" value="recurring"> Recurring Tasks
+                            </label>
+                        </div>
+                    </div>
+                    <div>
+                        <label>Excel File (.xlsx) *</label>
+                        <input type="file" id="bulkFile" accept=".xlsx,.xls" style="width:100%;padding:6px;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;font-family:Inter,sans-serif;" onchange="previewExcel()">
+                    </div>
+                    <div style="display:flex;align-items:flex-end;">
+                        <button class="wl-btn wl-btn-primary" onclick="uploadBulk()" id="bulkUploadBtn" disabled>Upload Tasks</button>
+                    </div>
+                </div>
+                <div id="bulkMsg" style="margin-top:12px;font-size:.85rem;font-weight:600;display:none;"></div>
+            </div>
+            <!-- Preview Table -->
+            <div id="bulkPreview" style="display:none;background:#fff;border-radius:14px;padding:20px 24px;box-shadow:0 2px 10px rgba(0,0,0,.06);border:1px solid #e8ecf1;">
+                <h4 style="font-size:.92rem;font-weight:700;color:#1e293b;margin:0 0 12px;">Preview — <span id="bulkPreviewCount">0</span> tasks detected</h4>
+                <div style="overflow-x:auto;">
+                    <table style="width:100%;border-collapse:collapse;font-size:.82rem;" class="analytics-table">
+                        <thead>
+                            <tr style="background:#f8fafc;text-align:left;">
+                                <th style="padding:8px 12px;font-weight:700;color:#475569;border-bottom:2px solid #e2e8f0;">#</th>
+                                <th style="padding:8px 12px;font-weight:700;color:#475569;border-bottom:2px solid #e2e8f0;">Task Title</th>
+                                <th style="padding:8px 12px;font-weight:700;color:#475569;border-bottom:2px solid #e2e8f0;">Department</th>
+                                <th style="padding:8px 12px;font-weight:700;color:#475569;border-bottom:2px solid #e2e8f0;">Frequency</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bulkPreviewBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══ CONSOLIDATED REPORT TAB (Admin Only) ═══ -->
+        <div id="consolidatedView" style="display:none;">
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">
+                <select id="crUser" onchange="loadConsolidated()" style="padding:7px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.82rem;font-family:Inter,sans-serif;background:#fff;">
+                    <option value="">All Users</option>
+                </select>
+                <input type="date" id="crFrom" onchange="loadConsolidated()" style="padding:7px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.82rem;font-family:Inter,sans-serif;">
+                <input type="date" id="crTo" onchange="loadConsolidated()" style="padding:7px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.82rem;font-family:Inter,sans-serif;">
+                <input type="text" id="crSearch" placeholder="Search tasks..." onkeyup="debounceConsolidated()" style="padding:7px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.82rem;width:180px;font-family:Inter,sans-serif;">
+                <button class="wl-btn wl-btn-ghost wl-btn-sm" onclick="resetConsolidatedFilters()">Reset Filters</button>
+            </div>
+            <!-- Summary Cards -->
+            <div class="wl-stats" id="crSummary"></div>
+            <!-- User-wise Table -->
+            <div style="background:#fff;border-radius:14px;padding:20px 24px;box-shadow:0 2px 10px rgba(0,0,0,.06);border:1px solid #e8ecf1;">
+                <h4 style="font-size:.92rem;font-weight:700;color:#1e293b;margin:0 0 12px;">User-wise Task Summary</h4>
+                <div style="overflow-x:auto;">
+                    <table style="width:100%;border-collapse:collapse;font-size:.82rem;">
+                        <thead>
+                            <tr style="background:#f8fafc;text-align:left;">
+                                <th style="padding:8px 12px;font-weight:700;color:#475569;border-bottom:2px solid #e2e8f0;">User</th>
+                                <th style="padding:8px 12px;font-weight:700;color:#475569;border-bottom:2px solid #e2e8f0;">Total</th>
+                                <th style="padding:8px 12px;font-weight:700;color:#475569;border-bottom:2px solid #e2e8f0;">Pending</th>
+                                <th style="padding:8px 12px;font-weight:700;color:#475569;border-bottom:2px solid #e2e8f0;">Overdue</th>
+                                <th style="padding:8px 12px;font-weight:700;color:#475569;border-bottom:2px solid #e2e8f0;">Completed</th>
+                                <th style="padding:8px 12px;font-weight:700;color:#475569;border-bottom:2px solid #e2e8f0;">Completion %</th>
+                                <th style="padding:8px 12px;font-weight:700;color:#475569;border-bottom:2px solid #e2e8f0;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="crUserTable"></tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- Expanded user tasks detail -->
+            <div id="crDetail" style="display:none;margin-top:16px;background:#fff;border-radius:14px;padding:20px 24px;box-shadow:0 2px 10px rgba(0,0,0,.06);border:1px solid #e8ecf1;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <h4 style="font-size:.92rem;font-weight:700;color:#1e293b;margin:0;" id="crDetailTitle">Tasks</h4>
+                    <button class="wl-btn wl-btn-ghost wl-btn-sm" onclick="document.getElementById('crDetail').style.display='none';">&times; Close</button>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table style="width:100%;border-collapse:collapse;font-size:.82rem;">
+                        <thead>
+                            <tr style="background:#f8fafc;text-align:left;">
+                                <th style="padding:6px 10px;font-weight:700;color:#475569;border-bottom:1px solid #e2e8f0;">Title</th>
+                                <th style="padding:6px 10px;font-weight:700;color:#475569;border-bottom:1px solid #e2e8f0;">Category</th>
+                                <th style="padding:6px 10px;font-weight:700;color:#475569;border-bottom:1px solid #e2e8f0;">Priority</th>
+                                <th style="padding:6px 10px;font-weight:700;color:#475569;border-bottom:1px solid #e2e8f0;">Due Date</th>
+                                <th style="padding:6px 10px;font-weight:700;color:#475569;border-bottom:1px solid #e2e8f0;">Status</th>
+                                <th style="padding:6px 10px;font-weight:700;color:#475569;border-bottom:1px solid #e2e8f0;">Source</th>
+                            </tr>
+                        </thead>
+                        <tbody id="crDetailBody"></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </main>
 </div>
@@ -233,6 +344,12 @@ document.addEventListener('DOMContentLoaded', async function() {
     document.getElementById('fStartDate').value = today;
     document.getElementById('fDueDate').value = today;
 
+    // Show admin-only tabs
+    if (user.role === 'admin') {
+        document.querySelectorAll('.admin-only-tab').forEach(function(el) { el.style.display = ''; });
+        loadUserDropdowns();
+    }
+
     // Check pending previous day tasks
     await checkPendingResolution();
 
@@ -240,6 +357,19 @@ document.addEventListener('DOMContentLoaded', async function() {
     await loadTasks();
     await loadStats();
 });
+
+// ═══ LOAD USER DROPDOWNS (admin) ═══
+async function loadUserDropdowns() {
+    try {
+        var res = await window.apiFetch('/api/users/list');
+        var users = await res.json();
+        var opts = '<option value="">-- Select User --</option>' + users.map(function(u) { return '<option value="' + u.id + '">' + esc(u.name || u.username) + '</option>'; }).join('');
+        var bulkSel = document.getElementById('bulkUser');
+        if (bulkSel) bulkSel.innerHTML = opts;
+        var crSel = document.getElementById('crUser');
+        if (crSel) crSel.innerHTML = '<option value="">All Users</option>' + users.map(function(u) { return '<option value="' + u.id + '">' + esc(u.name || u.username) + '</option>'; }).join('');
+    } catch(e) { console.error('Load users error:', e); }
+}
 
 // ═══ PENDING RESOLUTION CHECK ═══
 async function checkPendingResolution() {
@@ -318,14 +448,18 @@ function switchView(view, btn) {
     currentView = view;
     document.querySelectorAll('.view-tab').forEach(function(t) { t.classList.remove('active'); });
     if (btn) btn.classList.add('active');
+    var hideToolbar = (view === 'daily' || view === 'bulkupload' || view === 'consolidated');
     document.getElementById('listView').style.display = view === 'list' ? 'flex' : 'none';
     document.getElementById('kanbanView').style.display = view === 'kanban' ? 'grid' : 'none';
     document.getElementById('analyticsView').style.display = view === 'analytics' ? 'block' : 'none';
     document.getElementById('dailyView').style.display = view === 'daily' ? 'block' : 'none';
-    // Show/hide diary toolbar elements when Work Log Pro is active
-    document.querySelector('.wl-filters').style.display = view === 'daily' ? 'none' : 'flex';
-    document.querySelector('.wl-toolbar .wl-btn-primary').style.display = view === 'daily' ? 'none' : '';
-    document.getElementById('statsRow').style.display = view === 'daily' ? 'none' : 'grid';
+    document.getElementById('bulkUploadView').style.display = view === 'bulkupload' ? 'block' : 'none';
+    document.getElementById('consolidatedView').style.display = view === 'consolidated' ? 'block' : 'none';
+    // Show/hide diary toolbar elements
+    document.querySelector('.wl-filters').style.display = hideToolbar ? 'none' : 'flex';
+    document.querySelector('.wl-toolbar .wl-btn-primary').style.display = hideToolbar ? 'none' : '';
+    document.getElementById('statsRow').style.display = hideToolbar ? 'none' : 'grid';
+    if (view === 'consolidated') loadConsolidated();
     if (view === 'daily') {
         var frame = document.getElementById('dailyFrame');
         if (!dailyFrameLoaded) {
@@ -665,6 +799,206 @@ async function openDetail(id) {
 // ═══ HELPERS ═══
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
 function esc(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ═══════════════════════════════════════════
+// BULK UPLOAD (Admin Only)
+// ═══════════════════════════════════════════
+var bulkParsedTasks = [];
+
+function previewExcel() {
+    var fileInput = document.getElementById('bulkFile');
+    var file = fileInput.files[0];
+    if (!file) { document.getElementById('bulkPreview').style.display = 'none'; bulkParsedTasks = []; return; }
+
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            var workbook = XLSX.read(e.target.result, { type: 'array' });
+            var sheet = workbook.Sheets[workbook.SheetNames[0]];
+            var data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+            var currentSection = 'DAILY';
+            bulkParsedTasks = [];
+
+            for (var i = 0; i < data.length; i++) {
+                var row = data[i];
+                var rowText = row.map(function(c) { return String(c).toUpperCase().trim(); }).join(' ');
+
+                if (rowText.indexOf('DAILY') >= 0 && (rowText.indexOf('TASK') >= 0 || rowText.indexOf('REPORT') >= 0 || i < 3)) { currentSection = 'DAILY'; continue; }
+                if (rowText.indexOf('WEEKLY') >= 0 && rowText.indexOf('TASK') >= 0) { currentSection = 'WEEKLY'; continue; }
+                if (rowText.indexOf('MONTHLY') >= 0 && rowText.indexOf('TASK') >= 0) { currentSection = 'MONTHLY'; continue; }
+                if ((rowText.indexOf('QUARTERLY') >= 0 || rowText.indexOf('QUATERLY') >= 0) && rowText.indexOf('TASK') >= 0) { currentSection = 'QUARTERLY'; continue; }
+                if (rowText.indexOf('SR') >= 0 && (rowText.indexOf('WORK') >= 0 || rowText.indexOf('NO') >= 0)) continue;
+
+                var serial = row[0];
+                var workText = String(row[1] || '').trim();
+                var department = String(row[2] || '').trim();
+
+                if (workText && !isNaN(serial) && parseInt(serial) > 0) {
+                    bulkParsedTasks.push({ title: workText, department: department || 'General', frequency: currentSection });
+                }
+            }
+
+            document.getElementById('bulkPreviewCount').textContent = bulkParsedTasks.length;
+            var tbody = document.getElementById('bulkPreviewBody');
+            var freqColors = { DAILY: '#dbeafe;color:#1d4ed8', WEEKLY: '#dcfce7;color:#16a34a', MONTHLY: '#fff7ed;color:#ea580c', QUARTERLY: '#ede9fe;color:#7c3aed' };
+            tbody.innerHTML = bulkParsedTasks.map(function(t, idx) {
+                return '<tr style="border-bottom:1px solid #f1f5f9;">' +
+                    '<td style="padding:6px 12px;">' + (idx + 1) + '</td>' +
+                    '<td style="padding:6px 12px;font-weight:600;">' + esc(t.title) + '</td>' +
+                    '<td style="padding:6px 12px;">' + esc(t.department) + '</td>' +
+                    '<td style="padding:6px 12px;"><span class="tc-badge" style="background:' + (freqColors[t.frequency] || '#f1f5f9;color:#475569') + ';">' + t.frequency + '</span></td>' +
+                '</tr>';
+            }).join('');
+
+            document.getElementById('bulkPreview').style.display = bulkParsedTasks.length ? 'block' : 'none';
+            document.getElementById('bulkUploadBtn').disabled = !bulkParsedTasks.length;
+        } catch(err) {
+            alert('Error parsing Excel: ' + err.message);
+            bulkParsedTasks = [];
+            document.getElementById('bulkPreview').style.display = 'none';
+            document.getElementById('bulkUploadBtn').disabled = true;
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+async function uploadBulk() {
+    var userId = document.getElementById('bulkUser').value;
+    if (!userId) return alert('Please select a target user');
+    var file = document.getElementById('bulkFile').files[0];
+    if (!file) return alert('Please select an Excel file');
+    var mode = document.querySelector('input[name="bulkMode"]:checked').value;
+
+    var formData = new FormData();
+    formData.append('file', file);
+    formData.append('user_id', userId);
+    formData.append('mode', mode);
+
+    var btn = document.getElementById('bulkUploadBtn');
+    btn.disabled = true;
+    btn.textContent = 'Uploading...';
+    var msgEl = document.getElementById('bulkMsg');
+
+    try {
+        var token = localStorage.getItem('crm_token');
+        var res = await fetch('/api/diary/bulk-upload', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token },
+            body: formData
+        });
+        var data = await res.json();
+        if (data.success) {
+            msgEl.style.display = 'block';
+            msgEl.style.color = '#16a34a';
+            msgEl.textContent = 'Success! ' + data.count + ' tasks imported.';
+            document.getElementById('bulkFile').value = '';
+            document.getElementById('bulkPreview').style.display = 'none';
+            bulkParsedTasks = [];
+        } else {
+            msgEl.style.display = 'block';
+            msgEl.style.color = '#dc2626';
+            msgEl.textContent = 'Error: ' + (data.error || 'Upload failed');
+        }
+    } catch(e) {
+        msgEl.style.display = 'block';
+        msgEl.style.color = '#dc2626';
+        msgEl.textContent = 'Error: ' + e.message;
+    }
+    btn.disabled = false;
+    btn.textContent = 'Upload Tasks';
+}
+
+// ═══════════════════════════════════════════
+// CONSOLIDATED REPORT (Admin Only)
+// ═══════════════════════════════════════════
+var crSearchTimer = null;
+var crData = null;
+
+function debounceConsolidated() { clearTimeout(crSearchTimer); crSearchTimer = setTimeout(loadConsolidated, 400); }
+
+function resetConsolidatedFilters() {
+    document.getElementById('crUser').value = '';
+    document.getElementById('crFrom').value = '';
+    document.getElementById('crTo').value = '';
+    document.getElementById('crSearch').value = '';
+    document.getElementById('crDetail').style.display = 'none';
+    loadConsolidated();
+}
+
+async function loadConsolidated() {
+    try {
+        var params = new URLSearchParams();
+        var u = document.getElementById('crUser').value; if (u) params.set('user_id', u);
+        var s = document.getElementById('crFrom').value; if (s) params.set('start', s);
+        var e = document.getElementById('crTo').value; if (e) params.set('end', e);
+        var q = document.getElementById('crSearch').value; if (q) params.set('search', q);
+
+        var res = await window.apiFetch('/api/diary/consolidated-report?' + params.toString());
+        crData = await res.json();
+
+        // Summary cards
+        var sm = crData.summary;
+        var cards = [
+            { icon: '📋', bg: '#dbeafe', border: '#3b82f6', label: 'TOTAL TASKS', val: sm.total, color: '#1e293b' },
+            { icon: '⏳', bg: '#ffedd5', border: '#f97316', label: 'PENDING', val: sm.pending, color: '#ea580c' },
+            { icon: '🔴', bg: '#fee2e2', border: '#ef4444', label: 'OVERDUE', val: sm.overdue, color: '#dc2626' },
+            { icon: '✅', bg: '#dcfce7', border: '#22c55e', label: 'COMPLETED', val: sm.completed, color: '#16a34a' }
+        ];
+        document.getElementById('crSummary').innerHTML = cards.map(function(c) {
+            return '<div class="wl-stat"><div class="st-border" style="background:' + c.border + ';"></div><div class="st-icon" style="background:' + c.bg + ';">' + c.icon + '</div><div><div class="st-label">' + c.label + '</div><div class="st-val" style="color:' + c.color + ';">' + c.val + '</div></div></div>';
+        }).join('');
+
+        // User table
+        var tbody = document.getElementById('crUserTable');
+        if (!crData.users.length) {
+            tbody.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:#94a3b8;">No data found</td></tr>';
+            return;
+        }
+        tbody.innerHTML = crData.users.map(function(u) {
+            var pct = u.total > 0 ? Math.round((u.completed / u.total) * 100) : 0;
+            var pctColor = pct >= 80 ? '#16a34a' : pct >= 50 ? '#d97706' : '#dc2626';
+            return '<tr style="border-bottom:1px solid #f1f5f9;">' +
+                '<td style="padding:8px 12px;font-weight:700;">' + esc(u.name) + '</td>' +
+                '<td style="padding:8px 12px;">' + u.total + '</td>' +
+                '<td style="padding:8px 12px;color:#ea580c;font-weight:600;">' + u.pending + '</td>' +
+                '<td style="padding:8px 12px;color:#dc2626;font-weight:700;">' + u.overdue + '</td>' +
+                '<td style="padding:8px 12px;color:#16a34a;font-weight:600;">' + u.completed + '</td>' +
+                '<td style="padding:8px 12px;"><span style="color:' + pctColor + ';font-weight:800;">' + pct + '%</span></td>' +
+                '<td style="padding:8px 12px;"><button class="wl-btn wl-btn-ghost wl-btn-sm" onclick="showUserTasks(' + u.user_id + ',\'' + esc(u.name).replace(/'/g, "\\'") + '\')">View Tasks</button></td>' +
+            '</tr>';
+        }).join('');
+    } catch(err) {
+        console.error('Consolidated report error:', err);
+    }
+}
+
+function showUserTasks(userId, userName) {
+    if (!crData) return;
+    var user = crData.users.find(function(u) { return u.user_id === userId; });
+    if (!user) return;
+
+    document.getElementById('crDetailTitle').textContent = 'Tasks — ' + userName;
+    var tbody = document.getElementById('crDetailBody');
+    var statusColors = { Pending: '#1d4ed8', 'In Progress': '#ea580c', Completed: '#16a34a', Rescheduled: '#92400e', Cancelled: '#64748b', Closed: '#475569' };
+    var prioColors = { Critical: '#dc2626', High: '#ea580c', Medium: '#d97706', Low: '#16a34a' };
+
+    tbody.innerHTML = user.tasks.map(function(t) {
+        var dueStr = t.due_date ? new Date(t.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '-';
+        var isOverdue = t.status !== 'Completed' && t.status !== 'Closed' && t.due_date && new Date(t.due_date) < new Date(new Date().toDateString());
+        return '<tr style="border-bottom:1px solid #f1f5f9;' + (isOverdue ? 'background:#fef2f2;' : '') + '">' +
+            '<td style="padding:6px 10px;font-weight:600;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(t.title) + '">' + esc(t.title) + '</td>' +
+            '<td style="padding:6px 10px;">' + esc(t.category || '-') + '</td>' +
+            '<td style="padding:6px 10px;"><span style="color:' + (prioColors[t.priority] || '#64748b') + ';font-weight:700;">' + (t.priority || '-') + '</span></td>' +
+            '<td style="padding:6px 10px;">' + dueStr + (isOverdue ? ' <span style="color:#dc2626;font-weight:700;">OVERDUE</span>' : '') + '</td>' +
+            '<td style="padding:6px 10px;"><span style="color:' + (statusColors[t.status] || '#64748b') + ';font-weight:700;">' + (t.status || '-') + '</span></td>' +
+            '<td style="padding:6px 10px;"><span class="tc-badge" style="background:#f1f5f9;color:#475569;">' + (t.source_type || 'manual') + '</span></td>' +
+        '</tr>';
+    }).join('');
+
+    document.getElementById('crDetail').style.display = 'block';
+    document.getElementById('crDetail').scrollIntoView({ behavior: 'smooth' });
+}
 </script>
 </body>
 </html>

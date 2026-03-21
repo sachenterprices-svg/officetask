@@ -1819,6 +1819,33 @@ app.put('/api/complaints/:id', authenticateToken, async (req, res) => {
         params.push(req.params.id);
         await pool.query(`UPDATE complaints SET ${fields.join(',')} WHERE id=?`, params);
 
+        // ── Auto-create diary task when complaint is assigned to an engineer ──
+        if (assigned_to !== undefined && assigned_to) {
+            try {
+                const [[complaintData]] = await pool.query('SELECT complaint_no, customer_name, complainee_name, telephone_number, description FROM complaints WHERE id=?', [req.params.id]);
+                if (complaintData) {
+                    const engineerUserId = parseInt(assigned_to);
+                    const complaintId = req.params.id;
+                    const subject = (complaintData.customer_name || '') + ' - ' + (complaintData.telephone_number || '');
+                    const desc = 'Complaint #' + (complaintData.complaint_no || complaintId) + ' | Customer: ' + (complaintData.customer_name || 'N/A') + ' | Phone: ' + (complaintData.telephone_number || 'N/A') + (complaintData.description ? ' | ' + complaintData.description : '');
+                    const adminName = currentUser.name || currentUser.username;
+                    // Check if a diary task already exists for this complaint
+                    const [existing] = await pool.query('SELECT id FROM diary_tasks WHERE source_type = ? AND source_task_id = ? AND user_id = ?', ['complaint', parseInt(complaintId), engineerUserId]);
+                    if (!existing.length) {
+                        const [dtResult] = await pool.query(
+                            `INSERT INTO diary_tasks (user_id, title, description, category, priority, task_type, due_date, source_type, source_task_id, assigned_by, status)
+                             VALUES (?, ?, ?, 'Complaints', 'High', 'Work', CURDATE(), 'complaint', ?, ?, 'Pending')`,
+                            [engineerUserId, 'Complaint #' + (complaintData.complaint_no || complaintId) + ' - ' + subject, desc, parseInt(complaintId), adminName]
+                        );
+                        await pool.query('INSERT INTO diary_task_history (task_id, previous_status, new_status, comment, changed_by) VALUES (?,?,?,?,?)',
+                            [dtResult.insertId, null, 'Pending', 'Auto-created from complaint assignment', currentUser.id]);
+                    }
+                }
+            } catch(autoTaskErr) {
+                console.error('Auto diary task creation error (non-fatal):', autoTaskErr.message);
+            }
+        }
+
         // ── Send resolution email if senior/admin directly resolves (no verification queue) ──
         if (status === 'Resolved') {
             const [[subCnt]] = await pool.query('SELECT COUNT(*) as cnt FROM user_managers WHERE manager_id = ?', [currentUser.id]);
@@ -6201,7 +6228,7 @@ async function initDiaryTasksTables() {
             { name: 'reschedule_notes', type: 'TEXT' },
             { name: 'attachment_name', type: 'VARCHAR(255)' },
             { name: 'attachment_data', type: 'LONGBLOB' },
-            { name: 'source_type', type: "ENUM('manual','assigned') DEFAULT 'manual'" },
+            { name: 'source_type', type: "ENUM('manual','assigned','excel','complaint','auto') DEFAULT 'manual'" },
             { name: 'source_task_id', type: 'INT' },
             { name: 'assigned_by', type: 'VARCHAR(255)' },
             { name: 'completed_at', type: 'DATETIME' }
@@ -6209,6 +6236,8 @@ async function initDiaryTasksTables() {
         for (const col of newCols) {
             try { await pool.query(`ALTER TABLE diary_tasks ADD COLUMN ${col.name} ${col.type}`); } catch(e) {}
         }
+        // Expand source_type ENUM for existing installs
+        try { await pool.query(`ALTER TABLE diary_tasks MODIFY COLUMN source_type ENUM('manual','assigned','excel','complaint','auto') DEFAULT 'manual'`); } catch(e) {}
         console.log('✅ Diary tasks tables initialized.');
     } catch(err) {
         console.error('⚠️ Could not initialize diary tasks tables:', err.message);
@@ -6464,6 +6493,228 @@ app.post('/api/diary/add-from-task/:taskId', authenticateToken, async (req, res)
             [result.insertId, null, 'Pending', 'Added from assigned task #' + t.id, userId]);
         res.status(201).json({ success: true, id: result.insertId });
     } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- Excel Bulk Upload for diary tasks ---
+app.post('/api/diary/bulk-upload', authenticateToken, isAdmin, pdfUpload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+        const targetUserId = parseInt(req.body.user_id);
+        const mode = req.body.mode || 'onetime'; // 'onetime' or 'recurring'
+        if (!targetUserId) return res.status(400).json({ error: 'Target user_id is required' });
+
+        // Verify target user exists
+        const [userCheck] = await pool.query('SELECT id, name FROM users WHERE id = ?', [targetUserId]);
+        if (!userCheck.length) return res.status(404).json({ error: 'Target user not found' });
+
+        const XLSX = require('xlsx');
+        const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+        // Detect sections by scanning rows for keywords
+        let currentSection = 'DAILY';
+        const tasks = [];
+        for (let i = 0; i < data.length; i++) {
+            const row = data[i];
+            const rowText = row.map(c => String(c).toUpperCase().trim()).join(' ');
+
+            // Detect section headers
+            if (rowText.includes('DAILY') && (rowText.includes('TASK') || rowText.includes('REPORT') || i < 3)) {
+                currentSection = 'DAILY'; continue;
+            }
+            if (rowText.includes('WEEKLY') && rowText.includes('TASK')) {
+                currentSection = 'WEEKLY'; continue;
+            }
+            if (rowText.includes('MONTHLY') && rowText.includes('TASK')) {
+                currentSection = 'MONTHLY'; continue;
+            }
+            if ((rowText.includes('QUARTERLY') || rowText.includes('QUATERLY')) && rowText.includes('TASK')) {
+                currentSection = 'QUARTERLY'; continue;
+            }
+
+            // Skip header rows (Sr.No, WORK, Department...)
+            if (rowText.includes('SR') && (rowText.includes('WORK') || rowText.includes('NO'))) continue;
+
+            // Parse task rows: col A = serial number, col B = work text, col C = department
+            const serial = row[0];
+            const workText = String(row[1] || '').trim();
+            const department = String(row[2] || '').trim();
+
+            // Valid task row: has a serial number (numeric) and work text
+            if (workText && !isNaN(serial) && parseInt(serial) > 0) {
+                tasks.push({
+                    title: workText,
+                    department: department || 'General',
+                    frequency: currentSection
+                });
+            }
+        }
+
+        if (!tasks.length) return res.status(400).json({ error: 'No valid tasks found in the Excel file' });
+
+        // Calculate due dates
+        const now = new Date();
+        const today = now.toISOString().split('T')[0];
+        function getDueDate(freq) {
+            const d = new Date();
+            if (freq === 'DAILY') return today;
+            if (freq === 'WEEKLY') {
+                // Next Friday
+                const day = d.getDay();
+                const daysUntilFri = (5 - day + 7) % 7 || 7;
+                d.setDate(d.getDate() + daysUntilFri);
+                return d.toISOString().split('T')[0];
+            }
+            if (freq === 'MONTHLY') {
+                // End of current month
+                d.setMonth(d.getMonth() + 1, 0);
+                return d.toISOString().split('T')[0];
+            }
+            if (freq === 'QUARTERLY') {
+                // End of current quarter
+                const qMonth = Math.ceil((d.getMonth() + 1) / 3) * 3;
+                const qEnd = new Date(d.getFullYear(), qMonth, 0);
+                return qEnd.toISOString().split('T')[0];
+            }
+            return today;
+        }
+
+        const adminName = req.user.name || req.user.username;
+        let inserted = 0;
+
+        const conn = await pool.getConnection();
+        try {
+            await conn.beginTransaction();
+
+            if (mode === 'onetime') {
+                for (const t of tasks) {
+                    const dueDate = getDueDate(t.frequency);
+                    const [result] = await conn.query(
+                        `INSERT INTO diary_tasks (user_id, title, description, category, priority, task_type, start_date, due_date, status, source_type, assigned_by)
+                         VALUES (?, ?, ?, ?, ?, 'Work', ?, ?, 'Pending', 'excel', ?)`,
+                        [targetUserId, t.title, t.frequency + ' task from Excel bulk upload', t.department, 'Medium', today, dueDate, adminName]
+                    );
+                    await conn.query('INSERT INTO diary_task_history (task_id, previous_status, new_status, comment, changed_by) VALUES (?,?,?,?,?)',
+                        [result.insertId, null, 'Pending', 'Bulk uploaded from Excel (' + t.frequency + ')', req.user.id]);
+                    inserted++;
+                }
+            } else {
+                // Recurring mode: insert into recurring_tasks_templates + activity_user_tasks
+                for (const t of tasks) {
+                    const nextRun = getDueDate(t.frequency);
+                    const freqMap = { DAILY: 'DAILY', WEEKLY: 'WEEKLY', MONTHLY: 'MONTHLY', QUARTERLY: 'QUARTERLY' };
+                    const [result] = await conn.query(
+                        `INSERT INTO recurring_tasks_templates (title, description, assigned_to, created_by, frequency, next_run_date, status)
+                         VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE')`,
+                        [t.title, t.department + ' - ' + t.frequency + ' recurring task', userCheck[0].name, adminName, freqMap[t.frequency] || 'MONTHLY', nextRun]
+                    );
+                    // Also create initial diary task
+                    const dueDate = getDueDate(t.frequency);
+                    const [diaryResult] = await conn.query(
+                        `INSERT INTO diary_tasks (user_id, title, description, category, priority, task_type, start_date, due_date, status, source_type, assigned_by)
+                         VALUES (?, ?, ?, ?, ?, 'Work', ?, ?, 'Pending', 'excel', ?)`,
+                        [targetUserId, t.title, t.frequency + ' recurring task from Excel', t.department, 'Medium', today, dueDate, adminName]
+                    );
+                    await conn.query('INSERT INTO diary_task_history (task_id, previous_status, new_status, comment, changed_by) VALUES (?,?,?,?,?)',
+                        [diaryResult.insertId, null, 'Pending', 'Recurring task from Excel (' + t.frequency + ')', req.user.id]);
+                    inserted++;
+                }
+            }
+
+            await conn.commit();
+            res.json({ success: true, message: inserted + ' tasks imported successfully', count: inserted, tasks: tasks });
+        } catch(err) {
+            await conn.rollback();
+            throw err;
+        } finally {
+            conn.release();
+        }
+    } catch(e) {
+        console.error('Bulk upload error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- Consolidated Report (Admin team-wide view) ---
+app.get('/api/diary/consolidated-report', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const { user_id, start, end, search } = req.query;
+        const today = new Date().toISOString().split('T')[0];
+
+        let where = [];
+        let params = [];
+
+        if (user_id) { where.push('dt.user_id = ?'); params.push(parseInt(user_id)); }
+        if (start) { where.push('dt.due_date >= ?'); params.push(start); }
+        if (end) { where.push('dt.due_date <= ?'); params.push(end); }
+        if (search) { where.push('(dt.title LIKE ? OR dt.description LIKE ?)'); params.push('%' + search + '%', '%' + search + '%'); }
+
+        const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
+
+        // Summary totals
+        const [[summary]] = await pool.query(
+            `SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN dt.status IN ('Pending','In Progress') THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN dt.status IN ('Pending','In Progress') AND dt.due_date < ? THEN 1 ELSE 0 END) as overdue,
+                SUM(CASE WHEN dt.status = 'Completed' THEN 1 ELSE 0 END) as completed
+             FROM diary_tasks dt ${whereClause}`,
+            [today, ...params]
+        );
+
+        // Per-user breakdown
+        const [userRows] = await pool.query(
+            `SELECT
+                dt.user_id,
+                u.name as user_name,
+                COUNT(*) as total,
+                SUM(CASE WHEN dt.status IN ('Pending','In Progress') THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN dt.status IN ('Pending','In Progress') AND dt.due_date < ? THEN 1 ELSE 0 END) as overdue,
+                SUM(CASE WHEN dt.status = 'Completed' THEN 1 ELSE 0 END) as completed
+             FROM diary_tasks dt
+             LEFT JOIN users u ON dt.user_id = u.id
+             ${whereClause}
+             GROUP BY dt.user_id, u.name
+             ORDER BY overdue DESC, pending DESC`,
+            [today, ...params]
+        );
+
+        // Fetch tasks per user
+        const [allTasks] = await pool.query(
+            `SELECT dt.*, u.name as user_name
+             FROM diary_tasks dt
+             LEFT JOIN users u ON dt.user_id = u.id
+             ${whereClause}
+             ORDER BY dt.due_date DESC
+             LIMIT 500`,
+            params
+        );
+
+        // Group tasks by user
+        const users = userRows.map(ur => ({
+            user_id: ur.user_id,
+            name: ur.user_name || 'Unknown',
+            total: ur.total,
+            pending: ur.pending,
+            overdue: ur.overdue,
+            completed: ur.completed,
+            tasks: allTasks.filter(t => t.user_id === ur.user_id)
+        }));
+
+        res.json({
+            summary: {
+                total: summary.total || 0,
+                pending: summary.pending || 0,
+                overdue: summary.overdue || 0,
+                completed: summary.completed || 0
+            },
+            users
+        });
+    } catch(e) {
+        console.error('Consolidated report error:', e);
         res.status(500).json({ error: e.message });
     }
 });
