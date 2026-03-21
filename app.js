@@ -3762,46 +3762,68 @@ app.get('/api/diary/dashboard-stats', authenticateToken, async (req, res) => {
     try {
         const today = new Date().toISOString().split('T')[0];
         const isAdmin = req.user.role === 'admin';
-        let userFilter = '';
-        let userParams = [];
 
+        // Query from TASKS table (main task system)
+        let taskFilter = '';
+        let taskParams = [];
         if (!isAdmin) {
-            // Own + subordinates (users who report to this user)
-            const [subs] = await pool.query(
-                'SELECT user_id FROM user_managers WHERE manager_id = ?', [req.user.id]
-            );
-            const subIds = subs.map(s => s.user_id);
-            const allIds = [req.user.id, ...subIds];
-            userFilter = 'WHERE dt.user_id IN (' + allIds.map(() => '?').join(',') + ')';
-            userParams = allIds;
+            taskFilter = 'WHERE t.assigned_to = ?';
+            taskParams = [req.user.username];
         }
 
-        // User-wise pending/completed/overdue
-        const [userStats] = await pool.query(
+        const [taskStats] = await pool.query(
+            `SELECT u.name, u.id as user_id,
+                COUNT(*) as total,
+                SUM(CASE WHEN t.status != 'COMPLETED' THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN t.status = 'COMPLETED' THEN 1 ELSE 0 END) as completed,
+                SUM(CASE WHEN t.status != 'COMPLETED' AND t.due_date < ? THEN 1 ELSE 0 END) as overdue
+             FROM tasks t
+             LEFT JOIN users u ON t.assigned_to = u.username
+             ${taskFilter}
+             GROUP BY u.name, u.id
+             ORDER BY pending DESC`,
+            [today, ...taskParams]
+        );
+
+        // Also check diary_tasks table
+        let diaryFilter = '';
+        let diaryParams = [];
+        if (!isAdmin) {
+            diaryFilter = 'WHERE dt.user_id = ?';
+            diaryParams = [req.user.id];
+        }
+
+        const [diaryStats] = await pool.query(
             `SELECT u.name, dt.user_id,
                 SUM(CASE WHEN dt.status IN ('Pending','In Progress') THEN 1 ELSE 0 END) as pending,
                 SUM(CASE WHEN dt.status = 'Completed' THEN 1 ELSE 0 END) as completed,
                 SUM(CASE WHEN dt.status IN ('Pending','In Progress') AND dt.due_date < ? THEN 1 ELSE 0 END) as overdue
              FROM diary_tasks dt
              LEFT JOIN users u ON dt.user_id = u.id
-             ${userFilter}
-             GROUP BY dt.user_id, u.name
-             ORDER BY pending DESC`,
-            [today, ...userParams]
+             ${diaryFilter}
+             GROUP BY dt.user_id, u.name`,
+            [today, ...diaryParams]
         );
 
-        // 30-day completion trend
-        const [trend30] = await pool.query(
-            `SELECT DATE(dt.due_date) as date,
-                SUM(CASE WHEN dt.status = 'Completed' THEN 1 ELSE 0 END) as completed,
-                COUNT(*) as total
-             FROM diary_tasks dt
-             ${userFilter ? userFilter + ' AND' : 'WHERE'} dt.due_date >= DATE_SUB(?, INTERVAL 30 DAY) AND dt.due_date <= ?
-             GROUP BY DATE(dt.due_date) ORDER BY date`,
-            [...userParams, today, today]
-        );
+        // Merge both sources
+        const merged = {};
+        taskStats.forEach(t => {
+            const key = t.user_id || t.name;
+            merged[key] = { name: t.name, user_id: t.user_id, pending: parseInt(t.pending)||0, completed: parseInt(t.completed)||0, overdue: parseInt(t.overdue)||0 };
+        });
+        diaryStats.forEach(d => {
+            const key = d.user_id || d.name;
+            if (merged[key]) {
+                merged[key].pending += parseInt(d.pending)||0;
+                merged[key].completed += parseInt(d.completed)||0;
+                merged[key].overdue += parseInt(d.overdue)||0;
+            } else {
+                merged[key] = { name: d.name, user_id: d.user_id, pending: parseInt(d.pending)||0, completed: parseInt(d.completed)||0, overdue: parseInt(d.overdue)||0 };
+            }
+        });
+        const userStats = Object.values(merged).sort((a,b) => b.pending - a.pending);
 
-        res.json({ userStats, trend30 });
+        res.json({ userStats, trend30: [] });
     } catch(e) {
         console.error('Diary dashboard stats error:', e);
         res.status(500).json({ error: e.message });
