@@ -1165,14 +1165,18 @@ app.post('/api/login', async (req, res) => {
         try { allowed_oas = JSON.parse(user.allowed_oas || '[]'); } catch(e) {}
 
         // ── Log login (IP + geolocation) — fire-and-forget ──────
-        const clientIP = req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '';
+        const clientIP = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || req.socket?.remoteAddress || '';
         const userAgent = req.headers['user-agent'] || '';
+        const cleanIP = clientIP.replace('::ffff:', '');
         (async () => {
+            let city = '', region = '', country = '', isp = '';
+            // Try geolocation with 5s timeout — never block the INSERT
             try {
-                let city = '', region = '', country = '', isp = '';
-                const cleanIP = clientIP.replace('::ffff:', '');
                 if (cleanIP && cleanIP !== '127.0.0.1' && cleanIP !== '::1') {
-                    const geoRes = await fetch('https://ipapi.co/' + cleanIP + '/json/');
+                    const controller = new AbortController();
+                    const timeout = setTimeout(() => controller.abort(), 5000);
+                    const geoRes = await fetch('https://ipapi.co/' + cleanIP + '/json/', { signal: controller.signal });
+                    clearTimeout(timeout);
                     if (geoRes.ok) {
                         const geo = await geoRes.json();
                         city = geo.city || '';
@@ -1181,13 +1185,18 @@ app.post('/api/login', async (req, res) => {
                         isp = geo.org || '';
                     }
                 }
+            } catch (geoErr) {
+                console.error('Geo lookup failed (will still log):', geoErr.message);
+            }
+            // Always insert the login log, even without geo data
+            try {
                 await pool.query(
                     `INSERT INTO login_logs (user_id, username, user_name, ip_address, city, region, country, isp, user_agent)
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [user.id, user.username, user.name, cleanIP, city, region, country, isp, userAgent]
                 );
-            } catch (logErr) {
-                console.error('Login log error:', logErr.message);
+            } catch (dbErr) {
+                console.error('Login log DB insert error:', dbErr.message);
             }
         })();
 
