@@ -3611,13 +3611,18 @@ app.post('/api/analytics/track', async (req, res) => {
         let city = '', region = '', country = '', isp = '';
         if (ip && ip !== '127.0.0.1' && ip !== '::1') {
             try {
-                const geoRes = await fetch('https://ipapi.co/' + ip + '/json/');
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 5000);
+                const geoRes = await fetch('http://ip-api.com/json/' + ip + '?fields=city,regionName,country,isp,status', { signal: controller.signal });
+                clearTimeout(timeout);
                 if (geoRes.ok) {
                     const geo = await geoRes.json();
-                    city = geo.city || '';
-                    region = geo.region || '';
-                    country = geo.country_name || '';
-                    isp = geo.org || '';
+                    if (geo.status === 'success') {
+                        city = geo.city || '';
+                        region = geo.regionName || '';
+                        country = geo.country || '';
+                        isp = geo.isp || '';
+                    }
                 }
             } catch(geoErr) {}
         }
@@ -3627,6 +3632,49 @@ app.post('/api/analytics/track', async (req, res) => {
         );
     } catch (err) {
         console.error('Track error:', err);
+    }
+});
+
+// One-time backfill geo data for blank records (admin only)
+app.post('/api/analytics/backfill-geo', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        // Get records with blank city from both tables
+        const [analytics] = await pool.query("SELECT id, ip_address FROM website_analytics WHERE (city IS NULL OR city = '') AND ip_address != '' AND ip_address != '127.0.0.1' AND ip_address != '::1' LIMIT 100");
+        const [logins] = await pool.query("SELECT id, ip_address FROM login_logs WHERE (city IS NULL OR city = '') AND ip_address != '' AND ip_address != '127.0.0.1' AND ip_address != '::1' LIMIT 100");
+        let updatedA = 0, updatedL = 0;
+        // ip-api.com allows 45 req/min — add delay between calls
+        for (const row of analytics) {
+            try {
+                const geoRes = await fetch('http://ip-api.com/json/' + row.ip_address + '?fields=city,regionName,country,isp,status');
+                if (geoRes.ok) {
+                    const geo = await geoRes.json();
+                    if (geo.status === 'success') {
+                        await pool.query('UPDATE website_analytics SET city=?, region=?, country=?, isp=? WHERE id=?',
+                            [geo.city||'', geo.regionName||'', geo.country||'', geo.isp||'', row.id]);
+                        updatedA++;
+                    }
+                }
+                await new Promise(r => setTimeout(r, 1500)); // 1.5s delay between requests
+            } catch(e) {}
+        }
+        for (const row of logins) {
+            try {
+                const geoRes = await fetch('http://ip-api.com/json/' + row.ip_address + '?fields=city,regionName,country,isp,status');
+                if (geoRes.ok) {
+                    const geo = await geoRes.json();
+                    if (geo.status === 'success') {
+                        await pool.query('UPDATE login_logs SET city=?, region=?, country=?, isp=? WHERE id=?',
+                            [geo.city||'', geo.regionName||'', geo.country||'', geo.isp||'', row.id]);
+                        updatedL++;
+                    }
+                }
+                await new Promise(r => setTimeout(r, 1500));
+            } catch(e) {}
+        }
+        res.json({ success: true, analytics_updated: updatedA, login_logs_updated: updatedL });
+    } catch(err) {
+        console.error('Backfill error:', err);
+        res.status(500).json({ error: err.message });
     }
 });
 
