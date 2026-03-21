@@ -1,67 +1,1245 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Task Reporting - Coral Infratel</title>
+    <title>Work Log Pro - Coral Infratel</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* ===== PAGE TABS ===== */
+        .da-tabs { display:flex; gap:4px; background:#f1f5f9; border-radius:12px; padding:5px; margin-bottom:24px; flex-wrap:wrap; }
+        .da-tab { padding:9px 18px; border-radius:9px; font-size:0.82rem; font-weight:600; color:#64748b; cursor:pointer; border:none; background:transparent; transition:all .2s; white-space:nowrap; }
+        .da-tab.active { background:#fff; color:#002d72; box-shadow:0 1px 6px rgba(0,0,0,.1); }
+        .da-tab:hover:not(.active) { background:rgba(255,255,255,.6); color:#334155; }
+        .da-panel { display:none; }
+        .da-panel.active { display:block; }
+
+        /* ===== SECTION HEADER ===== */
+        .da-section-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; flex-wrap:wrap; gap:10px; }
+        .da-section-title { font-size:1.1rem; font-weight:700; color:#0f172a; }
+        .da-section-sub { font-size:0.8rem; color:#64748b; margin-top:2px; }
+
+        /* ===== MY DAILY REPORT ===== */
+        .dr-controls { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+        .dr-date-lbl { font-size:0.8rem; font-weight:600; color:#475569; }
+        .dr-date-input { border:1px solid #e2e8f0; border-radius:8px; padding:7px 12px; font-size:0.85rem; color:#0f172a; background:#fff; }
+        .dr-day-badge { background:#002d72; color:#fff; font-size:0.75rem; font-weight:700; border-radius:6px; padding:4px 10px; }
+        .dr-week-badge { background:#e0f2fe; color:#0284c7; font-size:0.72rem; font-weight:700; border-radius:6px; padding:4px 10px; }
+
+        /* ===== TASK TABLE ===== */
+        .act-category-head { background:linear-gradient(90deg,#002d72,#1d4ed8); color:#fff; font-size:0.78rem; font-weight:700; letter-spacing:.5px; padding:8px 14px; border-radius:8px; margin:16px 0 8px; text-transform:uppercase; }
+        .act-task-row { display:grid; grid-template-columns:30px 1fr auto auto; gap:0; align-items:center; background:#fff; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:6px; overflow:hidden; transition:box-shadow .15s; }
+        .act-task-row:hover { box-shadow:0 2px 10px rgba(0,0,0,.07); }
+        .act-task-num { background:#f8fafc; width:30px; text-align:center; font-size:0.72rem; color:#94a3b8; font-weight:700; align-self:stretch; display:flex; align-items:center; justify-content:center; border-right:1px solid #e2e8f0; }
+        .act-task-name { padding:10px 14px; font-size:0.82rem; color:#1e293b; font-weight:500; }
+        .act-status-btns { display:flex; gap:4px; padding:6px 8px; }
+        .act-status-btn { padding:4px 8px; border-radius:6px; font-size:0.7rem; font-weight:700; cursor:pointer; border:1.5px solid transparent; transition:all .15s; white-space:nowrap; }
+        .act-status-btn.done    { border-color:#22c55e; color:#16a34a; background:#f0fdf4; }
+        .act-status-btn.partial { border-color:#f59e0b; color:#d97706; background:#fffbeb; }
+        .act-status-btn.not_done{ border-color:#ef4444; color:#dc2626; background:#fef2f2; }
+        .act-status-btn.leave   { border-color:#8b5cf6; color:#7c3aed; background:#f5f3ff; }
+        .act-status-btn.na      { border-color:#94a3b8; color:#64748b; background:#f8fafc; }
+        .act-status-btn.selected.done    { background:#22c55e; color:#fff; }
+        .act-status-btn.selected.partial { background:#f59e0b; color:#fff; }
+        .act-status-btn.selected.not_done{ background:#ef4444; color:#fff; }
+        .act-status-btn.selected.leave   { background:#8b5cf6; color:#fff; }
+        .act-status-btn.selected.na      { background:#94a3b8; color:#fff; }
+        .act-remarks-cell { padding:4px 8px; }
+        .act-remarks-input { border:1px solid #e2e8f0; border-radius:6px; padding:5px 8px; font-size:0.75rem; width:140px; color:#475569; }
+        .act-remarks-input:focus { outline:none; border-color:#002d72; }
+
+        /* ===== SUBMIT AREA ===== */
+        .dr-submit-row { display:flex; align-items:center; justify-content:flex-end; gap:12px; padding:16px 0; border-top:1px solid #e2e8f0; margin-top:12px; }
+        .dr-summary-pill { font-size:0.78rem; padding:5px 12px; border-radius:20px; font-weight:600; }
+        .dr-summary-pill.green  { background:#dcfce7; color:#16a34a; }
+        .dr-summary-pill.amber  { background:#fef9c3; color:#ca8a04; }
+        .dr-summary-pill.red    { background:#fee2e2; color:#dc2626; }
+
+        /* ===== TEMPLATES TABLE ===== */
+        .tmpl-table { width:100%; border-collapse:collapse; font-size:0.82rem; }
+        .tmpl-table th { background:#f8fafc; padding:9px 12px; text-align:left; font-weight:700; color:#475569; font-size:0.75rem; text-transform:uppercase; letter-spacing:.4px; border-bottom:2px solid #e2e8f0; }
+        .tmpl-table td { padding:9px 12px; border-bottom:1px solid #f1f5f9; color:#1e293b; vertical-align:middle; }
+        .tmpl-table tr:hover td { background:#f8fafc; }
+        .dept-badge { display:inline-block; padding:3px 8px; border-radius:5px; font-size:0.68rem; font-weight:700; text-transform:uppercase; }
+        .dept-Technical { background:#dbeafe; color:#1d4ed8; }
+        .dept-Clerical   { background:#dcfce7; color:#16a34a; }
+        .dept-Accounts   { background:#fef9c3; color:#ca8a04; }
+        .dept-Sales      { background:#fce7f3; color:#db2777; }
+        .dept-Admin      { background:#ede9fe; color:#7c3aed; }
+        .dept-All        { background:#f1f5f9; color:#475569; }
+        .cat-badge { font-size:0.7rem; padding:2px 7px; border-radius:4px; background:#e0f2fe; color:#0284c7; font-weight:600; }
+
+        /* ===== ADD FORM ===== */
+        .add-form-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:18px 20px; margin-bottom:20px; }
+        .add-form-grid { display:grid; grid-template-columns:1fr 1fr 1fr 2fr auto; gap:10px; align-items:end; flex-wrap:wrap; }
+        .add-form-field label { font-size:0.72rem; font-weight:700; color:#64748b; display:block; margin-bottom:4px; text-transform:uppercase; letter-spacing:.4px; }
+        .add-form-field select, .add-form-field input { border:1px solid #e2e8f0; border-radius:8px; padding:8px 10px; font-size:0.83rem; width:100%; color:#0f172a; }
+        .add-form-field select:focus, .add-form-field input:focus { outline:none; border-color:#002d72; }
+
+        /* ===== ASSIGN TASKS ===== */
+        .assign-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:18px 20px; margin-bottom:16px; }
+        .assign-user-sel { display:grid; grid-template-columns:1fr 1fr auto; gap:12px; align-items:end; margin-bottom:16px; }
+        .checklist-wrap { max-height:360px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px; }
+        .cl-cat-head { background:#f8fafc; padding:8px 14px; font-size:0.72rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.4px; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; gap:8px; }
+        .cl-item { display:flex; align-items:center; gap:10px; padding:8px 14px; border-bottom:1px solid #f1f5f9; font-size:0.8rem; color:#1e293b; }
+        .cl-item:last-child { border-bottom:none; }
+        .cl-item input[type=checkbox] { width:15px; height:15px; accent-color:#002d72; cursor:pointer; }
+        .assigned-tag { font-size:0.68rem; color:#7c3aed; font-weight:600; background:#f5f3ff; padding:2px 7px; border-radius:4px; margin-left:auto; }
+
+        /* ===== REPORTS ===== */
+        .rep-filters { display:grid; grid-template-columns:1fr 1fr 1fr 1fr auto; gap:10px; align-items:end; background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px 18px; margin-bottom:18px; }
+        .rep-filter-field label { font-size:0.72rem; font-weight:700; color:#64748b; display:block; margin-bottom:4px; text-transform:uppercase; letter-spacing:.4px; }
+        .rep-filter-field select, .rep-filter-field input { border:1px solid #e2e8f0; border-radius:8px; padding:7px 10px; font-size:0.82rem; width:100%; }
+        .rep-filter-field select:focus, .rep-filter-field input:focus { outline:none; border-color:#002d72; }
+        .rep-table { width:100%; border-collapse:collapse; font-size:0.8rem; }
+        .rep-table th { background:#f8fafc; padding:9px 12px; text-align:left; font-weight:700; color:#475569; font-size:0.72rem; text-transform:uppercase; border-bottom:2px solid #e2e8f0; }
+        .rep-table td { padding:8px 12px; border-bottom:1px solid #f1f5f9; color:#1e293b; }
+        .rep-table tr:hover td { background:#f8fafc; }
+        .status-done     { color:#16a34a; font-weight:700; }
+        .status-partial  { color:#d97706; font-weight:700; }
+        .status-not_done { color:#dc2626; font-weight:700; }
+        .status-leave    { color:#7c3aed; font-weight:700; }
+        .status-na       { color:#94a3b8; font-weight:600; }
+
+        /* ===== SUMMARY CARDS ===== */
+        .sum-grid { display:grid; gap:12px; margin-bottom:20px; }
+        .sum-row { background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; display:grid; grid-template-columns:1fr 60px 60px 60px 60px; gap:8px; align-items:center; font-size:0.8rem; }
+        .sum-row-name { font-weight:600; color:#0f172a; }
+        .sum-row-dept { font-size:0.7rem; color:#64748b; }
+        .sum-num { text-align:center; font-weight:700; border-radius:6px; padding:4px 6px; }
+        .sum-num.g { background:#dcfce7; color:#16a34a; }
+        .sum-num.a { background:#fef9c3; color:#ca8a04; }
+        .sum-num.r { background:#fee2e2; color:#dc2626; }
+        .sum-num.p { background:#ede9fe; color:#7c3aed; }
+
+        /* ===== ADHOC / TASKS REPORT ===== */
+        .tasks-rep-table { width:100%; border-collapse:collapse; font-size:0.8rem; }
+        .tasks-rep-table th { background:#f8fafc; padding:9px 12px; text-align:left; font-weight:700; color:#475569; font-size:0.72rem; text-transform:uppercase; border-bottom:2px solid #e2e8f0; }
+        .tasks-rep-table td { padding:9px 12px; border-bottom:1px solid #f1f5f9; color:#1e293b; vertical-align:middle; }
+        .tasks-rep-table tr:hover td { background:#f8fafc; }
+        .priority-HIGH    { color:#dc2626; font-weight:700; }
+        .priority-MEDIUM  { color:#d97706; font-weight:700; }
+        .priority-LOW     { color:#16a34a; font-weight:700; }
+        .tstatus-PENDING   { background:#fee2e2; color:#dc2626; }
+        .tstatus-IN_PROGRESS { background:#fef9c3; color:#ca8a04; }
+        .tstatus-COMPLETED   { background:#dcfce7; color:#16a34a; }
+        .tstatus-badge { font-size:0.68rem; font-weight:700; padding:3px 8px; border-radius:5px; }
+        .empty-state { text-align:center; padding:40px 20px; color:#94a3b8; font-size:0.85rem; }
+        .empty-state i { font-size:2rem; display:block; margin-bottom:8px; }
+
+        /* Sortable column headers */
+        .tmpl-table th.sortable, .tasks-rep-table th.sortable, .rep-table th.sortable {
+            cursor:pointer; user-select:none;
+        }
+        .tmpl-table th.sortable:hover, .tasks-rep-table th.sortable:hover, .rep-table th.sortable:hover {
+            background:#e2e8f0; color:#334155;
+        }
+        .tmpl-table th.sort-asc::after, .tasks-rep-table th.sort-asc::after, .rep-table th.sort-asc::after { content:' ▲'; color:#0ea5e9; font-size:0.6rem; }
+        .tmpl-table th.sort-desc::after, .tasks-rep-table th.sort-desc::after, .rep-table th.sort-desc::after { content:' ▼'; color:#0ea5e9; font-size:0.6rem; }
+
+        /* ===== UTILITIES ===== */
+        .btn-sm { padding:7px 14px; border-radius:8px; font-size:0.78rem; font-weight:700; cursor:pointer; border:none; }
+        .btn-primary { background:#002d72; color:#fff; }
+        .btn-primary:hover { background:#1d4ed8; }
+        .btn-success { background:#16a34a; color:#fff; }
+        .btn-success:hover { background:#15803d; }
+        .btn-danger  { background:#ef4444; color:#fff; }
+        .btn-danger:hover  { background:#dc2626; }
+        .btn-outline { background:#fff; color:#002d72; border:1.5px solid #002d72; }
+        .btn-outline:hover { background:#f0f4ff; }
+        .loading-row { text-align:center; padding:30px; color:#94a3b8; }
+        .table-wrap { background:#fff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; }
+        .table-scroll { overflow-x:auto; }
+        @media(max-width:768px){
+            .add-form-grid { grid-template-columns:1fr 1fr; }
+            .rep-filters { grid-template-columns:1fr 1fr; }
+            .act-task-row { grid-template-columns:30px 1fr; }
+            .act-status-btns, .act-remarks-cell { grid-column:1/-1; }
+        }
+    </style>
 </head>
-
 <body>
-    <header class="top-header">
+<header class="top-header">
+    <div class="header-left" style="display: flex; align-items: center; gap: 20px;">
         <div class="header-brand">
-            <span style="color: #002d72;">Coral</span> <span style="color: #f97316;">Infratel</span>
+            <img src="assets/Coral Infratel logo.jpg" alt="Coral Infratel Pvt. Ltd." height="46" style="display:block;object-fit:contain;">
         </div>
-        <div class="user-meta">
-            <span id="userInfoDisplay" style="font-weight:600;"></span>
-            <button onclick="window.logout()" class="logout-btn">Logout</button>
-        </div>
-    </header>
-
-    <div class="app-body">
-        <aside class="tile-sidebar">
-            <div class="sidebar-header">MENU</div>
-            <a href="dashboard.html" class="module-tile"><i>🏠</i>
-                <div class="tile-content">
-                    <h4>Dashboard</h4>
-                </div>
-            </a>
-
-            <div class="sidebar-header" style="margin-top:20px;">SYSTEM</div>
-            <a href="users.html" class="module-tile admin-only"><i>👥</i>
-                <div class="tile-content">
-                    <h4>Users</h4>
-                </div>
-            </a>
-            <a href="recurring_tasks.html" class="module-tile active"><i>⏱️</i>
-                <div class="tile-content">
-                    <h4>Task Reporting</h4>
-                </div>
-            </a>
-        </aside>
-
-        <main class="content-area">
-            <!-- Content for future use -->
-        </main>
+        <div style="width: 2px; height: 30px; background: rgba(15, 23, 42, 0.1); border-radius: 2px;"></div>
+        <div style="color: var(--text-muted); font-weight: 700; font-size: 1rem; text-transform: uppercase; letter-spacing: 2px;">Work Log Pro</div>
     </div>
+    <div class="user-meta">
+            <span id="userInfoDisplay" style="color:var(--primary);font-weight:700;font-size:0.88rem;"></span>
+        </div>
+</header>
 
-    <script src="auth.js"></script>
+<div class="app-body">
+    <aside class="tile-sidebar">
+        <a href="dashboard.html" class="module-tile"><i>🏠</i>
+            <div class="tile-content"><h4>Dashboard</h4></div>
+        </a>
+
+        <a href="worklog.html" class="module-tile"><i>📓</i>
+            <div class="tile-content"><h4>Work Log Pro</h4></div>
+        </a>
+
+        <a href="reports.html" class="module-tile admin-only"><i>📊</i>
+            <div class="tile-content"><h4>All Reports</h4></div>
+        </a>
+    </aside>
+
+    <main class="content-area">
+        <!-- PAGE HEADER -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:10px;">
+            <div>
+                <div style="font-size:1.3rem;font-weight:800;color:#0f172a;">📋 Work Log Pro</div>
+                <div style="font-size:0.8rem;color:#64748b;" id="todayDateLbl">Loading...</div>
+            </div>
+            <div style="display:flex;gap:8px;" id="headerBtns"></div>
+        </div>
+
+        <!-- TABS -->
+        <div class="da-tabs" id="daTabs">
+            <button class="da-tab active" data-tab="myreport">📝 My Daily Report</button>
+            <button class="da-tab admin-only" data-tab="templates">🗂️ Task Templates</button>
+            <button class="da-tab admin-only" data-tab="assign">👥 Assign Tasks</button>
+            <button class="da-tab" data-tab="actreports">📊 Activity Reports</button>
+            <button class="da-tab" data-tab="adhoc">✅ Ad-hoc Tasks</button>
+            <button class="da-tab" data-tab="pending">⏳ Pending Items</button>
+        </div>
+
+        <!-- ===================== TAB 1: MY DAILY REPORT ===================== -->
+        <div class="da-panel active" id="panel-myreport">
+            <div class="dr-controls">
+                <span class="dr-date-lbl">Date:</span>
+                <input type="date" class="dr-date-input" id="reportDate">
+                <span class="dr-day-badge" id="reportDayBadge">-</span>
+                <span class="dr-week-badge" id="reportWeekBadge">-</span>
+                <button class="btn-sm btn-outline" onclick="loadMyTasks()">🔄 Refresh</button>
+                <span id="drUserSelect" style="display:none;"></span>
+            </div>
+
+            <!-- Pendency Banner -->
+            <div id="pendencyBanner" style="display:none; background:linear-gradient(135deg,#fef2f2,#fee2e2); border:1px solid #fca5a5; border-radius:12px; padding:16px 20px; margin-bottom:16px;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                    <span style="font-size:1.3rem;">⚠️</span>
+                    <span style="font-size:0.9rem;font-weight:700;color:#dc2626;">You have pending submissions!</span>
+                </div>
+                <div id="pendencyList" style="font-size:0.8rem;color:#991b1b;"></div>
+                <div style="font-size:0.75rem;color:#b91c1c;margin-top:6px;font-style:italic;">Late submissions affect your performance score.</div>
+            </div>
+
+            <div id="myTasksArea">
+                <div class="loading-row">Loading tasks…</div>
+            </div>
+
+            <div class="dr-submit-row" id="drSubmitRow" style="display:none;">
+                <span id="drDonePill" class="dr-summary-pill green">✓ 0 Done</span>
+                <span id="drPartialPill" class="dr-summary-pill amber">~ 0 Partial</span>
+                <span id="drPendingPill" class="dr-summary-pill red">✗ 0 Pending</span>
+                <button class="btn-sm btn-success" onclick="submitDailyReport()">💾 Save Report</button>
+            </div>
+        </div>
+
+        <!-- ===================== TAB 2: TASK TEMPLATES ===================== -->
+        <div class="da-panel" id="panel-templates">
+            <div class="da-section-head">
+                <div>
+                    <div class="da-section-title">Task Templates</div>
+                    <div class="da-section-sub">Define tasks per department and category (Daily / Weekly)</div>
+                </div>
+            </div>
+
+            <!-- Add Form -->
+            <div class="add-form-card admin-only" id="tmplAddForm">
+                <div style="font-size:0.82rem;font-weight:700;color:#002d72;margin-bottom:12px;">➕ Add New Task</div>
+                <div class="add-form-grid">
+                    <div class="add-form-field">
+                        <label>Department</label>
+                        <select id="tmplDept">
+                            <option value="All">All Departments</option>
+                            <option value="Technical">Technical</option>
+                            <option value="Clerical">Clerical</option>
+                            <option value="Accounts">Accounts</option>
+                            <option value="Sales">Sales</option>
+                            <option value="Admin">Admin</option>
+                            <option value="HR">HR</option>
+                            <option value="PR">PR</option>
+                            <option value="Marketing">Marketing</option>
+                        </select>
+                    </div>
+                    <div class="add-form-field">
+                        <label>Category</label>
+                        <select id="tmplCat">
+                            <option value="Daily">Daily</option>
+                            <option value="Week1">Week 1 (1–7)</option>
+                            <option value="Week2">Week 2 (8–14)</option>
+                            <option value="Week3">Week 3 (15–21)</option>
+                            <option value="Week4">Week 4 (22–31)</option>
+                            <option value="Monthly">Monthly (1st–5th)</option>
+                            <option value="Quarterly">Quarterly (Jan/Apr/Jul/Oct)</option>
+                        </select>
+                    </div>
+                    <div class="add-form-field">
+                        <label>Input Type</label>
+                        <select id="tmplInputType">
+                            <option value="status">Status (Done/Partial/Not Done)</option>
+                            <option value="number">Number (Count)</option>
+                            <option value="text">Text (Free Input)</option>
+                        </select>
+                    </div>
+                    <div class="add-form-field">
+                        <label>Sort Order</label>
+                        <input type="number" id="tmplOrder" value="0" min="0" style="width:80px;">
+                    </div>
+                    <div class="add-form-field" style="grid-column:span 2;">
+                        <label>Task Name</label>
+                        <input type="text" id="tmplName" placeholder="Enter task description…">
+                    </div>
+                    <div class="add-form-field">
+                        <label>&nbsp;</label>
+                        <button class="btn-sm btn-primary" onclick="addTemplate()">+ Add</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filter Row -->
+            <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
+                <select id="tmplFilterDept" onchange="loadTemplates()" style="border:1px solid #e2e8f0;border-radius:8px;padding:7px 10px;font-size:0.82rem;">
+                    <option value="">All Departments</option>
+                    <option value="Technical">Technical</option>
+                    <option value="Clerical">Clerical</option>
+                    <option value="Accounts">Accounts</option>
+                    <option value="Sales">Sales</option>
+                    <option value="Admin">Admin</option>
+                    <option value="HR">HR</option>
+                    <option value="PR">PR</option>
+                    <option value="Marketing">Marketing</option>
+                    <option value="All">All (Global)</option>
+                </select>
+                <select id="tmplFilterCat" onchange="loadTemplates()" style="border:1px solid #e2e8f0;border-radius:8px;padding:7px 10px;font-size:0.82rem;">
+                    <option value="">All Categories</option>
+                    <option value="Daily">Daily</option>
+                    <option value="Week1">Week 1</option>
+                    <option value="Week2">Week 2</option>
+                    <option value="Week3">Week 3</option>
+                    <option value="Week4">Week 4</option>
+                </select>
+                <input type="text" id="tmplSearch" placeholder="Search task name..." oninput="applyTmplFilter()"
+                       style="padding:7px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.82rem;min-width:200px;flex:1;">
+                <button id="btnClearTmpl" onclick="clearTmplFilter()" style="display:none;padding:6px 12px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;font-size:0.78rem;cursor:pointer;">✕ Clear</button>
+                <span id="tmplCount" style="font-size:0.78rem;color:#64748b;"></span>
+            </div>
+
+            <div class="table-wrap">
+                <div class="table-scroll">
+                    <table class="tmpl-table" id="tmplTable">
+                        <thead>
+                            <tr>
+                                <th style="width:40px;">#</th>
+                                <th class="sortable" onclick="sortTmplTable('department')">Department</th>
+                                <th class="sortable" onclick="sortTmplTable('category')">Category</th>
+                                <th>Input Type</th>
+                                <th class="sortable" onclick="sortTmplTable('sort_order')">Ord</th>
+                                <th class="sortable" onclick="sortTmplTable('task_name')">Task Name</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tmplTbody">
+                            <tr><td colspan="7" class="loading-row">Loading…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== TAB 3: ASSIGN TASKS ===================== -->
+        <div class="da-panel" id="panel-assign">
+            <div class="da-section-head">
+                <div>
+                    <div class="da-section-title">Assign Tasks to Team Members</div>
+                    <div class="da-section-sub">Select user and assign tasks from templates</div>
+                </div>
+            </div>
+
+            <div class="assign-card">
+                <div class="assign-user-sel">
+                    <div class="add-form-field">
+                        <label>Select Team Member</label>
+                        <select id="assignUserId" onchange="loadAssignChecklist()">
+                            <option value="">— Select User —</option>
+                        </select>
+                    </div>
+                    <div class="add-form-field">
+                        <label>Filter by Department</label>
+                        <select id="assignFilterDept" onchange="loadAssignChecklist()">
+                            <option value="">All</option>
+                            <option value="Technical">Technical</option>
+                            <option value="Clerical">Clerical</option>
+                            <option value="Accounts">Accounts</option>
+                            <option value="Sales">Sales</option>
+                            <option value="All">All (Global)</option>
+                        </select>
+                    </div>
+                    <div class="add-form-field">
+                        <label>&nbsp;</label>
+                        <button class="btn-sm btn-success" onclick="saveAssignments()">💾 Save Assignments</button>
+                    </div>
+                </div>
+
+                <div id="assignChecklist">
+                    <div class="empty-state"><i>👆</i>Select a team member to view tasks</div>
+                </div>
+            </div>
+
+            <!-- Current Assignments View -->
+            <div class="da-section-head" style="margin-top:24px;">
+                <div class="da-section-title" style="font-size:0.95rem;">Current Assignments Overview</div>
+                <select id="viewAssignUser" onchange="loadUserAssignmentsView()" style="border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;font-size:0.82rem;">
+                    <option value="">All Users</option>
+                </select>
+            </div>
+            <div class="table-wrap">
+                <div class="table-scroll">
+                    <table class="tmpl-table" id="assignViewTable">
+                        <thead>
+                            <tr><th>User</th><th>Department</th><th>Task</th><th>Category</th><th>Assigned</th><th>Action</th></tr>
+                        </thead>
+                        <tbody id="assignViewTbody"><tr><td colspan="6" class="loading-row">Loading…</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== TAB 4: ACTIVITY REPORTS ===================== -->
+        <div class="da-panel" id="panel-actreports">
+            <div class="da-section-head">
+                <div>
+                    <div class="da-section-title">Work Log Pro Reports</div>
+                    <div class="da-section-sub">View and filter submitted daily activity logs</div>
+                </div>
+                <button class="btn-sm btn-outline" onclick="exportActivityReport()">⬇️ Export CSV</button>
+            </div>
+
+            <!-- Summary Cards -->
+            <div id="actSummaryArea" style="margin-bottom:20px;"></div>
+
+            <!-- Filters -->
+            <div class="rep-filters" id="actFilters">
+                <div class="rep-filter-field">
+                    <label>From Date</label>
+                    <input type="date" id="actFromDate">
+                </div>
+                <div class="rep-filter-field">
+                    <label>To Date</label>
+                    <input type="date" id="actToDate">
+                </div>
+                <div class="rep-filter-field admin-only">
+                    <label>Team Member</label>
+                    <select id="actFilterUser"><option value="">All</option></select>
+                </div>
+                <div class="rep-filter-field admin-only">
+                    <label>Department</label>
+                    <select id="actFilterDept">
+                        <option value="">All</option>
+                        <option value="Technical">Technical</option>
+                        <option value="Clerical">Clerical</option>
+                        <option value="Accounts">Accounts</option>
+                        <option value="Sales">Sales</option>
+                    </select>
+                </div>
+                <div class="rep-filter-field">
+                    <label>&nbsp;</label>
+                    <button class="btn-sm btn-primary" onclick="loadActivityReport()">🔍 Search</button>
+                </div>
+            </div>
+
+            <div class="table-wrap">
+                <div class="table-scroll">
+                    <table class="rep-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Team Member</th>
+                                <th>Dept</th>
+                                <th>Category</th>
+                                <th>Task</th>
+                                <th>Status</th>
+                                <th>Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody id="actReportTbody"><tr><td colspan="7" class="loading-row">Select filters and click Search</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== TAB 5: AD-HOC TASKS ===================== -->
+        <div class="da-panel" id="panel-adhoc">
+            <div class="da-section-head">
+                <div>
+                    <div class="da-section-title">Ad-hoc Task Report</div>
+                    <div class="da-section-sub">Tasks created via "New Task" button on Dashboard</div>
+                </div>
+                <a href="dashboard.html" class="btn-sm btn-outline">← Back to Dashboard</a>
+            </div>
+
+            <!-- Filters -->
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center;">
+                <select id="adhocFilterStatus" onchange="loadAdhocTasks()" style="border:1px solid #e2e8f0;border-radius:8px;padding:7px 10px;font-size:0.82rem;">
+                    <option value="">All Statuses</option>
+                    <option value="PENDING">Pending</option>
+                    <option value="IN_PROGRESS">In Progress</option>
+                    <option value="COMPLETED">Completed</option>
+                </select>
+                <select id="adhocFilterUser" onchange="loadAdhocTasks()" style="border:1px solid #e2e8f0;border-radius:8px;padding:7px 10px;font-size:0.82rem;">
+                    <option value="">All Users</option>
+                </select>
+                <select id="adhocFilterPriority" onchange="loadAdhocTasks()" style="border:1px solid #e2e8f0;border-radius:8px;padding:7px 10px;font-size:0.82rem;">
+                    <option value="">All Priorities</option>
+                    <option value="HIGH">High</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="LOW">Low</option>
+                </select>
+            </div>
+
+            <div class="table-wrap">
+                <div class="table-scroll">
+                    <table class="tasks-rep-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th class="sortable" onclick="sortAdhocTable('title')">Title</th>
+                                <th class="sortable" onclick="sortAdhocTable('assigned_to_name')">Assigned To</th>
+                                <th class="sortable" onclick="sortAdhocTable('priority')">Priority</th>
+                                <th class="sortable" onclick="sortAdhocTable('status')">Status</th>
+                                <th class="sortable" onclick="sortAdhocTable('due_date')">Due Date</th>
+                                <th class="sortable" onclick="sortAdhocTable('created_at')">Created</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adhocTbody"><tr><td colspan="7" class="loading-row">Loading…</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== TAB 6: PENDING ITEMS ===================== -->
+        <div class="da-panel" id="panel-pending">
+            <div class="da-section-head">
+                <div>
+                    <div class="da-section-title">Pending Items Report</div>
+                    <div class="da-section-sub">All pending tasks, complaints, and items requiring attention</div>
+                </div>
+            </div>
+
+            <div id="pendingItemsArea">
+                <div class="loading-row">Loading pending items…</div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script src="auth.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const user = JSON.parse(localStorage.getItem('crm_user'));
-            if (!user) {
-                window.location.href = 'login.html';
-                return;
-            }
-            document.getElementById('userInfoDisplay').textContent = `${user.name || user.username} (${user.role === 'admin' ? 'Admin' : 'User'})`;
-
-            if (user.role !== 'admin') {
-                document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
-            }
-        });
+    // Only load shield.js when NOT embedded in iframe (embed=1 means inside worklog.html)
+    if (!new URLSearchParams(window.location.search).has('embed')) {
+        var s = document.createElement('script'); s.src = 'shield.js'; document.head.appendChild(s);
+    }
     </script>
-</body>
+<script>
+/* ================================================================
+   DAILY ACTIVITY MODULE — Main Controller
+================================================================ */
+let currentUser = null;
+let allTemplates = [];
+let allUsers = [];
+let myTasksData = [];
+let isAdmin = false;
+let _allAdhocTasks = [];
+let _tmplSortCol = 'sort_order', _tmplSortDir = 1;
+let _adhocSortCol = '', _adhocSortDir = 1;
 
+window.sortTmplTable = function(col) {
+    if (_tmplSortCol === col) _tmplSortDir *= -1; else { _tmplSortCol = col; _tmplSortDir = 1; }
+    document.querySelectorAll('#tmplTable thead th.sortable').forEach(th => {
+        th.classList.remove('sort-asc','sort-desc');
+        if (th.getAttribute('onclick') === `sortTmplTable('${col}')`) th.classList.add(_tmplSortDir===1?'sort-asc':'sort-desc');
+    });
+    applyTmplFilter();
+};
+
+window.applyTmplFilter = function() {
+    const deptF = document.getElementById('tmplFilterDept')?.value || '';
+    const catF  = document.getElementById('tmplFilterCat')?.value  || '';
+    const q     = (document.getElementById('tmplSearch')?.value || '').toLowerCase();
+    const btnClear = document.getElementById('btnClearTmpl');
+    if (btnClear) btnClear.style.display = q ? 'inline-block' : 'none';
+
+    let filtered = allTemplates.filter(t => {
+        if (deptF && t.department !== deptF) return false;
+        if (catF && t.category !== catF) return false;
+        if (q && !(t.task_name||'').toLowerCase().includes(q)) return false;
+        return true;
+    });
+
+    filtered.sort((a,b) => {
+        if (_tmplSortCol === 'sort_order') return _tmplSortDir * (a.sort_order - b.sort_order);
+        return _tmplSortDir * String(a[_tmplSortCol]||'').localeCompare(String(b[_tmplSortCol]||''));
+    });
+
+    document.getElementById('tmplCount').textContent = `${filtered.length} tasks`;
+    const tbody = document.getElementById('tmplTbody');
+    const INPUT_LABELS = { status:'Status', number:'Number', text:'Text' };
+    const INPUT_COLORS = { status:'#0284c7', number:'#7c3aed', text:'#059669' };
+    if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><i>📋</i>No tasks found.</td></tr>'; return;
+    }
+    tbody.innerHTML = filtered.map((t,i) => `
+        <tr>
+            <td style="color:#94a3b8;font-weight:700;">${i+1}</td>
+            <td><span class="dept-badge ${DEPT_COLORS[t.department]||'dept-All'}">${t.department}</span></td>
+            <td><span class="cat-badge">${CAT_LABELS[t.category]||t.category}</span></td>
+            <td><span style="background:${INPUT_COLORS[t.input_type||'status']}15;color:${INPUT_COLORS[t.input_type||'status']};padding:2px 8px;border-radius:6px;font-size:0.72rem;font-weight:600;">${INPUT_LABELS[t.input_type||'status']}</span></td>
+            <td style="color:#94a3b8;">${t.sort_order}</td>
+            <td>${t.task_name}</td>
+            <td><span style="color:${t.is_active?'#16a34a':'#94a3b8'};font-weight:700;">${t.is_active?'Active':'Inactive'}</span></td>
+            <td><button class="btn-sm btn-danger" style="padding:4px 8px;font-size:0.7rem;" onclick="deleteTemplate(${t.id})">🗑</button></td>
+        </tr>`).join('');
+};
+
+window.clearTmplFilter = function() {
+    document.getElementById('tmplSearch').value = '';
+    document.getElementById('btnClearTmpl').style.display = 'none';
+    applyTmplFilter();
+};
+
+window.sortAdhocTable = function(col) {
+    if (_adhocSortCol === col) _adhocSortDir *= -1; else { _adhocSortCol = col; _adhocSortDir = 1; }
+    document.querySelectorAll('#panel-adhoc .tasks-rep-table thead th.sortable').forEach(th => {
+        th.classList.remove('sort-asc','sort-desc');
+        if (th.getAttribute('onclick') === `sortAdhocTable('${col}')`) th.classList.add(_adhocSortDir===1?'sort-asc':'sort-desc');
+    });
+    renderAdhocTable(_allAdhocTasks);
+};
+
+function renderAdhocTable(tasks) {
+    const PRIORITY_ORDER = {HIGH:3,MEDIUM:2,LOW:1};
+    let sorted = [...tasks];
+    if (_adhocSortCol) {
+        sorted.sort((a,b) => {
+            if (_adhocSortCol === 'priority') return _adhocSortDir * ((PRIORITY_ORDER[b.priority]||0) - (PRIORITY_ORDER[a.priority]||0));
+            if (_adhocSortCol === 'due_date' || _adhocSortCol === 'created_at') return _adhocSortDir * (new Date(a[_adhocSortCol]||0) - new Date(b[_adhocSortCol]||0));
+            return _adhocSortDir * String(a[_adhocSortCol]||'').localeCompare(String(b[_adhocSortCol]||''));
+        });
+    }
+    if (!sorted.length) {
+        document.getElementById('adhocTbody').innerHTML = '<tr><td colspan="7" class="empty-state"><i>✅</i>No tasks found</td></tr>'; return;
+    }
+    document.getElementById('adhocTbody').innerHTML = sorted.map((t,i) => `
+        <tr>
+            <td style="color:#94a3b8;font-weight:700;">${i+1}</td>
+            <td style="font-weight:600;">${t.title||'—'}</td>
+            <td style="font-size:0.75rem;">${t.assigned_to_name||t.assigned_to||'Unassigned'}</td>
+            <td class="priority-${t.priority||'MEDIUM'}">${t.priority||'—'}</td>
+            <td><span class="tstatus-badge tstatus-${t.status||'PENDING'}">${(t.status||'PENDING').replace('_',' ')}</span></td>
+            <td style="font-size:0.75rem;color:#64748b;">${t.due_date||'—'}</td>
+            <td style="font-size:0.72rem;color:#94a3b8;">${t.created_at?t.created_at.split('T')[0]:'—'}</td>
+        </tr>`).join('');
+}
+
+const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const CAT_LABELS = { Daily:'Daily Tasks', Week1:'Week 1 (1–7)', Week2:'Week 2 (8–14)', Week3:'Week 3 (15–21)', Week4:'Week 4 (22–31)' };
+const STATUS_LABELS = { done:'✓ Done', partial:'~ Partial', not_done:'✗ Not Done', leave:'Leave', na:'N/A' };
+const DEPT_COLORS = { Technical:'dept-Technical', Clerical:'dept-Clerical', Accounts:'dept-Accounts', Sales:'dept-Sales', Admin:'dept-Admin', All:'dept-All' };
+
+document.addEventListener('DOMContentLoaded', async () => {
+    // ── Embed mode: hide header/sidebar when loaded inside iframe ──
+    const isEmbed = new URLSearchParams(window.location.search).has('embed');
+    if (isEmbed) {
+        const hdr = document.querySelector('.top-header');
+        const sb  = document.querySelector('.tile-sidebar');
+        const ab  = document.querySelector('.app-body');
+        const ca  = document.querySelector('.content-area');
+        if (hdr) hdr.style.display = 'none';
+        if (sb)  sb.style.display  = 'none';
+        if (ab)  { ab.style.display = 'block'; ab.style.padding = '0'; ab.style.minHeight = 'auto'; }
+        if (ca)  { ca.style.padding = '4px 0'; ca.style.maxWidth = '100%'; }
+        document.body.style.background = '#f0f2f5';
+    }
+
+    currentUser = JSON.parse(localStorage.getItem('crm_user'));
+    if (!currentUser) { window.location.href = 'login.html'; return; }
+    isAdmin = currentUser.role === 'admin';
+    const uiEl = document.getElementById('userInfoDisplay');
+    if (uiEl) uiEl.textContent = `${currentUser.name || currentUser.username} (${isAdmin ? 'Admin' : currentUser.department || 'User'})`;
+
+    if (!isAdmin) {
+        document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+    }
+
+    // Set today's date
+    const today = new Date();
+    document.getElementById('todayDateLbl').textContent = `${DAYS[today.getDay()]}, ${today.toLocaleDateString('en-IN', {day:'2-digit',month:'long',year:'numeric'})}`;
+    document.getElementById('reportDate').value = today.toISOString().split('T')[0];
+    updateDateBadges();
+
+    // Tab switching
+    document.querySelectorAll('.da-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.da-tab').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.da-panel').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+            onTabOpen(btn.dataset.tab);
+        });
+    });
+
+    // Date change
+    document.getElementById('reportDate').addEventListener('change', () => {
+        updateDateBadges();
+        loadMyTasks();
+    });
+
+    // Load initial data
+    await loadUsers();
+    loadMyTasks();
+    if (isAdmin) loadTemplates();
+    loadAdhocTasks();
+    loadPendingItems();
+});
+
+function onTabOpen(tab) {
+    if (tab === 'myreport') loadMyTasks();
+    else if (tab === 'templates') loadTemplates();
+    else if (tab === 'assign') { populateAssignUserDropdown(); loadUserAssignmentsView(); }
+    else if (tab === 'actreports') { setDefaultReportDates(); loadActivitySummary(); }
+    else if (tab === 'adhoc') loadAdhocTasks();
+    else if (tab === 'pending') loadPendingItems();
+}
+
+function updateDateBadges() {
+    const d = new Date(document.getElementById('reportDate').value + 'T00:00:00');
+    const day = d.getDate();
+    document.getElementById('reportDayBadge').textContent = DAYS[d.getDay()];
+    let wk = '';
+    if (day >= 1 && day <= 7) wk = 'Week 1';
+    else if (day >= 8 && day <= 14) wk = 'Week 2';
+    else if (day >= 15 && day <= 21) wk = 'Week 3';
+    else wk = 'Week 4';
+    document.getElementById('reportWeekBadge').textContent = wk;
+}
+
+// ================================================================
+// LOAD USERS
+// ================================================================
+async function loadUsers() {
+    try {
+        const data = await window.apiFetch('/api/users');
+        allUsers = Array.isArray(data) ? data : (data.users || []);
+        populateUserDropdowns();
+    } catch(e) {}
+}
+
+function populateUserDropdowns() {
+    const opts = allUsers.map(u => `<option value="${u.id}">${u.name || u.username} (${u.department || u.role})</option>`).join('');
+    ['assignUserId','viewAssignUser','actFilterUser','adhocFilterUser'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && id !== 'viewAssignUser' && id !== 'actFilterUser' && id !== 'adhocFilterUser') el.innerHTML = '<option value="">— Select —</option>' + opts;
+        else if (el) el.innerHTML = '<option value="">All Users</option>' + opts;
+    });
+
+    // Admin user select in my report tab
+    if (isAdmin) {
+        const sel = document.createElement('select');
+        sel.id = 'reportUserSel';
+        sel.style.cssText = 'border:1px solid #e2e8f0;border-radius:8px;padding:7px 10px;font-size:0.82rem;';
+        sel.innerHTML = `<option value="${currentUser.id}">My Tasks</option>${opts}`;
+        sel.addEventListener('change', loadMyTasks);
+        const wrap = document.getElementById('drUserSelect');
+        wrap.style.display = 'flex';
+        wrap.appendChild(sel);
+    }
+}
+
+// ================================================================
+// TAB 1 — MY DAILY REPORT
+// ================================================================
+async function loadMyTasks() {
+    const date = document.getElementById('reportDate').value;
+    const userId = isAdmin && document.getElementById('reportUserSel') ? document.getElementById('reportUserSel').value : currentUser.id;
+    document.getElementById('myTasksArea').innerHTML = '<div class="loading-row">Loading tasks…</div>';
+    document.getElementById('drSubmitRow').style.display = 'none';
+
+    try {
+        myTasksData = await window.apiFetch(`/api/activity/my-tasks?date=${date}&user_id=${userId}`);
+        renderMyTasks(date);
+        // Load pendency info
+        loadPendency(userId);
+    } catch(e) {
+        document.getElementById('myTasksArea').innerHTML = '<div class="empty-state"><i>❌</i>Failed to load tasks. Check if tasks are assigned to this user.</div>';
+    }
+}
+
+async function loadPendency(userId) {
+    try {
+        const data = await window.apiFetch(`/api/activity/pendency?user_id=${userId||''}`);
+        const banner = document.getElementById('pendencyBanner');
+        if (data && data.length > 0) {
+            const listHtml = data.slice(0, 10).map(d => {
+                const dt = new Date(d.pending_date);
+                const dateStr = dt.toLocaleDateString('en-IN', {weekday:'short', day:'numeric', month:'short'});
+                return `<span style="display:inline-block;background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:3px 10px;margin:3px;font-size:0.78rem;cursor:pointer;font-weight:600;" onclick="jumpToPendingDate('${d.pending_date}')">${dateStr} — ${d.pending_tasks} pending</span>`;
+            }).join('');
+            document.getElementById('pendencyList').innerHTML = listHtml;
+            banner.style.display = 'block';
+        } else {
+            banner.style.display = 'none';
+        }
+    } catch(e) { /* silently ignore */ }
+}
+
+function jumpToPendingDate(dateStr) {
+    document.getElementById('reportDate').value = dateStr;
+    updateDayBadge();
+    loadMyTasks();
+}
+
+function renderMyTasks(date) {
+    if (!myTasksData || myTasksData.length === 0) {
+        document.getElementById('myTasksArea').innerHTML = '<div class="empty-state"><i>📋</i>No tasks assigned yet. Admin can assign tasks from "Assign Tasks" tab.</div>';
+        return;
+    }
+
+    // Group by category
+    const groups = {};
+    myTasksData.forEach(t => {
+        if (!groups[t.category]) groups[t.category] = [];
+        groups[t.category].push(t);
+    });
+
+    const catOrder = ['Daily','Week1','Week2','Week3','Week4','Monthly','Quarterly'];
+    const catLabelsExt = Object.assign({}, CAT_LABELS, { 'Monthly': '📅 Monthly Tasks (1st–5th)', 'Quarterly': '📊 Quarterly Tasks' });
+    let html = '';
+    catOrder.forEach(cat => {
+        if (!groups[cat]) return;
+        html += `<div class="act-category-head">${catLabelsExt[cat] || cat}</div>`;
+        groups[cat].forEach((t, i) => {
+            const sel = t.status || 'not_done';
+            const inputType = t.input_type || 'status';
+            let inputHtml = '';
+
+            if (inputType === 'status') {
+                // Standard status buttons
+                inputHtml = `<div class="act-status-btns">
+                    ${['done','partial','not_done','leave','na'].map(s =>
+                        `<button class="act-status-btn ${s} ${sel===s?'selected':''}" onclick="setStatus(${t.template_id},'${s}',this)">${STATUS_LABELS[s]}</button>`
+                    ).join('')}
+                </div>`;
+            } else if (inputType === 'number') {
+                // Numeric input
+                inputHtml = `<div class="act-status-btns" style="gap:8px;">
+                    <input type="number" class="act-value-input" data-val="${t.template_id}" placeholder="Enter count…"
+                           value="${t.value||''}" min="0" style="width:120px;padding:6px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;"
+                           onchange="setValueStatus(${t.template_id},this)">
+                    <span style="font-size:0.72rem;color:#64748b;">(auto: Done if filled)</span>
+                </div>`;
+            } else if (inputType === 'text') {
+                // Text input
+                inputHtml = `<div class="act-status-btns" style="gap:8px;">
+                    <input type="text" class="act-value-input" data-val="${t.template_id}" placeholder="Enter details…"
+                           value="${t.value||''}" style="width:220px;padding:6px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;"
+                           onchange="setValueStatus(${t.template_id},this)">
+                </div>`;
+            }
+
+            html += `
+            <div class="act-task-row" data-tid="${t.template_id}">
+                <div class="act-task-num">${i+1}</div>
+                <div class="act-task-name">${t.task_name}${inputType!=='status'?`<span style="font-size:0.65rem;color:#94a3b8;margin-left:6px;">[${inputType}]</span>`:''}</div>
+                ${inputHtml}
+                <div class="act-remarks-cell">
+                    <input class="act-remarks-input" type="text" placeholder="Remarks…" value="${t.remarks||''}" data-rem="${t.template_id}">
+                </div>
+            </div>`;
+        });
+    });
+
+    document.getElementById('myTasksArea').innerHTML = html;
+    document.getElementById('drSubmitRow').style.display = 'flex';
+    updateDrSummary();
+}
+
+function setValueStatus(tid, inp) {
+    const t = myTasksData.find(x => x.template_id == tid);
+    if (t) {
+        t.value = inp.value;
+        // Auto-set status to 'done' if value is provided, 'not_done' if empty
+        t.status = inp.value && inp.value.trim() !== '' ? 'done' : 'not_done';
+    }
+    updateDrSummary();
+}
+
+function setStatus(tid, status, btn) {
+    // Update myTasksData
+    const t = myTasksData.find(x => x.template_id == tid);
+    if (t) t.status = status;
+
+    // Update buttons
+    const row = btn.closest('.act-task-row');
+    row.querySelectorAll('.act-status-btn').forEach(b => {
+        b.classList.toggle('selected', b.classList.contains(status));
+    });
+    updateDrSummary();
+}
+
+function updateDrSummary() {
+    let done=0, partial=0, nd=0;
+    myTasksData.forEach(t => {
+        if (t.status==='done') done++;
+        else if (t.status==='partial') partial++;
+        else if (!t.status || t.status==='not_done') nd++;
+    });
+    document.getElementById('drDonePill').textContent    = `✓ ${done} Done`;
+    document.getElementById('drPartialPill').textContent = `~ ${partial} Partial`;
+    document.getElementById('drPendingPill').textContent  = `✗ ${nd} Pending`;
+}
+
+async function submitDailyReport() {
+    const date = document.getElementById('reportDate').value;
+    // Sync remarks and values
+    document.querySelectorAll('[data-rem]').forEach(inp => {
+        const t = myTasksData.find(x => x.template_id == inp.dataset.rem);
+        if (t) t.remarks = inp.value;
+    });
+    document.querySelectorAll('[data-val]').forEach(inp => {
+        const t = myTasksData.find(x => x.template_id == inp.dataset.val);
+        if (t) {
+            t.value = inp.value;
+            if (inp.value && inp.value.trim() !== '') t.status = 'done';
+        }
+    });
+
+    const logs = myTasksData.map(t => ({ template_id: t.template_id, status: t.status || 'not_done', value: t.value || '', remarks: t.remarks || '' }));
+    try {
+        const res = await window.apiFetch('/api/activity/logs', { method:'POST', body: JSON.stringify({ logs, log_date: date }) });
+        showToast(res.message || 'Report saved!', 'success');
+        if (res.late) showToast('Note: This was a late submission.', 'warning');
+        loadPendency(); // Refresh pendency banner
+    } catch(e) {
+        showToast('Failed to save report.', 'error');
+    }
+}
+
+// ================================================================
+// TAB 2 — TASK TEMPLATES
+// ================================================================
+async function loadTemplates() {
+    try {
+        allTemplates = await window.apiFetch('/api/activity/templates');
+        applyTmplFilter();
+    } catch(e) {
+        document.getElementById('tmplTbody').innerHTML = '<tr><td colspan="7" class="empty-state">Failed to load templates</td></tr>';
+    }
+}
+
+async function addTemplate() {
+    const name = document.getElementById('tmplName').value.trim();
+    if (!name) { showToast('Task name required', 'error'); return; }
+    const body = {
+        department:  document.getElementById('tmplDept').value,
+        category:    document.getElementById('tmplCat').value,
+        task_name:   name,
+        input_type:  document.getElementById('tmplInputType').value,
+        sort_order:  parseInt(document.getElementById('tmplOrder').value) || 0
+    };
+    try {
+        await window.apiFetch('/api/activity/templates', { method:'POST', body: JSON.stringify(body) });
+        document.getElementById('tmplName').value = '';
+        showToast('Task template added!', 'success');
+        loadTemplates();
+    } catch(e) { showToast('Failed to add template', 'error'); }
+}
+
+async function deleteTemplate(id) {
+    if (!confirm('Delete this task template? Existing logs will not be affected.')) return;
+    try {
+        await window.apiFetch(`/api/activity/templates/${id}`, { method:'DELETE' });
+        showToast('Template deleted', 'success');
+        loadTemplates();
+    } catch(e) { showToast('Failed to delete', 'error'); }
+}
+
+// ================================================================
+// TAB 3 — ASSIGN TASKS
+// ================================================================
+function populateAssignUserDropdown() {
+    const opts = allUsers.map(u => `<option value="${u.id}">${u.name || u.username} (${u.department || u.role})</option>`).join('');
+    document.getElementById('assignUserId').innerHTML = '<option value="">— Select User —</option>' + opts;
+    document.getElementById('viewAssignUser').innerHTML = '<option value="">All Users</option>' + opts;
+}
+
+async function loadAssignChecklist() {
+    const userId = document.getElementById('assignUserId').value;
+    const deptF  = document.getElementById('assignFilterDept').value;
+    if (!userId) { document.getElementById('assignChecklist').innerHTML = '<div class="empty-state"><i>👆</i>Select a team member</div>'; return; }
+
+    try {
+        const [templates, assignments] = await Promise.all([
+            window.apiFetch('/api/activity/templates'),
+            window.apiFetch(`/api/activity/assignments?user_id=${userId}`)
+        ]);
+        const assignedIds = new Set(assignments.map(a => a.template_id));
+
+        let filtered = templates.filter(t => t.is_active);
+        if (deptF) filtered = filtered.filter(t => t.department === deptF || t.department === 'All');
+
+        // Group by category
+        const groups = {};
+        filtered.forEach(t => {
+            const key = `${t.department}__${t.category}`;
+            if (!groups[key]) groups[key] = { dept: t.department, cat: t.category, tasks: [] };
+            groups[key].tasks.push(t);
+        });
+
+        let html = '<div class="checklist-wrap">';
+        Object.values(groups).forEach(g => {
+            const allChecked = g.tasks.every(t => assignedIds.has(t.id));
+            html += `<div class="cl-cat-head">
+                <input type="checkbox" id="cl_all_${g.dept}_${g.cat}" ${allChecked?'checked':''} onchange="toggleCatAll(this,'${g.dept}','${g.cat}')">
+                <label for="cl_all_${g.dept}_${g.cat}" style="cursor:pointer;font-size:0.72rem;font-weight:700;color:#002d72;">
+                    <span class="dept-badge ${DEPT_COLORS[g.dept]||'dept-All'}" style="margin-right:6px;">${g.dept}</span>${CAT_LABELS[g.cat]||g.cat}
+                </label>
+            </div>`;
+            g.tasks.forEach(t => {
+                html += `<div class="cl-item">
+                    <input type="checkbox" id="cl_t_${t.id}" value="${t.id}" data-dept="${t.department}" data-cat="${t.category}" ${assignedIds.has(t.id)?'checked':''}>
+                    <label for="cl_t_${t.id}" style="cursor:pointer;flex:1;">${t.task_name}</label>
+                    ${assignedIds.has(t.id)?'<span class="assigned-tag">✓ Assigned</span>':''}
+                </div>`;
+            });
+        });
+        html += '</div>';
+        document.getElementById('assignChecklist').innerHTML = html || '<div class="empty-state">No templates found for this filter</div>';
+    } catch(e) {
+        document.getElementById('assignChecklist').innerHTML = '<div class="empty-state">Failed to load</div>';
+    }
+}
+
+function toggleCatAll(cb, dept, cat) {
+    document.querySelectorAll(`[data-dept="${dept}"][data-cat="${cat}"]`).forEach(inp => inp.checked = cb.checked);
+}
+
+async function saveAssignments() {
+    const userId = document.getElementById('assignUserId').value;
+    if (!userId) { showToast('Select a user first', 'error'); return; }
+    const checked = [...document.querySelectorAll('#assignChecklist input[type=checkbox][id^=cl_t_]:checked')].map(i => parseInt(i.value));
+    if (!checked.length) { showToast('No tasks selected', 'error'); return; }
+    try {
+        const res = await window.apiFetch('/api/activity/assignments', { method:'POST', body: JSON.stringify({ user_id: userId, template_ids: checked }) });
+        showToast(res.message || 'Tasks assigned!', 'success');
+        loadUserAssignmentsView();
+    } catch(e) { showToast('Failed to save assignments', 'error'); }
+}
+
+async function loadUserAssignmentsView() {
+    const userId = document.getElementById('viewAssignUser')?.value || '';
+    try {
+        const url = userId ? `/api/activity/assignments?user_id=${userId}` : '/api/activity/assignments';
+        const rows = await window.apiFetch(url);
+        const tbody = document.getElementById('assignViewTbody');
+        if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No assignments found</td></tr>';
+            return;
+        }
+        tbody.innerHTML = rows.map(r => `
+            <tr>
+                <td style="font-weight:600;">${r.user_name || r.username}</td>
+                <td><span class="dept-badge ${DEPT_COLORS[r.department]||'dept-All'}">${r.department||'—'}</span></td>
+                <td>${r.task_name}</td>
+                <td><span class="cat-badge">${CAT_LABELS[r.category]||r.category}</span></td>
+                <td style="font-size:0.75rem;color:#64748b;">${r.assigned_date||'—'}</td>
+                <td>
+                    <button class="btn-sm btn-danger" style="padding:4px 8px;font-size:0.68rem;" onclick="removeAssignment(${r.id})">Remove</button>
+                </td>
+            </tr>`).join('');
+    } catch(e) {}
+}
+
+async function removeAssignment(id) {
+    if (!confirm('Remove this task assignment?')) return;
+    try {
+        await window.apiFetch(`/api/activity/assignments/${id}`, { method:'DELETE' });
+        showToast('Assignment removed', 'success');
+        loadUserAssignmentsView();
+        loadAssignChecklist();
+    } catch(e) { showToast('Failed', 'error'); }
+}
+
+// ================================================================
+// TAB 4 — ACTIVITY REPORTS
+// ================================================================
+function setDefaultReportDates() {
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    document.getElementById('actFromDate').value = firstDay.toISOString().split('T')[0];
+    document.getElementById('actToDate').value   = today.toISOString().split('T')[0];
+}
+
+async function loadActivitySummary() {
+    const today = new Date().toISOString().split('T')[0];
+    try {
+        const rows = await window.apiFetch(`/api/activity/summary?date=${today}`);
+        const valid = rows.filter(r => r.total_assigned > 0);
+        if (!valid.length) { document.getElementById('actSummaryArea').innerHTML = ''; return; }
+
+        let html = `<div style="font-size:0.78rem;font-weight:700;color:#64748b;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px;">Today's Overview — ${today}</div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+        <div style="display:grid;grid-template-columns:1fr 60px 60px 60px 60px;gap:8px;padding:8px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:0.7rem;font-weight:700;color:#64748b;text-transform:uppercase;">
+            <span>Member</span><span style="text-align:center;">Done</span><span style="text-align:center;">Partial</span><span style="text-align:center;">Pending</span><span style="text-align:center;">Leave</span>
+        </div>`;
+        valid.forEach(r => {
+            html += `<div style="display:grid;grid-template-columns:1fr 60px 60px 60px 60px;gap:8px;padding:10px 16px;border-bottom:1px solid #f1f5f9;align-items:center;">
+                <div>
+                    <div style="font-weight:600;font-size:0.82rem;color:#0f172a;">${r.name||r.username}</div>
+                    <div style="font-size:0.7rem;color:#64748b;">${r.department||''} &bull; ${r.total_assigned} tasks</div>
+                </div>
+                <div class="sum-num g" style="text-align:center;">${r.done_count||0}</div>
+                <div class="sum-num a" style="text-align:center;">${r.partial_count||0}</div>
+                <div class="sum-num r" style="text-align:center;">${r.not_done_count||0}</div>
+                <div class="sum-num p" style="text-align:center;">${r.leave_count||0}</div>
+            </div>`;
+        });
+        html += '</div>';
+        document.getElementById('actSummaryArea').innerHTML = html;
+    } catch(e) {}
+}
+
+async function loadActivityReport() {
+    const from = document.getElementById('actFromDate').value;
+    const to   = document.getElementById('actToDate').value;
+    const user = document.getElementById('actFilterUser')?.value || '';
+    const dept = document.getElementById('actFilterDept')?.value || '';
+    if (!from || !to) { showToast('Select date range', 'error'); return; }
+
+    document.getElementById('actReportTbody').innerHTML = '<tr><td colspan="7" class="loading-row">Loading…</td></tr>';
+    try {
+        const rows = await window.apiFetch(`/api/activity/logs?date_from=${from}&date_to=${to}${user?'&user_id='+user:''}${dept?'&department='+dept:''}`);
+        if (!rows.length) {
+            document.getElementById('actReportTbody').innerHTML = '<tr><td colspan="7" class="empty-state"><i>📭</i>No records found</td></tr>';
+            return;
+        }
+        document.getElementById('actReportTbody').innerHTML = rows.map(r => `
+            <tr>
+                <td style="font-size:0.75rem;color:#64748b;">${r.log_date}</td>
+                <td style="font-weight:600;">${r.user_name||r.username}</td>
+                <td><span class="dept-badge ${DEPT_COLORS[r.user_dept]||'dept-All'}" style="font-size:0.65rem;">${r.user_dept||'—'}</span></td>
+                <td><span class="cat-badge" style="font-size:0.68rem;">${CAT_LABELS[r.category]||r.category||'—'}</span></td>
+                <td style="max-width:250px;">${r.task_name||r.custom_task||'—'}</td>
+                <td class="status-${r.status}">${STATUS_LABELS[r.status]||r.status}</td>
+                <td style="font-size:0.75rem;color:#475569;">${r.remarks||'—'}</td>
+            </tr>`).join('');
+    } catch(e) {
+        document.getElementById('actReportTbody').innerHTML = '<tr><td colspan="7" class="empty-state">Failed to load report</td></tr>';
+    }
+}
+
+function exportActivityReport() {
+    const rows = [...document.querySelectorAll('#actReportTbody tr')];
+    if (!rows.length || rows[0].querySelector('.loading-row')) { showToast('Load report first', 'error'); return; }
+    let csv = 'Date,Member,Department,Category,Task,Status,Remarks\n';
+    rows.forEach(row => {
+        const cells = [...row.querySelectorAll('td')].map(td => `"${td.textContent.trim().replace(/"/g,'""')}"`);
+        if (cells.length >= 7) csv += cells.join(',') + '\n';
+    });
+    const blob = new Blob([csv], { type:'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `activity_report_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+}
+
+// ================================================================
+// TAB 5 — AD-HOC TASKS
+// ================================================================
+async function loadAdhocTasks() {
+    const status   = document.getElementById('adhocFilterStatus')?.value || '';
+    const userId   = document.getElementById('adhocFilterUser')?.value   || '';
+    const priority = document.getElementById('adhocFilterPriority')?.value || '';
+    document.getElementById('adhocTbody').innerHTML = '<tr><td colspan="7" class="loading-row">Loading…</td></tr>';
+    try {
+        let url = '/api/tasks?';
+        if (status)   url += `status=${status}&`;
+        if (userId)   url += `assigned_to=${userId}&`;
+        if (priority) url += `priority=${priority}&`;
+        const data = await window.apiFetch(url.slice(0,-1));
+        _allAdhocTasks = Array.isArray(data) ? data : (data.tasks || []);
+        renderAdhocTable(_allAdhocTasks);
+    } catch(e) {
+        document.getElementById('adhocTbody').innerHTML = '<tr><td colspan="7" class="empty-state">Failed to load tasks</td></tr>';
+    }
+}
+
+// ================================================================
+// TAB 6 — PENDING ITEMS
+// ================================================================
+async function loadPendingItems() {
+    document.getElementById('pendingItemsArea').innerHTML = '<div class="loading-row">Loading…</div>';
+    try {
+        const [complaints, tasks] = await Promise.all([
+            window.apiFetch('/api/complaints?status=OPEN').catch(()=>[]),
+            window.apiFetch('/api/tasks?status=PENDING').catch(()=>[])
+        ]);
+
+        const cList = Array.isArray(complaints) ? complaints : (complaints.complaints || []);
+        const tList = Array.isArray(tasks) ? tasks : (tasks.tasks || []);
+
+        let html = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;">
+                <div style="font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">Open Complaints</div>
+                <div style="font-size:2.2rem;font-weight:900;color:#ef4444;">${cList.length}</div>
+                <a href="complaints.html" style="font-size:0.75rem;color:#002d72;font-weight:600;text-decoration:none;">View All →</a>
+            </div>
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;">
+                <div style="font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;">Pending Ad-hoc Tasks</div>
+                <div style="font-size:2.2rem;font-weight:900;color:#f59e0b;">${tList.length}</div>
+                <button onclick="document.querySelector('[data-tab=adhoc]').click()" style="font-size:0.75rem;color:#002d72;font-weight:600;background:none;border:none;cursor:pointer;padding:0;">View All →</button>
+            </div>
+        </div>`;
+
+        if (tList.length) {
+            const top = tList.slice(0,10);
+            html += `<div style="font-size:0.82rem;font-weight:700;color:#0f172a;margin-bottom:10px;">Top Pending Tasks (Recent 10)</div>
+            <div class="table-wrap"><div class="table-scroll">
+            <table class="tasks-rep-table">
+                <thead><tr><th>#</th><th>Title</th><th>Assigned To</th><th>Priority</th><th>Due</th></tr></thead>
+                <tbody>${top.map((t,i)=>`<tr>
+                    <td style="color:#94a3b8;">${i+1}</td>
+                    <td style="font-weight:600;">${t.title||'—'}</td>
+                    <td style="font-size:0.75rem;">${t.assigned_to_name||t.assigned_to||'Unassigned'}</td>
+                    <td class="priority-${t.priority||'MEDIUM'}">${t.priority||'—'}</td>
+                    <td style="font-size:0.75rem;color:#64748b;">${t.due_date||'—'}</td>
+                </tr>`).join('')}</tbody>
+            </table></div></div>`;
+        }
+
+        document.getElementById('pendingItemsArea').innerHTML = html;
+    } catch(e) {
+        document.getElementById('pendingItemsArea').innerHTML = '<div class="empty-state">Failed to load pending items</div>';
+    }
+}
+
+// ================================================================
+// TOAST
+// ================================================================
+function showToast(msg, type='success') {
+    const t = document.createElement('div');
+    t.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:9999;padding:12px 20px;border-radius:10px;font-size:0.82rem;font-weight:600;color:#fff;background:${type==='success'?'#16a34a':'#dc2626'};box-shadow:0 4px 16px rgba(0,0,0,.15);animation:fadeIn .2s ease;`;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(()=>t.remove(), 3000);
+}
+</script>
+</body>
 </html>

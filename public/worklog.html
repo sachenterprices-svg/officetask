@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Work Log Pro - Coral Infratel</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="auth.js"></script>
+    <script src="shield.js"></script>
+    <style>
+        .main-content{flex-grow:1;padding:24px 28px;background:#f0f2f5;overflow-y:auto;}
+        /* ── Stats Row ── */
+        .wl-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:20px;}
+        .wl-stat{background:#fff;border-radius:14px;padding:16px 18px;display:flex;align-items:center;gap:14px;box-shadow:0 2px 10px rgba(0,0,0,.06);border:1px solid #e8ecf1;position:relative;overflow:hidden;}
+        .wl-stat .st-border{position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:14px 0 0 14px;}
+        .wl-stat .st-icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;}
+        .wl-stat .st-label{font-size:.68rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;}
+        .wl-stat .st-val{font-size:1.6rem;font-weight:900;line-height:1;letter-spacing:-.5px;}
+        /* ── Toolbar ── */
+        .wl-toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;}
+        .wl-toolbar .wl-filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+        .wl-toolbar select,.wl-toolbar input[type=text],.wl-toolbar input[type=date]{padding:7px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.82rem;font-family:Inter,sans-serif;background:#fff;}
+        .wl-toolbar select:focus,.wl-toolbar input:focus{outline:none;border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.15);}
+        /* ── View Tabs ── */
+        .view-tabs{display:flex;gap:4px;background:#e2e8f0;border-radius:8px;padding:3px;}
+        .view-tab{padding:6px 14px;border-radius:6px;font-size:.78rem;font-weight:700;cursor:pointer;border:none;background:transparent;color:#475569;transition:all .15s;}
+        .view-tab.active{background:#fff;color:#1e40af;box-shadow:0 1px 3px rgba(0,0,0,.1);}
+        /* ── Task Card (List View) ── */
+        .wl-list{display:flex;flex-direction:column;gap:8px;}
+        .task-card{background:#fff;border-radius:12px;padding:14px 18px;box-shadow:0 1px 6px rgba(0,0,0,.04);border:1px solid #e8ecf1;display:flex;align-items:center;gap:14px;transition:all .15s;cursor:pointer;}
+        .task-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.08);transform:translateY(-1px);}
+        .task-card .tc-check{width:22px;height:22px;border-radius:50%;border:2px solid #d1d5db;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;}
+        .task-card .tc-check.done{background:#10b981;border-color:#10b981;color:#fff;font-size:.7rem;}
+        .task-card .tc-body{flex:1;min-width:0;}
+        .task-card .tc-title{font-weight:700;font-size:.88rem;color:#1e293b;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+        .task-card .tc-meta{font-size:.72rem;color:#94a3b8;display:flex;gap:10px;flex-wrap:wrap;}
+        .task-card .tc-actions{display:flex;gap:6px;flex-shrink:0;}
+        .tc-badge{display:inline-flex;padding:2px 8px;border-radius:12px;font-size:.68rem;font-weight:700;}
+        .badge-critical{background:#fef2f2;color:#dc2626;} .badge-high{background:#fff7ed;color:#ea580c;}
+        .badge-medium{background:#fffbeb;color:#d97706;} .badge-low{background:#f0fdf4;color:#16a34a;}
+        .badge-pending{background:#dbeafe;color:#1d4ed8;} .badge-inprogress{background:#ffedd5;color:#ea580c;}
+        .badge-completed{background:#dcfce7;color:#16a34a;} .badge-rescheduled{background:#fef3c7;color:#92400e;}
+        .badge-cancelled{background:#f1f5f9;color:#64748b;} .badge-closed{background:#f1f5f9;color:#475569;}
+        /* ── Kanban ── */
+        .kanban-board{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;align-items:start;}
+        .kanban-col{background:#f8fafc;border-radius:12px;padding:12px;border:1px solid #e2e8f0;min-height:200px;}
+        .kanban-col-header{font-size:.75rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;padding:6px 8px;margin-bottom:10px;border-radius:6px;display:flex;justify-content:space-between;align-items:center;}
+        .kanban-col .task-card{margin-bottom:8px;}
+        /* ── Modal / Form ── */
+        .wl-modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:2000;align-items:center;justify-content:center;}
+        .wl-modal-overlay.show{display:flex;}
+        .wl-modal{background:#fff;border-radius:16px;width:640px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);padding:24px 28px;}
+        .wl-modal h2{font-size:1.1rem;font-weight:800;color:#1e293b;margin:0 0 18px;display:flex;align-items:center;gap:8px;}
+        .wl-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+        .wl-form-grid .full{grid-column:1/-1;}
+        .wl-form-grid label{font-size:.75rem;font-weight:700;color:#475569;margin-bottom:3px;display:block;}
+        .wl-form-grid input,.wl-form-grid select,.wl-form-grid textarea{width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;font-family:Inter,sans-serif;box-sizing:border-box;}
+        .wl-form-grid textarea{resize:vertical;min-height:60px;}
+        .wl-form-grid input:focus,.wl-form-grid select:focus,.wl-form-grid textarea:focus{outline:none;border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.15);}
+        .wl-btn{padding:8px 18px;border:none;border-radius:8px;font-size:.82rem;font-weight:700;cursor:pointer;font-family:Inter,sans-serif;transition:all .15s;}
+        .wl-btn-primary{background:#1e40af;color:#fff;} .wl-btn-primary:hover{background:#1e3a8a;}
+        .wl-btn-success{background:#10b981;color:#fff;} .wl-btn-danger{background:#ef4444;color:#fff;}
+        .wl-btn-ghost{background:#f1f5f9;color:#475569;} .wl-btn-ghost:hover{background:#e2e8f0;}
+        .wl-btn-sm{padding:5px 12px;font-size:.74rem;}
+        /* ── Resolution Modal ── */
+        .resolve-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:10px;}
+        .resolve-card .rc-title{font-weight:700;font-size:.88rem;color:#1e293b;}
+        .resolve-card .rc-meta{font-size:.72rem;color:#94a3b8;margin-top:2px;}
+        .resolve-card select,.resolve-card input,.resolve-card textarea{margin-top:6px;width:100%;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:.82rem;font-family:Inter,sans-serif;box-sizing:border-box;}
+        /* ── Charts ── */
+        .wl-charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;}
+        .wl-chart-card{background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 2px 10px rgba(0,0,0,.06);border:1px solid #e8ecf1;}
+        .wl-chart-card h3{font-size:.88rem;font-weight:800;color:#1e293b;margin:0 0 12px;}
+        /* ── Responsive ── */
+        @media(max-width:768px){.wl-form-grid{grid-template-columns:1fr;}.wl-charts{grid-template-columns:1fr;}.kanban-board{grid-template-columns:1fr;}}
+        /* Empty state */
+        .empty-state{text-align:center;padding:60px 20px;color:#94a3b8;}
+        .empty-state .icon{font-size:3rem;margin-bottom:12px;}
+        #dailyFrame{transition:height .2s ease;}
+    </style>
+</head>
+<body>
+
+<header class="top-header">
+    <div class="header-left" style="display:flex;align-items:center;gap:20px;">
+        <div class="header-brand"><img src="assets/Coral Infratel logo.jpg" alt="Coral Infratel" height="46" style="display:block;object-fit:contain;"></div>
+        <div style="width:2px;height:30px;background:rgba(15,23,42,.1);border-radius:2px;"></div>
+        <div style="color:var(--text-muted);font-weight:700;font-size:.95rem;text-transform:uppercase;letter-spacing:2px;">Work Log Pro</div>
+    </div>
+    <div class="user-meta">
+            <span id="userInfoDisplay" style="color:var(--primary);font-weight:700;font-size:0.88rem;"></span>
+        </div>
+</header>
+
+<div class="app-body">
+    <aside class="tile-sidebar">
+        <a href="dashboard.html" class="module-tile"><i>🏠</i><div class="tile-content"><h4>Dashboard</h4></div></a>
+        <a href="worklog.html" class="module-tile active" id="navWorklog" data-perm="worklog"><i>📓</i><div class="tile-content"><h4>Work Log Pro</h4></div></a>
+        <a href="tasks.html" class="module-tile" id="navWorklogTasks" data-perm="worklog_tasks"><i>✅</i><div class="tile-content"><h4>Tasks</h4></div></a>
+        <a href="activity_reports.html" class="module-tile" id="navWorklogReports" data-perm="worklog_reports"><i>📊</i><div class="tile-content"><h4>Reports</h4></div></a>
+        <a href="hr.html" class="module-tile" id="navHR" data-perm="hr"><i>👥</i><div class="tile-content"><h4>HR (Human Resource)</h4></div></a>
+        <a href="pr.html" class="module-tile" id="navPR" data-perm="pr"><i>📢</i><div class="tile-content"><h4>PR (Public Relation)</h4></div></a>
+    </aside>
+
+    <main class="main-content">
+        <!-- ═══ STATS ROW ═══ -->
+        <div class="wl-stats" id="statsRow"></div>
+
+        <!-- ═══ TOOLBAR ═══ -->
+        <div class="wl-toolbar">
+            <div style="display:flex;gap:10px;align-items:center;">
+                <button class="wl-btn wl-btn-primary" onclick="openCreateModal()">+ New Task</button>
+                <div class="view-tabs">
+                    <button class="view-tab active" data-view="list" onclick="switchView('list',this)">📋 List</button>
+                    <button class="view-tab" data-view="kanban" onclick="switchView('kanban',this)">📊 Kanban</button>
+                    <button class="view-tab" data-view="analytics" onclick="switchView('analytics',this)">📈 Analytics</button>
+                    <button class="view-tab" data-view="daily" onclick="switchView('daily',this)">📝 Work Log Pro</button>
+                </div>
+            </div>
+            <div class="wl-filters">
+                <select id="filterView" onchange="loadTasks()"><option value="">All Tasks</option><option value="today">Today</option><option value="overdue">Overdue</option><option value="pending">Pending</option></select>
+                <select id="filterPriority" onchange="loadTasks()"><option value="">All Priority</option><option value="Critical">Critical</option><option value="High">High</option><option value="Medium">Medium</option><option value="Low">Low</option></select>
+                <select id="filterStatus" onchange="loadTasks()"><option value="">All Status</option><option value="Pending">Pending</option><option value="In Progress">In Progress</option><option value="Completed">Completed</option><option value="Rescheduled">Rescheduled</option><option value="Cancelled">Cancelled</option><option value="Closed">Closed</option></select>
+                <select id="filterType" onchange="loadTasks()"><option value="">All Types</option><option value="Call">Call</option><option value="Meeting">Meeting</option><option value="Follow Up">Follow Up</option><option value="Work">Work</option><option value="Personal">Personal</option><option value="Other">Other</option></select>
+                <input type="text" id="filterSearch" placeholder="Search..." onkeyup="debounceSearch()" style="width:160px;">
+                <input type="date" id="filterFrom" onchange="loadTasks()">
+                <input type="date" id="filterTo" onchange="loadTasks()">
+            </div>
+        </div>
+
+        <!-- ═══ CONTENT AREA ═══ -->
+        <div id="listView" class="wl-list"></div>
+        <div id="kanbanView" class="kanban-board" style="display:none;"></div>
+        <div id="analyticsView" style="display:none;">
+            <div class="wl-charts">
+                <div class="wl-chart-card"><h3>7-Day Task Trend</h3><div style="height:220px;position:relative;"><canvas id="trendChart"></canvas></div></div>
+                <div class="wl-chart-card"><h3>Category Distribution</h3><div style="height:220px;position:relative;"><canvas id="catChart"></canvas></div></div>
+                <div class="wl-chart-card"><h3>Priority Breakdown</h3><div style="height:220px;position:relative;"><canvas id="prioChart"></canvas></div></div>
+                <div class="wl-chart-card"><h3>Completion Rate</h3><div style="height:220px;position:relative;display:flex;align-items:center;justify-content:center;" id="completionWidget"></div></div>
+            </div>
+        </div>
+        <div id="dailyView" style="display:none;">
+            <iframe id="dailyFrame" src="about:blank" style="width:100%;border:none;border-radius:14px;background:#fff;min-height:700px;height:700px;"></iframe>
+        </div>
+    </main>
+</div>
+
+<!-- ═══ CREATE/EDIT MODAL ═══ -->
+<div class="wl-modal-overlay" id="taskModal">
+    <div class="wl-modal">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+            <h2 id="modalTitle">📓 New Diary Task</h2>
+            <button class="wl-btn wl-btn-ghost wl-btn-sm" onclick="closeModal('taskModal')">&times; Close</button>
+        </div>
+        <div class="wl-form-grid">
+            <div class="full"><label>Task Title *</label><input type="text" id="fTitle" placeholder="Enter task title..."></div>
+            <div class="full"><label>Description</label><textarea id="fDesc" placeholder="Describe the task..."></textarea></div>
+            <div><label>Category</label><select id="fCategory"><option>General</option><option>Sales</option><option>Support</option><option>Admin</option><option>Finance</option><option>Technical</option><option>Meeting</option><option>Follow Up</option><option>Personal</option></select></div>
+            <div><label>Priority</label><select id="fPriority"><option>Medium</option><option>Low</option><option>High</option><option>Critical</option></select></div>
+            <div><label>Task Type</label><select id="fType"><option>Work</option><option>Call</option><option>Meeting</option><option>Follow Up</option><option>Personal</option><option>Other</option></select></div>
+            <div><label>Estimated Time</label><input type="text" id="fEstTime" placeholder="e.g. 2 hours"></div>
+            <div><label>Start Date</label><input type="date" id="fStartDate"></div>
+            <div><label>Due Date *</label><input type="date" id="fDueDate"></div>
+            <div class="full"><label>Notes / Remarks</label><textarea id="fNotes" placeholder="Any additional notes..."></textarea></div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:18px;justify-content:flex-end;">
+            <button class="wl-btn wl-btn-ghost" onclick="closeModal('taskModal')">Cancel</button>
+            <button class="wl-btn wl-btn-primary" id="saveTaskBtn" onclick="saveTask()">Save Task</button>
+        </div>
+        <input type="hidden" id="fEditId" value="">
+    </div>
+</div>
+
+<!-- ═══ STATUS UPDATE MODAL ═══ -->
+<div class="wl-modal-overlay" id="statusModal">
+    <div class="wl-modal" style="width:480px;">
+        <h2 id="statusModalTitle">Update Status</h2>
+        <div class="wl-form-grid">
+            <div class="full"><label>New Status</label><select id="sStatus"><option>Completed</option><option>In Progress</option><option>Rescheduled</option><option>Cancelled</option><option>Closed</option></select></div>
+            <div class="full" id="sDelayGroup" style="display:none;"><label>Delay Reason</label><textarea id="sDelayReason" placeholder="Why was this task delayed?"></textarea></div>
+            <div id="sNextDateGroup" style="display:none;"><label>Next Due Date</label><input type="date" id="sNextDate"></div>
+            <div class="full" id="sRescheduleGroup" style="display:none;"><label>Reschedule Notes</label><textarea id="sRescheduleNotes" placeholder="Notes about rescheduling..."></textarea></div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:18px;justify-content:flex-end;">
+            <button class="wl-btn wl-btn-ghost" onclick="closeModal('statusModal')">Cancel</button>
+            <button class="wl-btn wl-btn-success" onclick="saveStatus()">Update</button>
+        </div>
+        <input type="hidden" id="sTaskId" value="">
+    </div>
+</div>
+
+<!-- ═══ PENDING RESOLUTION MODAL (Login Blocker) ═══ -->
+<div class="wl-modal-overlay" id="resolveModal">
+    <div class="wl-modal" style="width:700px;">
+        <h2>⚠️ Pending Diary Tasks</h2>
+        <p style="color:#64748b;font-size:.85rem;margin:0 0 16px;">You have unresolved diary tasks from previous days. Please update their status before continuing.</p>
+        <div id="resolveList"></div>
+        <div style="display:flex;gap:10px;margin-top:18px;justify-content:flex-end;">
+            <button class="wl-btn wl-btn-primary" onclick="submitResolutions()">Resolve All & Continue</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ TASK DETAIL/HISTORY MODAL ═══ -->
+<div class="wl-modal-overlay" id="detailModal">
+    <div class="wl-modal" style="width:600px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+            <h2>📋 Task Details</h2>
+            <button class="wl-btn wl-btn-ghost wl-btn-sm" onclick="closeModal('detailModal')">&times;</button>
+        </div>
+        <div id="detailContent"></div>
+        <h3 style="font-size:.85rem;font-weight:800;color:#475569;margin:18px 0 8px;">Activity History</h3>
+        <div id="historyList" style="max-height:200px;overflow-y:auto;"></div>
+    </div>
+</div>
+
+<script>
+var allTasks = [];
+var currentView = 'list';
+var editingId = null;
+var searchTimer = null;
+var trendChartInst = null, catChartInst = null, prioChartInst = null;
+
+document.addEventListener('DOMContentLoaded', async function() {
+    var user = JSON.parse(localStorage.getItem('crm_user'));
+    if (!user) { window.location.href = 'login.html'; return; }
+    document.getElementById('userInfoDisplay').textContent = (user.name || user.username) + ' (' + (user.role === 'admin' ? 'Admin' : 'User') + ')';
+
+    // Set default dates
+    var today = new Date().toISOString().split('T')[0];
+    document.getElementById('fStartDate').value = today;
+    document.getElementById('fDueDate').value = today;
+
+    // Check pending previous day tasks
+    await checkPendingResolution();
+
+    // Load tasks + stats
+    await loadTasks();
+    await loadStats();
+});
+
+// ═══ PENDING RESOLUTION CHECK ═══
+async function checkPendingResolution() {
+    try {
+        var res = await window.apiFetch('/api/diary/pending-check');
+        var data = await res.json();
+        if (data.hasPending && data.tasks.length > 0) {
+            var list = document.getElementById('resolveList');
+            list.innerHTML = data.tasks.map(function(t) {
+                var dueStr = t.due_date ? new Date(t.due_date).toLocaleDateString('en-IN') : '';
+                return '<div class="resolve-card" data-id="' + t.id + '">' +
+                    '<div class="rc-title">' + esc(t.title) + '</div>' +
+                    '<div class="rc-meta">Due: ' + dueStr + ' · Priority: ' + t.priority + '</div>' +
+                    '<select class="rc-status" onchange="toggleResolveFields(this)"><option value="Completed">Complete</option><option value="Closed">Close</option><option value="Rescheduled">Reschedule</option><option value="Cancelled">Cancel</option></select>' +
+                    '<input type="date" class="rc-nextdate" style="display:none;" placeholder="Next due date">' +
+                    '<textarea class="rc-reason" style="display:none;" placeholder="Reason / Notes"></textarea>' +
+                '</div>';
+            }).join('');
+            document.getElementById('resolveModal').classList.add('show');
+        }
+    } catch(e) { console.error('Pending check error:', e); }
+}
+
+function toggleResolveFields(sel) {
+    var card = sel.closest('.resolve-card');
+    var isReschedule = sel.value === 'Rescheduled';
+    card.querySelector('.rc-nextdate').style.display = isReschedule ? 'block' : 'none';
+    card.querySelector('.rc-reason').style.display = (isReschedule || sel.value === 'Cancelled') ? 'block' : 'none';
+}
+
+async function submitResolutions() {
+    var cards = document.querySelectorAll('#resolveList .resolve-card');
+    var resolutions = [];
+    cards.forEach(function(card) {
+        resolutions.push({
+            id: parseInt(card.dataset.id),
+            status: card.querySelector('.rc-status').value,
+            next_due_date: card.querySelector('.rc-nextdate').value || null,
+            delay_reason: card.querySelector('.rc-reason').value || null
+        });
+    });
+    try {
+        var res = await window.apiFetch('/api/diary/bulk-resolve', { method:'POST', body: JSON.stringify({ resolutions }) });
+        var data = await res.json();
+        if (data.success) {
+            closeModal('resolveModal');
+            loadTasks();
+            loadStats();
+        } else { alert(data.error || 'Failed'); }
+    } catch(e) { alert('Error: ' + e.message); }
+}
+
+// ═══ LOAD TASKS ═══
+async function loadTasks() {
+    var params = new URLSearchParams();
+    var v = document.getElementById('filterView').value; if (v) params.set('view', v);
+    var p = document.getElementById('filterPriority').value; if (p) params.set('priority', p);
+    var s = document.getElementById('filterStatus').value; if (s) params.set('status', s);
+    var t = document.getElementById('filterType').value; if (t) params.set('task_type', t);
+    var q = document.getElementById('filterSearch').value; if (q) params.set('search', q);
+    var df = document.getElementById('filterFrom').value; if (df) params.set('date_from', df);
+    var dt = document.getElementById('filterTo').value; if (dt) params.set('date_to', dt);
+
+    try {
+        var res = await window.apiFetch('/api/diary/tasks?' + params.toString());
+        allTasks = await res.json();
+        renderCurrentView();
+    } catch(e) { console.error('Load tasks error:', e); }
+}
+
+function debounceSearch() { clearTimeout(searchTimer); searchTimer = setTimeout(loadTasks, 400); }
+
+// ═══ RENDER VIEWS ═══
+var dailyFrameLoaded = false;
+function switchView(view, btn) {
+    currentView = view;
+    document.querySelectorAll('.view-tab').forEach(function(t) { t.classList.remove('active'); });
+    if (btn) btn.classList.add('active');
+    document.getElementById('listView').style.display = view === 'list' ? 'flex' : 'none';
+    document.getElementById('kanbanView').style.display = view === 'kanban' ? 'grid' : 'none';
+    document.getElementById('analyticsView').style.display = view === 'analytics' ? 'block' : 'none';
+    document.getElementById('dailyView').style.display = view === 'daily' ? 'block' : 'none';
+    // Show/hide diary toolbar elements when Work Log Pro is active
+    document.querySelector('.wl-filters').style.display = view === 'daily' ? 'none' : 'flex';
+    document.querySelector('.wl-toolbar .wl-btn-primary').style.display = view === 'daily' ? 'none' : '';
+    document.getElementById('statsRow').style.display = view === 'daily' ? 'none' : 'grid';
+    if (view === 'daily') {
+        var frame = document.getElementById('dailyFrame');
+        if (!dailyFrameLoaded) {
+            dailyFrameLoaded = true;
+            frame.src = 'recurring_tasks.html?embed=1';
+            frame.onload = function() { autosizeDailyFrame(); };
+        }
+    }
+    else if (view === 'analytics') loadAnalytics();
+    else renderCurrentView();
+}
+
+function autosizeDailyFrame() {
+    try {
+        var frame = document.getElementById('dailyFrame');
+        if (!frame.contentDocument || !frame.contentDocument.body) return;
+        var doc = frame.contentDocument;
+        function resizeFrame() {
+            try {
+                var h = doc.documentElement.scrollHeight || doc.body.scrollHeight;
+                frame.style.height = Math.max(h + 20, 700) + 'px';
+            } catch(e) {}
+        }
+        setTimeout(resizeFrame, 300);
+        setTimeout(resizeFrame, 800);
+        setTimeout(resizeFrame, 1500);
+        // Keep watching for content changes
+        var observer = new MutationObserver(function() { setTimeout(resizeFrame, 100); });
+        observer.observe(doc.body, { childList:true, subtree:true });
+    } catch(e) { console.log('Frame resize:', e); }
+}
+
+function renderCurrentView() {
+    if (currentView === 'list') renderList();
+    else if (currentView === 'kanban') renderKanban();
+}
+
+function renderList() {
+    var el = document.getElementById('listView');
+    if (!allTasks.length) { el.innerHTML = '<div class="empty-state"><div class="icon">📓</div><h3>No tasks found</h3><p>Create your first diary task to get started!</p></div>'; return; }
+    el.innerHTML = allTasks.map(function(t) {
+        var isDone = t.status === 'Completed' || t.status === 'Closed';
+        var isOverdue = !isDone && t.due_date && new Date(t.due_date) < new Date(new Date().toDateString());
+        var prioClass = 'badge-' + t.priority.toLowerCase();
+        var statusClass = 'badge-' + t.status.toLowerCase().replace(/\s/g,'');
+        var dueStr = t.due_date ? new Date(t.due_date).toLocaleDateString('en-IN', {day:'numeric',month:'short'}) : '';
+        return '<div class="task-card" onclick="openDetail(' + t.id + ')" style="' + (isOverdue ? 'border-left:3px solid #ef4444;' : '') + '">' +
+            '<div class="tc-check ' + (isDone ? 'done' : '') + '" onclick="event.stopPropagation();quickComplete(' + t.id + ',' + isDone + ')">' + (isDone ? '✓' : '') + '</div>' +
+            '<div class="tc-body">' +
+                '<div class="tc-title" style="' + (isDone ? 'text-decoration:line-through;color:#94a3b8;' : '') + '">' + esc(t.title) + '</div>' +
+                '<div class="tc-meta">' +
+                    '<span class="tc-badge ' + prioClass + '">' + t.priority + '</span>' +
+                    '<span class="tc-badge ' + statusClass + '">' + t.status + '</span>' +
+                    '<span>📅 ' + dueStr + '</span>' +
+                    (t.task_type ? '<span>🏷️ ' + t.task_type + '</span>' : '') +
+                    (t.category ? '<span>📁 ' + t.category + '</span>' : '') +
+                    (isOverdue ? '<span style="color:#dc2626;font-weight:700;">⚠️ OVERDUE</span>' : '') +
+                    (t.source_type === 'assigned' ? '<span style="color:#7c3aed;">📌 Assigned</span>' : '') +
+                '</div>' +
+            '</div>' +
+            '<div class="tc-actions">' +
+                '<button class="wl-btn wl-btn-ghost wl-btn-sm" onclick="event.stopPropagation();openStatusModal(' + t.id + ')" title="Update Status">🔄</button>' +
+                '<button class="wl-btn wl-btn-ghost wl-btn-sm" onclick="event.stopPropagation();openEditModal(' + t.id + ')" title="Edit">✏️</button>' +
+                '<button class="wl-btn wl-btn-ghost wl-btn-sm" onclick="event.stopPropagation();deleteTask(' + t.id + ')" title="Delete">🗑️</button>' +
+            '</div>' +
+        '</div>';
+    }).join('');
+}
+
+function renderKanban() {
+    var statuses = ['Pending','In Progress','Completed','Rescheduled','Cancelled','Closed'];
+    var colors = { Pending:'#dbeafe;color:#1d4ed8', 'In Progress':'#ffedd5;color:#ea580c', Completed:'#dcfce7;color:#16a34a', Rescheduled:'#fef3c7;color:#92400e', Cancelled:'#f1f5f9;color:#64748b', Closed:'#f1f5f9;color:#475569' };
+    var el = document.getElementById('kanbanView');
+    el.innerHTML = statuses.map(function(st) {
+        var tasks = allTasks.filter(function(t) { return t.status === st; });
+        return '<div class="kanban-col">' +
+            '<div class="kanban-col-header" style="background:' + (colors[st] || '#f1f5f9') + ';">' + st + ' <span style="opacity:.7;">' + tasks.length + '</span></div>' +
+            (tasks.length ? tasks.map(function(t) {
+                var prioClass = 'badge-' + t.priority.toLowerCase();
+                var dueStr = t.due_date ? new Date(t.due_date).toLocaleDateString('en-IN', {day:'numeric',month:'short'}) : '';
+                return '<div class="task-card" style="flex-direction:column;align-items:stretch;gap:6px;cursor:pointer;" onclick="openDetail(' + t.id + ')">' +
+                    '<div class="tc-title" style="white-space:normal;font-size:.82rem;">' + esc(t.title) + '</div>' +
+                    '<div class="tc-meta"><span class="tc-badge ' + prioClass + '">' + t.priority + '</span><span>📅 ' + dueStr + '</span></div>' +
+                '</div>';
+            }).join('') : '<div style="text-align:center;padding:20px;color:#cbd5e1;font-size:.8rem;">No tasks</div>') +
+        '</div>';
+    }).join('');
+}
+
+// ═══ STATS ═══
+async function loadStats() {
+    try {
+        var res = await window.apiFetch('/api/diary/stats');
+        var d = await res.json();
+        var cards = [
+            { icon:'📋', bg:'#dbeafe', border:'#3b82f6', label:'TODAY\'S TASKS', val:d.today.total_today, color:'#1e293b' },
+            { icon:'⏳', bg:'#ffedd5', border:'#f97316', label:'PENDING', val:d.today.pending_today, color:'#ea580c' },
+            { icon:'🔴', bg:'#fee2e2', border:'#ef4444', label:'OVERDUE', val:d.overdue, color:'#dc2626' },
+            { icon:'✅', bg:'#dcfce7', border:'#22c55e', label:'COMPLETED TODAY', val:d.today.completed_today, color:'#16a34a' },
+            { icon:'📊', bg:'#ede9fe', border:'#8b5cf6', label:'WEEK TOTAL', val:d.week.week_total, color:'#7c3aed' },
+            { icon:'🎯', bg:'#fce7f3', border:'#ec4899', label:'WEEK COMPLETION', val:d.week.week_total > 0 ? Math.round((d.week.week_completed / d.week.week_total) * 100) + '%' : '0%', color:'#db2777' }
+        ];
+        document.getElementById('statsRow').innerHTML = cards.map(function(c) {
+            return '<div class="wl-stat"><div class="st-border" style="background:' + c.border + ';"></div><div class="st-icon" style="background:' + c.bg + ';">' + c.icon + '</div><div><div class="st-label">' + c.label + '</div><div class="st-val" style="color:' + c.color + ';">' + c.val + '</div></div></div>';
+        }).join('');
+    } catch(e) { console.error('Stats error:', e); }
+}
+
+// ═══ ANALYTICS ═══
+async function loadAnalytics() {
+    try {
+        var res = await window.apiFetch('/api/diary/stats');
+        var d = await res.json();
+
+        // Trend chart
+        if (trendChartInst) trendChartInst.destroy();
+        var tLabels = d.trend.map(function(t) { return new Date(t.date).toLocaleDateString('en-IN', {day:'numeric',month:'short'}); });
+        trendChartInst = new Chart(document.getElementById('trendChart'), {
+            type:'line', data:{ labels:tLabels, datasets:[
+                { label:'Total', data:d.trend.map(function(t){return t.total;}), borderColor:'#1e40af', backgroundColor:'rgba(30,64,175,.08)', fill:true, tension:.4, borderWidth:2 },
+                { label:'Completed', data:d.trend.map(function(t){return t.completed;}), borderColor:'#10b981', backgroundColor:'rgba(16,185,129,.08)', fill:true, tension:.4, borderWidth:2 },
+                { label:'Overdue', data:d.trend.map(function(t){return t.overdue;}), borderColor:'#ef4444', backgroundColor:'rgba(239,68,68,.08)', fill:true, tension:.4, borderWidth:2 }
+            ]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom',labels:{font:{size:11}}}}, scales:{x:{grid:{display:false}},y:{beginAtZero:true}} }
+        });
+
+        // Category chart
+        if (catChartInst) catChartInst.destroy();
+        var catColors = ['#3b82f6','#f97316','#10b981','#ef4444','#8b5cf6','#ec4899','#f59e0b','#06b6d4','#64748b'];
+        catChartInst = new Chart(document.getElementById('catChart'), {
+            type:'doughnut', data:{ labels:d.categoryBreakdown.map(function(c){return c.category;}), datasets:[{data:d.categoryBreakdown.map(function(c){return c.count;}), backgroundColor:catColors, borderWidth:2, borderColor:'#fff'}] },
+            options:{ responsive:true, maintainAspectRatio:false, cutout:'60%', plugins:{legend:{position:'bottom',labels:{font:{size:11}}}} }
+        });
+
+        // Priority chart
+        if (prioChartInst) prioChartInst.destroy();
+        var prioColors = { Critical:'#dc2626', High:'#ea580c', Medium:'#d97706', Low:'#16a34a' };
+        prioChartInst = new Chart(document.getElementById('prioChart'), {
+            type:'bar', data:{ labels:d.priorityBreakdown.map(function(p){return p.priority;}), datasets:[{label:'Active Tasks', data:d.priorityBreakdown.map(function(p){return p.count;}), backgroundColor:d.priorityBreakdown.map(function(p){return prioColors[p.priority]||'#64748b';}), borderRadius:6}] },
+            options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{grid:{display:false}},y:{beginAtZero:true}} }
+        });
+
+        // Completion widget
+        var rate = d.week.week_total > 0 ? Math.round((d.week.week_completed / d.week.week_total) * 100) : 0;
+        var rateColor = rate >= 80 ? '#10b981' : rate >= 50 ? '#f59e0b' : '#ef4444';
+        document.getElementById('completionWidget').innerHTML = '<div style="text-align:center;"><div style="font-size:3.5rem;font-weight:900;color:' + rateColor + ';">' + rate + '%</div><div style="font-size:.85rem;color:#64748b;font-weight:600;">Weekly Completion Rate</div><div style="font-size:.75rem;color:#94a3b8;margin-top:4px;">' + d.week.week_completed + ' of ' + d.week.week_total + ' tasks completed</div></div>';
+    } catch(e) { console.error('Analytics error:', e); }
+}
+
+// ═══ CREATE / EDIT ═══
+function openCreateModal() {
+    editingId = null;
+    document.getElementById('modalTitle').textContent = '📓 New Diary Task';
+    document.getElementById('fTitle').value = '';
+    document.getElementById('fDesc').value = '';
+    document.getElementById('fCategory').value = 'General';
+    document.getElementById('fPriority').value = 'Medium';
+    document.getElementById('fType').value = 'Work';
+    document.getElementById('fEstTime').value = '';
+    var today = new Date().toISOString().split('T')[0];
+    document.getElementById('fStartDate').value = today;
+    document.getElementById('fStartDate').min = today;
+    document.getElementById('fDueDate').value = today;
+    document.getElementById('fDueDate').min = today;
+    document.getElementById('fNotes').value = '';
+    document.getElementById('fEditId').value = '';
+    document.getElementById('taskModal').classList.add('show');
+}
+// Enforce: due_date >= start_date, start_date >= today
+document.addEventListener('DOMContentLoaded', function() {
+    var fStart = document.getElementById('fStartDate');
+    var fDue = document.getElementById('fDueDate');
+    if (fStart) fStart.addEventListener('change', function() {
+        var today = new Date().toISOString().split('T')[0];
+        if (this.value < today) this.value = today;
+        if (fDue && fDue.value < this.value) fDue.value = this.value;
+        if (fDue) fDue.min = this.value;
+    });
+    if (fDue) fDue.addEventListener('change', function() {
+        var start = fStart ? fStart.value : new Date().toISOString().split('T')[0];
+        if (this.value < start) { this.value = start; alert('Due date cannot be before start date.'); }
+    });
+});
+
+function openEditModal(id) {
+    var t = allTasks.find(function(x) { return x.id === id; });
+    if (!t) return;
+    editingId = id;
+    document.getElementById('modalTitle').textContent = '✏️ Edit Task';
+    document.getElementById('fTitle').value = t.title || '';
+    document.getElementById('fDesc').value = t.description || '';
+    document.getElementById('fCategory').value = t.category || 'General';
+    document.getElementById('fPriority').value = t.priority || 'Medium';
+    document.getElementById('fType').value = t.task_type || 'Work';
+    document.getElementById('fEstTime').value = t.estimated_time || '';
+    document.getElementById('fStartDate').value = t.start_date ? t.start_date.split('T')[0] : '';
+    document.getElementById('fDueDate').value = t.due_date ? t.due_date.split('T')[0] : '';
+    document.getElementById('fNotes').value = t.notes || '';
+    document.getElementById('fEditId').value = id;
+    document.getElementById('taskModal').classList.add('show');
+}
+
+async function saveTask() {
+    var title = document.getElementById('fTitle').value.trim();
+    var due = document.getElementById('fDueDate').value;
+    var start = document.getElementById('fStartDate').value;
+    if (!title) return alert('Title is required');
+    if (!due) return alert('Due date is required');
+    var today = new Date().toISOString().split('T')[0];
+    if (!editingId) {
+        if (start && start < today) { start = today; document.getElementById('fStartDate').value = today; }
+        if (due < today) return alert('Due date cannot be in the past.');
+        if (start && due < start) return alert('Due date cannot be before start date.');
+    }
+
+    var body = {
+        title: title, description: document.getElementById('fDesc').value,
+        category: document.getElementById('fCategory').value, priority: document.getElementById('fPriority').value,
+        task_type: document.getElementById('fType').value, estimated_time: document.getElementById('fEstTime').value,
+        start_date: start, due_date: due, notes: document.getElementById('fNotes').value
+    };
+
+    try {
+        var url = editingId ? '/api/diary/tasks/' + editingId : '/api/diary/tasks';
+        var method = editingId ? 'PUT' : 'POST';
+        var res = await window.apiFetch(url, { method: method, body: JSON.stringify(body) });
+        var data = await res.json();
+        if (data.success || data.id) {
+            closeModal('taskModal');
+            loadTasks();
+            loadStats();
+        } else { alert(data.error || 'Failed to save'); }
+    } catch(e) { alert('Error: ' + e.message); }
+}
+
+// ═══ STATUS UPDATE ═══
+function openStatusModal(id) {
+    document.getElementById('sTaskId').value = id;
+    document.getElementById('sStatus').value = 'Completed';
+    document.getElementById('sDelayReason').value = '';
+    document.getElementById('sNextDate').value = '';
+    document.getElementById('sRescheduleNotes').value = '';
+    toggleStatusFields();
+    document.getElementById('statusModal').classList.add('show');
+}
+
+document.getElementById('sStatus').addEventListener('change', toggleStatusFields);
+function toggleStatusFields() {
+    var st = document.getElementById('sStatus').value;
+    document.getElementById('sDelayGroup').style.display = (st === 'Rescheduled' || st === 'Cancelled') ? 'block' : 'none';
+    document.getElementById('sNextDateGroup').style.display = st === 'Rescheduled' ? 'block' : 'none';
+    document.getElementById('sRescheduleGroup').style.display = st === 'Rescheduled' ? 'block' : 'none';
+}
+
+async function saveStatus() {
+    var id = document.getElementById('sTaskId').value;
+    var body = { status: document.getElementById('sStatus').value };
+    if (body.status === 'Rescheduled' || body.status === 'Cancelled') {
+        body.delay_reason = document.getElementById('sDelayReason').value;
+    }
+    if (body.status === 'Rescheduled') {
+        body.next_due_date = document.getElementById('sNextDate').value;
+        body.reschedule_notes = document.getElementById('sRescheduleNotes').value;
+        if (!body.next_due_date) return alert('Please select next due date');
+    }
+    try {
+        var res = await window.apiFetch('/api/diary/tasks/' + id, { method:'PUT', body: JSON.stringify(body) });
+        var data = await res.json();
+        if (data.success) { closeModal('statusModal'); loadTasks(); loadStats(); }
+        else alert(data.error || 'Failed');
+    } catch(e) { alert('Error: ' + e.message); }
+}
+
+// ═══ QUICK COMPLETE ═══
+async function quickComplete(id, isDone) {
+    if (isDone) return; // Already done
+    try {
+        var res = await window.apiFetch('/api/diary/tasks/' + id, { method:'PUT', body: JSON.stringify({ status:'Completed' }) });
+        if (res.ok) { loadTasks(); loadStats(); }
+    } catch(e) { console.error(e); }
+}
+
+// ═══ DELETE ═══
+async function deleteTask(id) {
+    if (!confirm('Delete this diary task?')) return;
+    try {
+        var res = await window.apiFetch('/api/diary/tasks/' + id, { method:'DELETE' });
+        if (res.ok) { loadTasks(); loadStats(); }
+    } catch(e) { alert('Error: ' + e.message); }
+}
+
+// ═══ TASK DETAIL + HISTORY ═══
+async function openDetail(id) {
+    try {
+        var [taskRes, histRes] = await Promise.all([
+            window.apiFetch('/api/diary/tasks/' + id),
+            window.apiFetch('/api/diary/tasks/' + id + '/history')
+        ]);
+        var t = await taskRes.json();
+        var hist = await histRes.json();
+
+        var dueStr = t.due_date ? new Date(t.due_date).toLocaleDateString('en-IN', {day:'numeric',month:'short',year:'numeric'}) : '';
+        var startStr = t.start_date ? new Date(t.start_date).toLocaleDateString('en-IN', {day:'numeric',month:'short',year:'numeric'}) : '';
+        var prioClass = 'badge-' + t.priority.toLowerCase();
+        var statusClass = 'badge-' + t.status.toLowerCase().replace(/\s/g,'');
+
+        document.getElementById('detailContent').innerHTML =
+            '<div style="margin-bottom:14px;"><span class="tc-badge ' + prioClass + '">' + t.priority + '</span> <span class="tc-badge ' + statusClass + '">' + t.status + '</span>' +
+            (t.source_type === 'assigned' ? ' <span class="tc-badge" style="background:#ede9fe;color:#7c3aed;">📌 From Task #' + t.source_task_id + '</span>' : '') + '</div>' +
+            '<h3 style="font-size:1.05rem;font-weight:800;color:#1e293b;margin:0 0 8px;">' + esc(t.title) + '</h3>' +
+            (t.description ? '<p style="color:#475569;font-size:.88rem;margin:0 0 12px;">' + esc(t.description) + '</p>' : '') +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:.82rem;color:#64748b;">' +
+                '<div>📁 Category: <strong>' + (t.category || '-') + '</strong></div>' +
+                '<div>🏷️ Type: <strong>' + (t.task_type || '-') + '</strong></div>' +
+                '<div>📅 Start: <strong>' + startStr + '</strong></div>' +
+                '<div>📅 Due: <strong>' + dueStr + '</strong></div>' +
+                '<div>⏱️ Est. Time: <strong>' + (t.estimated_time || '-') + '</strong></div>' +
+                (t.delay_reason ? '<div class="full" style="grid-column:1/-1;">⚠️ Delay: <strong>' + esc(t.delay_reason) + '</strong></div>' : '') +
+                (t.notes ? '<div style="grid-column:1/-1;">📝 Notes: ' + esc(t.notes) + '</div>' : '') +
+            '</div>';
+
+        document.getElementById('historyList').innerHTML = hist.length ?
+            hist.map(function(h) {
+                var dt = new Date(h.changed_at).toLocaleString('en-IN');
+                return '<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:.8rem;">' +
+                    '<span style="color:#94a3b8;">' + dt + '</span> · ' +
+                    '<span style="font-weight:700;">' + (h.changed_by_name || 'System') + '</span> — ' +
+                    (h.previous_status ? '<span style="color:#ef4444;">' + h.previous_status + '</span> → ' : '') +
+                    '<span style="color:#10b981;">' + h.new_status + '</span>' +
+                    (h.comment ? ' <span style="color:#64748b;">(' + esc(h.comment) + ')</span>' : '') +
+                '</div>';
+            }).join('') : '<div style="color:#94a3b8;font-size:.82rem;padding:10px 0;">No history yet</div>';
+
+        document.getElementById('detailModal').classList.add('show');
+    } catch(e) { console.error('Detail error:', e); }
+}
+
+// ═══ HELPERS ═══
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+function esc(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+</script>
+</body>
+</html>

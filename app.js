@@ -60,7 +60,15 @@ app.use(cors());
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
-// Serve static files from the 'public' directory (CRM)
+// Serve static files — NO CACHE for HTML/JS/CSS (always get latest)
+app.use((req, res, next) => {
+    if (req.path.endsWith('.html') || req.path.endsWith('.js') || req.path.endsWith('.css')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+    }
+    next();
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Serve static files from the 'website' directory
@@ -6888,7 +6896,7 @@ async function initializeHRTables() {
                 ('tasks', 'Task Manager', '✅', 'CRM', 12),
                 ('complaints', 'Complaints', '🛠', 'CRM', 13),
                 ('reports', 'Reports', '📊', 'CRM', 14),
-                ('daily_activity', 'Daily Activity', '📝', 'CRM', 15)
+                ('daily_activity', 'Work Log Pro', '📝', 'CRM', 15)
             `);
         }
 
