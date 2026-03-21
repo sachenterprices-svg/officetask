@@ -1652,7 +1652,7 @@ app.get('/api/complaints', authenticateToken, async (req, res) => {
             // View purpose: show complaints from view_oas
             if (viewOAs.length > 0) {
                 const voPH = viewOAs.map(() => '?').join(',');
-                where += ` OR c.oa IN (${voPH})`;
+                where += ` OR c.oa_name IN (${voPH})`;
                 params.push(...viewOAs);
             }
 
