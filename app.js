@@ -54,6 +54,34 @@ const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-coral-bsnl-key-2026';
 // Trust proxy (Vercel / Cloudflare) — correct client IP via X-Forwarded-For
 app.set('trust proxy', true);
 
+// --- GEO LOOKUP UTILITY (with fallback) ---
+async function getGeoData(ip) {
+    if (!ip || ip === '127.0.0.1' || ip === '::1' || ip === 'localhost') return { city: '', region: '', country: '', isp: '' };
+    // Try ip-api.com first (45 req/min free, HTTP only)
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        const res = await fetch('http://ip-api.com/json/' + ip + '?fields=city,regionName,country,isp,status', { signal: controller.signal });
+        clearTimeout(timeout);
+        if (res.ok) {
+            const geo = await res.json();
+            if (geo.status === 'success') return { city: geo.city || '', region: geo.regionName || '', country: geo.country || '', isp: geo.isp || '' };
+        }
+    } catch(e) {}
+    // Fallback: ipapi.co (1000 req/day, HTTPS)
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        const res = await fetch('https://ipapi.co/' + ip + '/json/', { signal: controller.signal });
+        clearTimeout(timeout);
+        if (res.ok) {
+            const geo = await res.json();
+            if (!geo.error) return { city: geo.city || '', region: geo.region || '', country: geo.country_name || '', isp: geo.org || '' };
+        }
+    } catch(e) {}
+    return { city: '', region: '', country: '', isp: '' };
+}
+
 // --- MIDDLEWARE ---
 // MUST BE AT THE TOP to parse bodies before hitting routes!
 app.use(cors());
@@ -1177,27 +1205,8 @@ app.post('/api/login', async (req, res) => {
         const userAgent = req.headers['user-agent'] || '';
         const cleanIP = clientIP.replace('::ffff:', '');
         (async () => {
-            let city = '', region = '', country = '', isp = '';
-            // Try geolocation with 5s timeout — never block the INSERT
-            try {
-                if (cleanIP && cleanIP !== '127.0.0.1' && cleanIP !== '::1') {
-                    const controller = new AbortController();
-                    const timeout = setTimeout(() => controller.abort(), 5000);
-                    const geoRes = await fetch('http://ip-api.com/json/' + cleanIP + '?fields=city,regionName,country,isp,status', { signal: controller.signal });
-                    clearTimeout(timeout);
-                    if (geoRes.ok) {
-                        const geo = await geoRes.json();
-                        if (geo.status === 'success') {
-                            city = geo.city || '';
-                            region = geo.regionName || '';
-                            country = geo.country || '';
-                            isp = geo.isp || '';
-                        }
-                    }
-                }
-            } catch (geoErr) {
-                console.error('Geo lookup failed (will still log):', geoErr.message);
-            }
+            const geo = await getGeoData(cleanIP);
+            const { city, region, country, isp } = geo;
             // Always insert the login log, even without geo data
             try {
                 await pool.query(
@@ -1250,7 +1259,7 @@ app.get('/api/login-logs', authenticateToken, async (req, res) => {
         res.json({ rows, total });
     } catch (err) {
         console.error('Login logs error:', err);
-        res.status(500).json({ error: 'Failed to fetch login logs', detail: err.message, code: err.code });
+        res.status(500).json({ error: 'Failed to fetch login logs' });
     }
 });
 
@@ -3616,27 +3625,10 @@ app.post('/api/analytics/track', async (req, res) => {
     res.status(200).end();
 
     try {
-        let city = '', region = '', country = '', isp = '';
-        if (ip && ip !== '127.0.0.1' && ip !== '::1') {
-            try {
-                const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), 5000);
-                const geoRes = await fetch('http://ip-api.com/json/' + ip + '?fields=city,regionName,country,isp,status', { signal: controller.signal });
-                clearTimeout(timeout);
-                if (geoRes.ok) {
-                    const geo = await geoRes.json();
-                    if (geo.status === 'success') {
-                        city = geo.city || '';
-                        region = geo.regionName || '';
-                        country = geo.country || '';
-                        isp = geo.isp || '';
-                    }
-                }
-            } catch(geoErr) {}
-        }
+        const geo = await getGeoData(ip);
         await pool.query(
             'INSERT INTO website_analytics (ip_address, user_agent, page_url, action_type, details, city, region, country, isp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [ip, userAgent, page_url, action_type || 'visit', details || null, city, region, country, isp]
+            [ip, userAgent, page_url, action_type || 'visit', details || null, geo.city, geo.region, geo.country, geo.isp]
         );
     } catch (err) {
         console.error('Track error:', err);

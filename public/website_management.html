@@ -500,21 +500,22 @@
         // --- LOGIN LOGS LOGIC ---
         async function loadLoginLogsUsers() {
             try {
-                var token = localStorage.getItem('crm_token');
-                var res = await fetch((window.API_BASE_URL || '') + '/api/users', {
-                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
-                });
+                var res = await window.apiFetch('/api/users');
                 if (res.ok) {
                     var users = await res.json();
                     var sel = document.getElementById('llUserFilter');
+                    // Clear existing options except first
+                    while (sel.options.length > 1) sel.remove(1);
                     users.forEach(function(u) {
                         var opt = document.createElement('option');
                         opt.value = u.id;
                         opt.textContent = u.name + ' (' + u.username + ')';
                         sel.appendChild(opt);
                     });
+                } else {
+                    console.error('Users API error:', res.status);
                 }
-            } catch(e) {}
+            } catch(e) { console.error('Users dropdown error:', e); }
         }
         loadLoginLogsUsers();
 
@@ -530,10 +531,7 @@
                 if (userId) url += '&user_id=' + userId;
                 if (start) url += '&start=' + start;
                 if (end) url += '&end=' + end;
-                var token = localStorage.getItem('crm_token');
-                var res = await fetch((window.API_BASE_URL || '') + url, {
-                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
-                });
+                var res = await window.apiFetch(url);
                 if (res.ok) {
                     var data = await res.json();
                     if (data.rows.length === 0) {
@@ -564,6 +562,9 @@
                     } else {
                         pgDiv.innerHTML = '';
                     }
+                } else {
+                    var errData = await res.json().catch(function() { return {}; });
+                    body.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:50px; color:#ef4444;">Error: ' + (errData.error || 'Failed to load') + (errData.detail ? ' | Detail: ' + errData.detail : '') + (errData.code ? ' | Code: ' + errData.code : '') + ' (Status: ' + res.status + ')</td></tr>';
                 }
             } catch (e) {
                 console.error('Login logs load error:', e);
@@ -627,10 +628,7 @@
                 if (search) url += '&search=' + encodeURIComponent(search);
                 if (start) url += '&start=' + start;
                 if (end) url += '&end=' + end;
-                var token = localStorage.getItem('crm_token');
-                var res = await fetch((window.API_BASE_URL || '') + url, {
-                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
-                });
+                var res = await window.apiFetch(url);
                 if (res.ok) {
                     var result = await res.json();
                     waData = Array.isArray(result) ? result : (result.rows || []);
