@@ -1365,6 +1365,16 @@ app.post('/api/user-managers/:userId', authenticateToken, isAdmin, async (req, r
     }
 });
 
+// --- USERS LIST (lightweight, admin only - for dropdowns) ---
+app.get('/api/users/list', authenticateToken, isAdmin, async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT id, username, name, role FROM users ORDER BY name');
+        res.json(rows);
+    } catch(err) {
+        res.status(500).json({ error: 'Failed to fetch users list' });
+    }
+});
+
 // --- USERS ROUTES (Admin Only) ---
 app.get('/api/users', authenticateToken, isAdmin, async (req, res) => {
     try {
@@ -3621,17 +3631,17 @@ app.post('/api/analytics/track', async (req, res) => {
     const ip = (req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').replace('::ffff:', '');
     const userAgent = req.headers['user-agent'];
 
-    // Respond immediately, log geo in background
-    res.status(200).end();
-
     try {
+        // Geo lookup + DB insert BEFORE response (Vercel kills function after response)
         const geo = await getGeoData(ip);
         await pool.query(
             'INSERT INTO website_analytics (ip_address, user_agent, page_url, action_type, details, city, region, country, isp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [ip, userAgent, page_url, action_type || 'visit', details || null, geo.city, geo.region, geo.country, geo.isp]
         );
+        res.status(200).json({ ok: true });
     } catch (err) {
         console.error('Track error:', err);
+        res.status(200).json({ ok: true }); // Still return 200 so website doesn't show errors
     }
 });
 

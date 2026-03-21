@@ -500,11 +500,10 @@
         // --- LOGIN LOGS LOGIC ---
         async function loadLoginLogsUsers() {
             try {
-                var res = await window.apiFetch('/api/users');
+                var res = await window.apiFetch('/api/users/list');
                 if (res.ok) {
                     var users = await res.json();
                     var sel = document.getElementById('llUserFilter');
-                    // Clear existing options except first
                     while (sel.options.length > 1) sel.remove(1);
                     users.forEach(function(u) {
                         var opt = document.createElement('option');
@@ -512,8 +511,6 @@
                         opt.textContent = u.name + ' (' + u.username + ')';
                         sel.appendChild(opt);
                     });
-                } else {
-                    console.error('Users API error:', res.status);
                 }
             } catch(e) { console.error('Users dropdown error:', e); }
         }
