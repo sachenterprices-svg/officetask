@@ -1406,16 +1406,19 @@ app.get('/api/users', authenticateToken, isAdmin, async (req, res) => {
                    u1.view_circles, u1.view_oas,
                    u1.permissions, u1.reports_to, u1.created_at,
                    u1.department, u1.work_types, u1.allowed_customers,
-                   u1.backdate_rights,
+                   u1.backdate_rights, u1.purpose_technical, u1.purpose_clerical,
                    u2.name as manager_name, u2.username as manager_username
             FROM users u1
             LEFT JOIN users u2 ON u1.reports_to = u2.id
         `);
-        // Attach manager_ids array for each user from user_managers table
-        for (const row of rows) {
-            const [mgrs] = await pool.query('SELECT manager_id FROM user_managers WHERE user_id = ?', [row.id]);
-            row.manager_ids = mgrs.map(m => m.manager_id);
-        }
+        // Batch fetch all manager mappings in ONE query instead of N+1
+        const [allMgrs] = await pool.query('SELECT user_id, manager_id FROM user_managers');
+        const mgrMap = {};
+        allMgrs.forEach(m => {
+            if (!mgrMap[m.user_id]) mgrMap[m.user_id] = [];
+            mgrMap[m.user_id].push(m.manager_id);
+        });
+        rows.forEach(row => { row.manager_ids = mgrMap[row.id] || []; });
         res.json(rows);
     } catch (err) {
         console.error('Fetch users error:', err);
