@@ -6999,18 +6999,22 @@ app.post('/api/diary/bulk-upload', authenticateToken, isAdmin, pdfUpload.single(
             const row = data[i];
             const rowText = row.map(c => String(c).toUpperCase().trim()).join(' ');
 
-            // Detect section headers
-            if (rowText.includes('DAILY') && (rowText.includes('TASK') || rowText.includes('REPORT') || i < 3)) {
-                currentSection = 'DAILY'; continue;
-            }
-            if (rowText.includes('WEEKLY') && rowText.includes('TASK')) {
-                currentSection = 'WEEKLY'; continue;
-            }
-            if (rowText.includes('MONTHLY') && rowText.includes('TASK')) {
-                currentSection = 'MONTHLY'; continue;
-            }
-            if ((rowText.includes('QUARTERLY') || rowText.includes('QUATERLY')) && rowText.includes('TASK')) {
-                currentSection = 'QUARTERLY'; continue;
+            // Detect section headers (only when col A is NOT a valid serial number)
+            const colA = row[0];
+            const isDataRow = !isNaN(colA) && parseInt(colA) > 0 && String(row[1] || '').trim().length > 0;
+            if (!isDataRow) {
+                if (rowText.includes('DAILY') && (rowText.includes('TASK') || rowText.includes('REPORT'))) {
+                    currentSection = 'DAILY'; continue;
+                }
+                if (rowText.includes('WEEKLY') && rowText.includes('TASK')) {
+                    currentSection = 'WEEKLY'; continue;
+                }
+                if (rowText.includes('MONTHLY') && rowText.includes('TASK')) {
+                    currentSection = 'MONTHLY'; continue;
+                }
+                if ((rowText.includes('QUARTERLY') || rowText.includes('QUATERLY')) && rowText.includes('TASK')) {
+                    currentSection = 'QUARTERLY'; continue;
+                }
             }
 
             // Skip header rows (Sr.No, WORK, Department...)
