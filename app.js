@@ -3830,7 +3830,7 @@ app.get('/api/diary/dashboard-stats', authenticateToken, async (req, res) => {
     }
 });
 
-// --- Work Log Pro Drill-down ---
+// --- Work Log Pro Drill-down (uses tasks + diary_tasks) ---
 app.get('/api/diary/dashboard-drilldown', authenticateToken, async (req, res) => {
     try {
         const today = new Date().toISOString().split('T')[0];
@@ -3838,31 +3838,54 @@ app.get('/api/diary/dashboard-drilldown', authenticateToken, async (req, res) =>
 
         if (!user_id) return res.status(400).json({ error: 'user_id required' });
 
-        // Level 3: specific category tasks for a user
+        // Get user info
+        const [[userInfo]] = await pool.query('SELECT name, username FROM users WHERE id = ?', [user_id]);
+        const userName = userInfo ? userInfo.name : 'Unknown';
+        const username = userInfo ? userInfo.username : '';
+
+        // Level 3: pending tasks list for a user
         if (category) {
-            const [tasks] = await pool.query(
+            // From tasks table (main) - only pending
+            const [mainTasks] = await pool.query(
+                `SELECT id, title, status, 'Medium' as priority, 'Work' as task_type, 'General' as category, due_date,
+                    CASE WHEN status != 'COMPLETED' AND due_date < ? THEN 1 ELSE 0 END as is_overdue
+                 FROM tasks WHERE assigned_to = ? AND status != 'COMPLETED'
+                 ORDER BY due_date ASC`,
+                [today, username]
+            );
+            // From diary_tasks - only pending
+            const [diaryTasks] = await pool.query(
                 `SELECT id, title, status, priority, task_type, category, due_date,
                     CASE WHEN status IN ('Pending','In Progress') AND due_date < ? THEN 1 ELSE 0 END as is_overdue
-                 FROM diary_tasks WHERE user_id = ? AND category = ?
-                 ORDER BY FIELD(status,'In Progress','Pending','Rescheduled','Completed','Closed','Cancelled'), due_date ASC`,
-                [today, user_id, category]
+                 FROM diary_tasks WHERE user_id = ? AND status IN ('Pending','In Progress')
+                 ORDER BY due_date ASC`,
+                [today, user_id]
             );
-            return res.json({ level: 3, tasks });
+            var allTasks = [...mainTasks, ...diaryTasks];
+            return res.json({ level: 3, userName, tasks: allTasks });
         }
 
-        // Level 2: category-wise breakdown for a user
-        const [categories] = await pool.query(
-            `SELECT category,
-                COUNT(*) as total,
-                SUM(CASE WHEN status IN ('Pending','In Progress') THEN 1 ELSE 0 END) as pending,
-                SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) as completed,
-                SUM(CASE WHEN status IN ('Pending','In Progress') AND due_date < ? THEN 1 ELSE 0 END) as overdue
-             FROM diary_tasks WHERE user_id = ?
-             GROUP BY category ORDER BY pending DESC`,
+        // Level 2: just show pending task count (no categories needed - go directly to task list)
+        // From tasks table
+        const [[taskCount]] = await pool.query(
+            `SELECT COUNT(*) as pending,
+                SUM(CASE WHEN due_date < ? THEN 1 ELSE 0 END) as overdue
+             FROM tasks WHERE assigned_to = ? AND status != 'COMPLETED'`,
+            [today, username]
+        );
+        // From diary_tasks
+        const [[diaryCount]] = await pool.query(
+            `SELECT COUNT(*) as pending,
+                SUM(CASE WHEN due_date < ? THEN 1 ELSE 0 END) as overdue
+             FROM diary_tasks WHERE user_id = ? AND status IN ('Pending','In Progress')`,
             [today, user_id]
         );
-        const [[userInfo]] = await pool.query('SELECT name FROM users WHERE id = ?', [user_id]);
-        res.json({ level: 2, userName: userInfo ? userInfo.name : 'Unknown', categories });
+        const totalPending = (parseInt(taskCount.pending)||0) + (parseInt(diaryCount.pending)||0);
+        const totalOverdue = (parseInt(taskCount.overdue)||0) + (parseInt(diaryCount.overdue)||0);
+
+        res.json({ level: 2, userName, categories: [
+            { category: 'All Pending Tasks', total: totalPending, pending: totalPending, overdue: totalOverdue }
+        ]});
     } catch(e) {
         res.status(500).json({ error: e.message });
     }
@@ -3875,6 +3898,8 @@ app.get('/api/proposals/dashboard-drilldown', authenticateToken, async (req, res
         const { user_id, head } = req.query;
 
         if (!user_id) return res.status(400).json({ error: 'user_id required' });
+        const [[prUserInfo]] = await pool.query('SELECT name FROM users WHERE id = ?', [user_id]);
+        const prUserName = prUserInfo ? prUserInfo.name : 'Unknown';
 
         // Level 3: specific head's proposals
         if (head) {
@@ -3890,7 +3915,7 @@ app.get('/api/proposals/dashboard-drilldown', authenticateToken, async (req, res
                  ORDER BY p.created_at DESC`,
                 [today, user_id]
             );
-            return res.json({ level: 3, proposals });
+            return res.json({ level: 3, userName: prUserName, proposals });
         }
 
         // Level 2: head-wise breakdown for a user
@@ -3960,6 +3985,8 @@ app.get('/api/complaints/dashboard-drilldown', authenticateToken, async (req, re
         const { user_id, head } = req.query;
 
         if (!user_id) return res.status(400).json({ error: 'user_id required' });
+        const [[compUserInfo]] = await pool.query('SELECT name FROM users WHERE id = ?', [user_id]);
+        const compUserName = compUserInfo ? compUserInfo.name : 'Unknown';
 
         // Level 3: specific status complaints
         if (head) {
@@ -3974,7 +4001,7 @@ app.get('/api/complaints/dashboard-drilldown', authenticateToken, async (req, re
                  ORDER BY c.created_at DESC LIMIT 50`,
                 [user_id]
             );
-            return res.json({ level: 3, complaints });
+            return res.json({ level: 3, userName: compUserName, complaints });
         }
 
         // Level 2: status-wise breakdown for a user
