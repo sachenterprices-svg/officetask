@@ -9235,6 +9235,19 @@ app.post('/api/voice/chat', async (req, res) => {
             }
 
             case 'ask_std': {
+                // Check if user is trying to select language instead of entering STD code
+                const stdMsgLower = message.toLowerCase().trim();
+                if (stdMsgLower === '1' || stdMsgLower === '2' || stdMsgLower === 'hindi' || stdMsgLower === 'english' || stdMsgLower === 'eng' || stdMsgLower === 'हिंदी') {
+                    // User wants to change language
+                    if (stdMsgLower === '2' || stdMsgLower === 'english' || stdMsgLower === 'eng') {
+                        nextData.lang = 'en';
+                        reply = 'Language changed to English. Please tell your STD Code (like 0129, 0131).';
+                    } else {
+                        nextData.lang = 'hi';
+                        reply = 'भाषा हिंदी में बदल दी गई। कृपया अपना एसटीडी कोड बताएं, जैसे 0129 या 0131।';
+                    }
+                    break;
+                }
                 const stdCode = message.replace(/[^0-9]/g, '').trim();
                 if (!stdCode || stdCode.length < 2) {
                     reply = R('यह सही एसटीडी कोड नहीं है। कृपया सिर्फ नंबर में बताएं, जैसे 0129 या 0131।', 'Invalid STD Code. Please enter only numbers like 0129, 0131.');
