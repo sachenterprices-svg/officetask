@@ -9302,7 +9302,7 @@ app.post('/api/voice/chat', async (req, res) => {
             case 'ask_mobile': {
                 const mobile = message.replace(/[^0-9]/g, '').trim();
                 if (!mobile || mobile.length !== 10) {
-                    reply = R('कृपया दस अंकों का मोबाइल नंबर बताएं।', 'Please enter a 10-digit mobile number.');
+                    reply = R('कृपया दस अंकों का मोबाइल नंबर बताएं या नीचे टाइप करें।', 'Please enter a 10-digit mobile number or type below.');
                 } else {
                     nextData.mobile = mobile;
                     reply = R('मोबाइल ' + mobile + '। अब अपनी ईमेल आईडी बताएं।', 'Mobile: ' + mobile + '. Now tell your Email ID.');
@@ -9314,7 +9314,7 @@ app.post('/api/voice/chat', async (req, res) => {
             case 'ask_email': {
                 const email = message.trim().toLowerCase();
                 if (!email.includes('@') || !email.includes('.')) {
-                    reply = R('यह सही ईमेल नहीं लग रहा। कृपया सही ईमेल पता बताएं।', 'This doesn\'t look like a valid email. Please enter a correct email address.');
+                    reply = R('यह सही ईमेल नहीं लग रहा। कृपया नीचे टेक्स्ट बॉक्स में टाइप करके सही ईमेल भेजें।', 'This doesn\'t look like a valid email. Please type your correct email in the text box below.');
                 } else {
                     nextData.email = email;
                     reply = R('ईमेल ' + email + '। अब अपनी समस्या बताएं। क्या परेशानी है?', 'Email: ' + email + '. Now describe your issue. What is the problem?');
