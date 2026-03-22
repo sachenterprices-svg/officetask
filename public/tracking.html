@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Tracking - Coral Infratel CRM</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="auth.js"></script>
+    <script src="shield.js"></script>
+<script src="mobile.js"></script>
+<script src="tracking.js"></script>
+    <style>
+        #map { width:100%; height:400px; border-radius:12px; border:1px solid #e2e8f0; }
+        .track-tabs { display:flex; gap:0; margin-bottom:20px; border-radius:10px; overflow:hidden; border:1px solid #e2e8f0; }
+        .track-tab { flex:1; padding:12px; text-align:center; cursor:pointer; font-weight:600; font-size:0.85rem; background:#f8fafc; color:#64748b; border:none; transition:0.2s; }
+        .track-tab.active { background:var(--primary); color:#fff; }
+        .track-card { background:#fff; border-radius:12px; padding:16px; border:1px solid #e2e8f0; margin-bottom:12px; display:flex; gap:12px; align-items:center; }
+        .track-card .meta { flex:1; }
+        .track-card .meta h4 { margin:0 0 4px; font-size:0.9rem; color:var(--text-main); }
+        .track-card .meta p { margin:0; font-size:0.8rem; color:#64748b; }
+        .track-card .actions { display:flex; gap:8px; }
+        .track-card .actions button { padding:6px 12px; border:none; border-radius:6px; cursor:pointer; font-size:0.8rem; }
+        .play-btn { background:#10b981; color:#fff; }
+        .view-btn { background:#3b82f6; color:#fff; }
+        .filter-row { display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; align-items:center; }
+        .filter-row select, .filter-row input { padding:8px 12px; border:1px solid #d1d5db; border-radius:8px; font-size:0.85rem; }
+        .user-dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+        .online { background:#10b981; }
+        .offline { background:#94a3b8; }
+        .list-scroll { max-height:500px; overflow-y:auto; }
+        audio { width:100%; max-width:300px; height:36px; }
+        .photo-thumb { width:60px; height:60px; border-radius:8px; object-fit:cover; cursor:pointer; }
+        .photo-modal { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.85); z-index:2000; display:none; align-items:center; justify-content:center; }
+        .photo-modal img { max-width:90vw; max-height:90vh; border-radius:8px; }
+        .photo-modal.active { display:flex; }
+        @media(max-width:768px) { #map { height:280px; } .filter-row { flex-direction:column; } }
+        @media(max-width:480px) { #map { height:220px; } .track-card { flex-direction:column; align-items:flex-start; } }
+    </style>
+</head>
+<body>
+    <header class="top-header">
+        <div class="header-left" style="display:flex; align-items:center; gap:16px;">
+            <div class="header-brand">
+                <img src="assets/Coral Infratel logo.jpg" alt="Coral Infratel" height="56" style="display:block; object-fit:contain;">
+            </div>
+            <div style="width:1px; height:36px; background:#d1d9e6; border-radius:2px;"></div>
+            <div style="color:#64748b; font-weight:600; font-size:0.85rem; text-transform:uppercase; letter-spacing:1.5px;">User Tracking</div>
+        </div>
+        <div class="user-meta">
+            <div class="header-row">
+                <span class="user-name-tag" id="userInfoDisplay">Loading...</span>
+                <button onclick="window.logout()" class="btn-logout" style="background:#64748b; padding:4px 12px; font-size:0.85rem;">Logout</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="app-body">
+        <div class="tile-sidebar" id="sidebar"></div>
+        <div class="content-area" style="padding:24px; overflow-y:auto;">
+            <h2 style="margin-bottom:16px;"><i class="fas fa-map-marker-alt" style="color:var(--primary);"></i> User Tracking</h2>
+
+            <div class="track-tabs">
+                <button class="track-tab active" onclick="switchTab('map',this)"><i class="fas fa-map"></i> Live Map</button>
+                <button class="track-tab" onclick="switchTab('voice',this)"><i class="fas fa-microphone"></i> Voice Logs</button>
+                <button class="track-tab" onclick="switchTab('photo',this)"><i class="fas fa-camera"></i> Photos</button>
+            </div>
+
+            <!-- MAP TAB -->
+            <div id="tab-map">
+                <div class="filter-row">
+                    <select id="userFilter" onchange="loadLocations()"><option value="">All Users</option></select>
+                    <button onclick="loadLocations()" style="padding:8px 16px; background:var(--primary); color:#fff; border:none; border-radius:8px; cursor:pointer;">Refresh</button>
+                </div>
+                <div id="map"></div>
+                <div id="locationList" style="margin-top:16px;"></div>
+            </div>
+
+            <!-- VOICE TAB -->
+            <div id="tab-voice" style="display:none;">
+                <div class="filter-row">
+                    <select id="voiceUserFilter" onchange="loadVoices()"><option value="">All Users</option></select>
+                </div>
+                <div id="voiceList" class="list-scroll"></div>
+            </div>
+
+            <!-- PHOTO TAB -->
+            <div id="tab-photo" style="display:none;">
+                <div class="filter-row">
+                    <select id="photoUserFilter" onchange="loadPhotos()"><option value="">All Users</option></select>
+                </div>
+                <div id="photoList" class="list-scroll" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:12px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Photo Modal -->
+    <div class="photo-modal" id="photoModal" onclick="this.classList.remove('active')">
+        <img id="photoModalImg" src="">
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const API = window.location.hostname === 'localhost' ? 'http://localhost:8080/api' : 'https://officetask-roan.vercel.app/api';
+        const headers = () => ({ 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('token') });
+
+        // Map init
+        let map, markers = [];
+        function initMap() {
+            map = L.map('map').setView([28.6139, 77.2090], 10); // Delhi default
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap'
+            }).addTo(map);
+        }
+        initMap();
+
+        // Tab switching
+        function switchTab(tab, btn) {
+            document.querySelectorAll('.track-tab').forEach(t => t.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('tab-map').style.display = tab === 'map' ? '' : 'none';
+            document.getElementById('tab-voice').style.display = tab === 'voice' ? '' : 'none';
+            document.getElementById('tab-photo').style.display = tab === 'photo' ? '' : 'none';
+            if (tab === 'map') { loadLocations(); setTimeout(() => map.invalidateSize(), 100); }
+            if (tab === 'voice') loadVoices();
+            if (tab === 'photo') loadPhotos();
+        }
+
+        // Load users for filters
+        async function loadUsers() {
+            try {
+                const res = await fetch(API + '/users', { headers: headers() });
+                if (!res.ok) return;
+                const users = await res.json();
+                ['userFilter', 'voiceUserFilter', 'photoUserFilter'].forEach(id => {
+                    const sel = document.getElementById(id);
+                    users.forEach(u => {
+                        const opt = document.createElement('option');
+                        opt.value = u.id; opt.textContent = u.username;
+                        sel.appendChild(opt);
+                    });
+                });
+            } catch(e) {}
+        }
+
+        // Load locations
+        async function loadLocations() {
+            const uid = document.getElementById('userFilter').value;
+            const url = uid ? API + '/user/locations?user_id=' + uid : API + '/user/locations';
+            try {
+                const res = await fetch(url, { headers: headers() });
+                const data = await res.json();
+                // Clear markers
+                markers.forEach(m => map.removeLayer(m));
+                markers = [];
+                let html = '';
+                const bounds = [];
+                data.forEach(loc => {
+                    if (!loc.latitude || !loc.longitude) return;
+                    const m = L.marker([loc.latitude, loc.longitude])
+                        .addTo(map)
+                        .bindPopup('<b>' + (loc.username || 'User ' + loc.user_id) + '</b><br>' + new Date(loc.created_at).toLocaleString());
+                    markers.push(m);
+                    bounds.push([loc.latitude, loc.longitude]);
+                    const ago = timeAgo(loc.created_at);
+                    const isOnline = (Date.now() - new Date(loc.created_at).getTime()) < 10 * 60 * 1000;
+                    html += '<div class="track-card"><div class="user-dot ' + (isOnline ? 'online' : 'offline') + '"></div><div class="meta"><h4>' + (loc.username || 'User') + '</h4><p>' + loc.latitude.toFixed(6) + ', ' + loc.longitude.toFixed(6) + ' &bull; ' + ago + '</p></div></div>';
+                });
+                if (bounds.length > 0) map.fitBounds(bounds, { padding: [30, 30] });
+                document.getElementById('locationList').innerHTML = html || '<p style="color:#94a3b8">No location data yet.</p>';
+            } catch(e) { document.getElementById('locationList').innerHTML = '<p style="color:#ef4444">Failed to load locations.</p>'; }
+        }
+
+        // Load voices
+        async function loadVoices() {
+            const uid = document.getElementById('voiceUserFilter').value;
+            const url = uid ? API + '/user/voices?user_id=' + uid : API + '/user/voices';
+            try {
+                const res = await fetch(url, { headers: headers() });
+                const data = await res.json();
+                let html = '';
+                data.forEach(v => {
+                    html += '<div class="track-card"><div class="meta"><h4><i class="fas fa-microphone" style="color:#10b981;"></i> ' + (v.username || 'User') + '</h4><p>' + new Date(v.created_at).toLocaleString() + (v.note ? ' &bull; ' + v.note : '') + '</p></div><div class="actions"><audio controls src="' + v.file_url + '"></audio></div></div>';
+                });
+                document.getElementById('voiceList').innerHTML = html || '<p style="color:#94a3b8">No voice recordings yet.</p>';
+            } catch(e) { document.getElementById('voiceList').innerHTML = '<p style="color:#ef4444">Failed to load voices.</p>'; }
+        }
+
+        // Load photos
+        async function loadPhotos() {
+            const uid = document.getElementById('photoUserFilter').value;
+            const url = uid ? API + '/user/photos?user_id=' + uid : API + '/user/photos';
+            try {
+                const res = await fetch(url, { headers: headers() });
+                const data = await res.json();
+                let html = '';
+                data.forEach(p => {
+                    html += '<div class="track-card" style="flex-direction:column;"><img class="photo-thumb" src="' + p.file_url + '" onclick="showPhoto(\'' + p.file_url + '\')" style="width:100%;height:150px;"><div class="meta" style="width:100%;"><h4>' + (p.username || 'User') + '</h4><p>' + new Date(p.created_at).toLocaleString() + '</p></div></div>';
+                });
+                document.getElementById('photoList').innerHTML = html || '<p style="color:#94a3b8">No photos yet.</p>';
+            } catch(e) { document.getElementById('photoList').innerHTML = '<p style="color:#ef4444">Failed to load photos.</p>'; }
+        }
+
+        function showPhoto(url) {
+            document.getElementById('photoModalImg').src = url;
+            document.getElementById('photoModal').classList.add('active');
+        }
+
+        function timeAgo(dt) {
+            const diff = Date.now() - new Date(dt).getTime();
+            if (diff < 60000) return 'Just now';
+            if (diff < 3600000) return Math.floor(diff / 60000) + ' min ago';
+            if (diff < 86400000) return Math.floor(diff / 3600000) + ' hr ago';
+            return Math.floor(diff / 86400000) + ' days ago';
+        }
+
+        // Init
+        loadUsers();
+        loadLocations();
+    </script>
+</body>
+</html>
