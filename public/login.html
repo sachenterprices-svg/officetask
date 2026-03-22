@@ -4,19 +4,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - BSNL Proposal Generator</title>
+    <title>Login - Coral Infratel CRM</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#002d72">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
     <style>
         :root {
-            --primary: #002d72;
-            --secondary: #f97316;
-            --bg-gradient: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            --teal: #2ab5b2;
+            --teal-dark: #1a8f8c;
+            --red: #e31837;
+            --red-dark: #c1122d;
         }
 
         body {
-            background: var(--bg-gradient);
+            background: #f0f9f8;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -24,111 +29,153 @@
             margin: 0;
             font-family: 'Inter', sans-serif;
             overflow: hidden;
+            position: relative;
         }
 
-        /* Ambient Background Elements */
+        /* Left teal accent panel */
+        body::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0;
+            width: 45%;
+            height: 100%;
+            background: linear-gradient(160deg, #1a8f8c 0%, #2ab5b2 50%, #35c7c4 100%);
+            clip-path: polygon(0 0, 85% 0, 65% 100%, 0 100%);
+            z-index: 0;
+        }
+
+        /* Subtle red accent curve */
+        body::after {
+            content: '';
+            position: absolute;
+            left: 0; bottom: 0;
+            width: 30%;
+            height: 35%;
+            background: linear-gradient(45deg, rgba(227, 24, 55, 0.7), rgba(227, 24, 55, 0));
+            clip-path: polygon(0 40%, 100% 100%, 0 100%);
+            z-index: 0;
+        }
+
         .ambient-blob {
             position: absolute;
             width: 500px;
             height: 500px;
-            background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0) 70%);
             border-radius: 50%;
-            z-index: -1;
-            filter: blur(50px);
+            z-index: 0;
+            filter: blur(100px);
         }
 
         .blob-1 {
-            top: -100px;
+            top: -150px;
             left: -100px;
+            background: radial-gradient(circle, rgba(42, 181, 178, 0.2) 0%, transparent 70%);
         }
 
         .blob-2 {
-            bottom: -100px;
+            bottom: -150px;
             right: -100px;
-            background: radial-gradient(circle, rgba(249, 115, 22, 0.1) 0%, rgba(249, 115, 22, 0) 70%);
+            background: radial-gradient(circle, rgba(227, 24, 55, 0.1) 0%, transparent 70%);
+        }
+
+        .blob-3 {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 700px;
+            height: 700px;
+            background: radial-gradient(circle, rgba(42, 181, 178, 0.06) 0%, transparent 70%);
         }
 
         .login-container {
-            background: rgba(255, 255, 255, 0.05);
+            position: relative;
+            z-index: 1;
+            background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             padding: 50px;
-            border-radius: 30px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border-radius: 28px;
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.15), 0 0 40px rgba(42, 181, 178, 0.08);
             width: 100%;
             max-width: 440px;
-            color: white;
+            color: #1e293b;
         }
 
         .login-header {
             text-align: center;
-            margin-bottom: 40px;
+            margin-bottom: 35px;
+        }
+
+        .logo-img {
+            width: 230px;
+            margin-bottom: 24px;
         }
 
         .login-header h2 {
             margin: 0;
-            font-size: 2rem;
-            font-weight: 800;
+            font-size: 1.8rem;
+            font-weight: 700;
             letter-spacing: -0.5px;
+            color: #1e293b;
         }
 
         .login-header p {
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 1rem;
+            color: #64748b;
+            font-size: 0.95rem;
             margin-top: 8px;
         }
 
         .input-group {
-            margin-bottom: 25px;
+            margin-bottom: 22px;
         }
 
         .input-group label {
             display: block;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             font-weight: 600;
-            color: rgba(255, 255, 255, 0.8);
-            font-size: 0.9rem;
+            color: #475569;
+            font-size: 0.8rem;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 1.2px;
         }
 
         .input-group input {
             width: 100%;
-            padding: 15px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 14px 16px;
+            background: #f8fafc;
+            border: 1.5px solid #e2e8f0;
             border-radius: 12px;
             outline: none;
             transition: 0.3s;
             box-sizing: border-box;
             font-size: 1rem;
-            color: white;
+            color: #1e293b;
         }
 
         .input-group input:focus {
-            border-color: var(--primary);
-            background: rgba(255, 255, 255, 0.1);
-            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+            border-color: var(--teal);
+            background: #fff;
+            box-shadow: 0 0 0 4px rgba(42, 181, 178, 0.12);
         }
 
         .login-btn {
-            background: linear-gradient(135deg, #002d72, #2563eb);
+            background: linear-gradient(135deg, var(--teal) 0%, var(--teal-dark) 100%);
             color: white;
             border: none;
             border-radius: 12px;
-            padding: 16px;
+            padding: 15px;
             width: 100%;
             font-weight: 700;
-            font-size: 1.1rem;
+            font-size: 1.05rem;
             cursor: pointer;
             transition: 0.3s;
-            box-shadow: 0 10px 20px rgba(37, 99, 235, 0.3);
+            box-shadow: 0 8px 24px rgba(42, 181, 178, 0.3);
+            letter-spacing: 0.5px;
         }
 
         .login-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 15px 25px rgba(37, 99, 235, 0.4);
+            box-shadow: 0 12px 30px rgba(42, 181, 178, 0.4);
         }
 
         .login-btn:disabled {
@@ -138,41 +185,48 @@
         }
 
         .error-message {
-            color: #fb7185;
-            font-size: 0.95rem;
+            color: var(--red);
+            font-size: 0.9rem;
             text-align: center;
-            margin-top: 20px;
+            margin-top: 18px;
             display: none;
             padding: 12px;
-            background: rgba(225, 29, 72, 0.1);
-            border-radius: 8px;
-            border: 1px solid rgba(225, 29, 72, 0.2);
+            background: rgba(227, 24, 55, 0.06);
+            border-radius: 10px;
+            border: 1px solid rgba(227, 24, 55, 0.15);
         }
 
-        .coral-logo {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            margin-bottom: 20px;
-            font-size: 1.8rem;
-            font-weight: 900;
-            letter-spacing: 1px;
+        .login-container::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60%;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, var(--teal), var(--red), transparent);
+            border-radius: 0 0 28px 28px;
+        }
+        @media (max-width: 480px) {
+            .login-container { padding:25px 20px; border-radius:16px; max-width:95vw; }
+            .logo-img { width:160px; }
+            .login-header h2 { font-size:1.3rem; }
+            .login-header p { font-size:0.85rem; }
+            input[type="text"], input[type="password"] { padding:12px 14px; font-size:0.9rem; }
+            .login-btn { padding:14px; font-size:1rem; }
         }
     </style>
+    <script src="shield.js"></script>
 </head>
 
 <body>
     <div class="ambient-blob blob-1"></div>
     <div class="ambient-blob blob-2"></div>
+    <div class="ambient-blob blob-3"></div>
 
     <div class="login-container">
         <div class="login-header">
-            <div class="coral-logo"
-                style="justify-content: center; margin-bottom: 15px; font-size: 1.5rem; font-weight: 800;">
-                <span class="c-blue" style="color:#0033a0">Coral</span> <span class="c-orange"
-                    style="color:#f97316">Infratel</span>
-            </div>
+            <img src="assets/Coral%20Infratel%20logo.jpg" alt="Coral Infratel" class="logo-img">
             <h2>Welcome Back</h2>
             <p>Sign in to your CRM account</p>
         </div>
@@ -246,8 +300,10 @@
                     localStorage.setItem('crm_token', data.token);
                     localStorage.setItem('crm_user', JSON.stringify(data.user));
 
-                    // Redirect to office task dashboard
-                    window.location.href = 'dashboard.html';
+                    // Redirect — app/ wrapper on production, dashboard on local
+                    var isLocal = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+                    localStorage.setItem('_crmLastPage', 'dashboard.html');
+                    window.location.href = isLocal ? 'dashboard.html' : 'app/';
                 } else {
                     errorDiv.textContent = (data.error || 'Login failed') + (data.details ? ': ' + data.details : '');
                     errorDiv.style.display = 'block';
@@ -262,6 +318,7 @@
             }
         });
     </script>
+    <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(()=>{});}</script>
 </body>
 
 </html>

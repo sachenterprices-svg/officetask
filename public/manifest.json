@@ -1,0 +1,14 @@
+{
+  "name": "Coral Infratel CRM",
+  "short_name": "Coral CRM",
+  "description": "Coral Infratel Operations & Task Management",
+  "start_url": "/login.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8fafc",
+  "theme_color": "#002d72",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

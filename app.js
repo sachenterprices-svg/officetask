@@ -9545,6 +9545,121 @@ function voiceBotFallback(step, message, data, nextData) {
     return { reply, nextStep, nextData, action };
 }
 
+// ══════ USER TRACKING APIs (Location, Voice, Photo) ══════
+// Table init
+pool.query(`CREATE TABLE IF NOT EXISTS user_tracking (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    username VARCHAR(100),
+    type ENUM('location','voice','photo') NOT NULL,
+    latitude DECIMAL(10,8),
+    longitude DECIMAL(11,8),
+    accuracy FLOAT,
+    file_url TEXT,
+    file_size INT DEFAULT 0,
+    note TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_user_type (user_id, type),
+    INDEX idx_created (created_at)
+)`).then(() => console.log('✅ User tracking table initialized.')).catch(() => {});
+
+// POST /api/user/location — save GPS coordinates
+app.post('/api/user/location', async (req, res) => {
+    try {
+        const { latitude, longitude, accuracy } = req.body;
+        const userId = req.user?.id || req.body.user_id;
+        const username = req.user?.username || req.body.username || 'unknown';
+        if (!latitude || !longitude) return res.status(400).json({ error: 'latitude and longitude required' });
+        await pool.query('INSERT INTO user_tracking (user_id, username, type, latitude, longitude, accuracy) VALUES (?,?,?,?,?,?)',
+            [userId, username, 'location', latitude, longitude, accuracy || 0]);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/user/locations — get latest location of all users (or specific user)
+app.get('/api/user/locations', async (req, res) => {
+    try {
+        const { user_id, from, to } = req.query;
+        let sql, params = [];
+        if (user_id) {
+            sql = 'SELECT * FROM user_tracking WHERE type="location" AND user_id=? ORDER BY created_at DESC LIMIT 100';
+            params = [user_id];
+        } else {
+            // Latest location per user
+            sql = `SELECT t1.* FROM user_tracking t1
+                   INNER JOIN (SELECT user_id, MAX(created_at) as max_dt FROM user_tracking WHERE type='location' GROUP BY user_id) t2
+                   ON t1.user_id = t2.user_id AND t1.created_at = t2.max_dt WHERE t1.type='location'`;
+        }
+        const [rows] = await pool.query(sql, params);
+        res.json(rows);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/user/voice — upload voice recording (base64)
+app.post('/api/user/voice', async (req, res) => {
+    try {
+        const { audio_data, latitude, longitude, note } = req.body;
+        const userId = req.user?.id || req.body.user_id;
+        const username = req.user?.username || req.body.username || 'unknown';
+        if (!audio_data) return res.status(400).json({ error: 'audio_data required (base64)' });
+        // Save base64 audio as file
+        const fname = `voice_${userId}_${Date.now()}.webm`;
+        const fpath = path.join(__dirname, 'public', 'uploads', fname);
+        const dir = path.join(__dirname, 'public', 'uploads');
+        if (!require('fs').existsSync(dir)) require('fs').mkdirSync(dir, { recursive: true });
+        const buf = Buffer.from(audio_data, 'base64');
+        require('fs').writeFileSync(fpath, buf);
+        const fileUrl = `/uploads/${fname}`;
+        await pool.query('INSERT INTO user_tracking (user_id, username, type, latitude, longitude, file_url, file_size, note) VALUES (?,?,?,?,?,?,?,?)',
+            [userId, username, 'voice', latitude || 0, longitude || 0, fileUrl, buf.length, note || '']);
+        res.json({ success: true, url: fileUrl });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/user/voices — list voice recordings
+app.get('/api/user/voices', async (req, res) => {
+    try {
+        const { user_id } = req.query;
+        let sql = 'SELECT * FROM user_tracking WHERE type="voice" ORDER BY created_at DESC LIMIT 100';
+        let params = [];
+        if (user_id) { sql = 'SELECT * FROM user_tracking WHERE type="voice" AND user_id=? ORDER BY created_at DESC LIMIT 100'; params = [user_id]; }
+        const [rows] = await pool.query(sql, params);
+        res.json(rows);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/user/photo — upload photo (base64)
+app.post('/api/user/photo', async (req, res) => {
+    try {
+        const { image_data, latitude, longitude, note } = req.body;
+        const userId = req.user?.id || req.body.user_id;
+        const username = req.user?.username || req.body.username || 'unknown';
+        if (!image_data) return res.status(400).json({ error: 'image_data required (base64)' });
+        const fname = `photo_${userId}_${Date.now()}.jpg`;
+        const fpath = path.join(__dirname, 'public', 'uploads', fname);
+        const dir = path.join(__dirname, 'public', 'uploads');
+        if (!require('fs').existsSync(dir)) require('fs').mkdirSync(dir, { recursive: true });
+        const buf = Buffer.from(image_data, 'base64');
+        require('fs').writeFileSync(fpath, buf);
+        const fileUrl = `/uploads/${fname}`;
+        await pool.query('INSERT INTO user_tracking (user_id, username, type, latitude, longitude, file_url, file_size, note) VALUES (?,?,?,?,?,?,?,?)',
+            [userId, username, 'photo', latitude || 0, longitude || 0, fileUrl, buf.length, note || '']);
+        res.json({ success: true, url: fileUrl });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/user/photos — list photos
+app.get('/api/user/photos', async (req, res) => {
+    try {
+        const { user_id } = req.query;
+        let sql = 'SELECT * FROM user_tracking WHERE type="photo" ORDER BY created_at DESC LIMIT 100';
+        let params = [];
+        if (user_id) { sql = 'SELECT * FROM user_tracking WHERE type="photo" AND user_id=? ORDER BY created_at DESC LIMIT 100'; params = [user_id]; }
+        const [rows] = await pool.query(sql, params);
+        res.json(rows);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Catch-all route to serve the frontend — MUST be LAST
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
