@@ -9113,38 +9113,36 @@ app.post('/api/voice/chat', async (req, res) => {
         let nextData = { ...data };
         let action = null;
 
-        // Step-by-step guided conversation
+        // Step-by-step guided conversation (Devanagari Hindi for proper TTS)
         switch (step) {
             case 'greeting': {
                 // Smart greeting - check what form data is already available
                 if (data.customer_found && data.customer_name && data.std_code && data.telephone_number) {
-                    // Customer already verified from form
                     if (data.complainee_name && data.mobile && data.email && data.description) {
-                        reply = 'Namaste! Aapki saari details form mein bhar chuki hain. Kya complaint submit karein? Haan ya Naa bolein.';
+                        reply = 'नमस्ते! आपकी सारी जानकारी फॉर्म में भर चुकी है। क्या कंप्लेंट सबमिट करें? हाँ या ना बोलें।';
                         nextStep = 'confirm_submit';
                     } else if (data.complainee_name && data.mobile && data.email) {
-                        reply = 'Namaste ' + data.complainee_name + '! Customer: ' + data.customer_name + ' verified hai. Ab apni samasya batayein - kya issue hai?';
+                        reply = 'नमस्ते ' + data.complainee_name + '! कस्टमर ' + data.customer_name + ' वेरीफाई हो गया है। अब अपनी समस्या बताएं।';
                         nextStep = 'ask_issue';
                     } else if (data.complainee_name && data.mobile) {
-                        reply = 'Namaste ' + data.complainee_name + '! Customer: ' + data.customer_name + ' verified hai. Ab apni Email ID batayein.';
+                        reply = 'नमस्ते ' + data.complainee_name + '! कस्टमर ' + data.customer_name + ' वेरीफाई हो गया है। अब अपनी ईमेल आईडी बताएं।';
                         nextStep = 'ask_email';
                     } else if (data.complainee_name) {
-                        reply = 'Namaste ' + data.complainee_name + '! Customer: ' + data.customer_name + ' verified hai. Ab apna 10-digit Mobile Number batayein.';
+                        reply = 'नमस्ते ' + data.complainee_name + '! कस्टमर ' + data.customer_name + ' वेरीफाई हो गया है। अब अपना दस अंकों का मोबाइल नंबर बताएं।';
                         nextStep = 'ask_mobile';
                     } else {
-                        reply = 'Namaste! Customer: ' + data.customer_name + ' verified hai. Ab apna poora naam batayein jo complaint mein likhna hai.';
+                        reply = 'नमस्ते! कस्टमर ' + data.customer_name + ' वेरीफाई हो गया है। अब अपना पूरा नाम बताएं जो कंप्लेंट में लिखना है।';
                         nextStep = 'ask_name';
                     }
                 } else if (data.std_code && data.telephone_number) {
-                    // STD + phone available, need verification
-                    reply = 'Namaste! STD Code: ' + data.std_code + ' aur Telephone: ' + data.telephone_number + ' mil gaya. Account verify kar rahe hain...';
+                    reply = 'नमस्ते! एसटीडी कोड ' + data.std_code + ' और टेलीफोन नंबर ' + data.telephone_number + ' मिल गया। अकाउंट वेरीफाई कर रहे हैं।';
                     nextStep = 'verify_customer';
                     action = 'lookup';
                 } else if (data.std_code) {
-                    reply = 'Namaste! STD Code: ' + data.std_code + ' mil gaya. Ab apna Telephone Number batayein.';
+                    reply = 'नमस्ते! एसटीडी कोड ' + data.std_code + ' मिल गया। अब अपना टेलीफोन नंबर बताएं।';
                     nextStep = 'ask_phone';
                 } else {
-                    reply = 'Namaste! Coral Infratel Support mein aapka swagat hai. Kripya apna STD Code batayein (jaise 0129, 0131).';
+                    reply = 'नमस्ते! कोरल इंफ्राटेल सपोर्ट में आपका स्वागत है। कृपया अपना एसटीडी कोड बताएं, जैसे 0129 या 0131।';
                     nextStep = 'ask_std';
                 }
                 break;
@@ -9153,10 +9151,10 @@ app.post('/api/voice/chat', async (req, res) => {
             case 'ask_std': {
                 const stdCode = message.replace(/[^0-9]/g, '').trim();
                 if (!stdCode || stdCode.length < 2) {
-                    reply = 'Yeh valid STD code nahi hai. Kripya sirf numbers mein STD code batayein (jaise 0129, 0131).';
+                    reply = 'यह सही एसटीडी कोड नहीं है। कृपया सिर्फ नंबर में एसटीडी कोड बताएं, जैसे 0129 या 0131।';
                 } else {
                     nextData.std_code = stdCode;
-                    reply = 'STD Code: ' + stdCode + '. Ab apna Telephone Number batayein.';
+                    reply = 'एसटीडी कोड ' + stdCode + ' मिल गया। अब अपना टेलीफोन नंबर बताएं।';
                     nextStep = 'ask_phone';
                 }
                 break;
@@ -9165,10 +9163,10 @@ app.post('/api/voice/chat', async (req, res) => {
             case 'ask_phone': {
                 const phone = message.replace(/[^0-9]/g, '').trim();
                 if (!phone || phone.length < 6) {
-                    reply = 'Yeh valid telephone number nahi hai. Kripya sirf numbers mein telephone number batayein.';
+                    reply = 'यह सही टेलीफोन नंबर नहीं है। कृपया सिर्फ नंबर में टेलीफोन नंबर बताएं।';
                 } else {
                     nextData.telephone_number = phone;
-                    reply = 'Telephone: ' + phone + '. Aapka account verify kar rahe hain...';
+                    reply = 'टेलीफोन नंबर ' + phone + '। आपका अकाउंट वेरीफाई कर रहे हैं।';
                     nextStep = 'verify_customer';
                     action = 'lookup';
                 }
@@ -9176,12 +9174,11 @@ app.post('/api/voice/chat', async (req, res) => {
             }
 
             case 'verify_customer': {
-                // Frontend will call customer lookup API and pass result
                 if (data.customer_found) {
-                    reply = 'Customer: ' + data.customer_name + '. Kya yeh sahi hai? Haan ya Naa bolein.';
+                    reply = 'कस्टमर का नाम ' + data.customer_name + ' है। क्या यह सही है? हाँ या ना बोलें।';
                     nextStep = 'confirm_customer';
                 } else {
-                    reply = 'Is STD Code aur Telephone Number se koi customer nahi mila. Kripya dubara check karein. Apna STD Code batayein.';
+                    reply = 'इस एसटीडी कोड और टेलीफोन नंबर से कोई कस्टमर नहीं मिला। कृपया दोबारा चेक करें। अपना एसटीडी कोड बताएं।';
                     nextStep = 'ask_std';
                     nextData = {};
                 }
@@ -9190,16 +9187,16 @@ app.post('/api/voice/chat', async (req, res) => {
 
             case 'confirm_customer': {
                 const lower = message.toLowerCase().trim();
-                if (lower.includes('haan') || lower.includes('han') || lower.includes('yes') || lower.includes('ha') || lower.includes('ji') || lower === 'y') {
+                if (lower.includes('haan') || lower.includes('han') || lower.includes('yes') || lower.includes('ha') || lower.includes('ji') || lower === 'y' || lower.includes('हाँ') || lower.includes('हां') || lower.includes('जी')) {
                     if (data.has_duplicate) {
-                        reply = 'Aapki ek complaint pehle se registered hai - Ticket: ' + data.duplicate_ticket + '. Nayi complaint register nahi ho sakti jab tak purani resolve na ho. Kuch aur madad chahiye?';
+                        reply = 'आपकी एक कंप्लेंट पहले से रजिस्टर्ड है। टिकट नंबर ' + data.duplicate_ticket + '। नई कंप्लेंट तब तक रजिस्टर नहीं हो सकती जब तक पुरानी हल न हो। कुछ और मदद चाहिए?';
                         nextStep = 'done';
                     } else {
-                        reply = 'Bahut achha! Ab apna poora naam batayein jo complaint mein likhna hai.';
+                        reply = 'बहुत अच्छा! अब अपना पूरा नाम बताएं जो कंप्लेंट में लिखना है।';
                         nextStep = 'ask_name';
                     }
                 } else {
-                    reply = 'Theek hai, phir se try karte hain. Apna STD Code batayein.';
+                    reply = 'ठीक है, फिर से कोशिश करते हैं। अपना एसटीडी कोड बताएं।';
                     nextStep = 'ask_std';
                     nextData = {};
                 }
@@ -9208,10 +9205,10 @@ app.post('/api/voice/chat', async (req, res) => {
 
             case 'ask_name': {
                 if (message.trim().length < 2) {
-                    reply = 'Kripya apna poora naam batayein.';
+                    reply = 'कृपया अपना पूरा नाम बताएं।';
                 } else {
                     nextData.complainee_name = message.trim();
-                    reply = 'Naam: ' + message.trim() + '. Ab apna 10-digit Mobile Number batayein.';
+                    reply = 'नाम ' + message.trim() + '। अब अपना दस अंकों का मोबाइल नंबर बताएं।';
                     nextStep = 'ask_mobile';
                 }
                 break;
@@ -9220,10 +9217,10 @@ app.post('/api/voice/chat', async (req, res) => {
             case 'ask_mobile': {
                 const mobile = message.replace(/[^0-9]/g, '').trim();
                 if (!mobile || mobile.length !== 10) {
-                    reply = 'Kripya 10-digit mobile number batayein (jaise 9876543210).';
+                    reply = 'कृपया दस अंकों का मोबाइल नंबर बताएं।';
                 } else {
                     nextData.mobile = mobile;
-                    reply = 'Mobile: ' + mobile + '. Ab apni Email ID batayein.';
+                    reply = 'मोबाइल नंबर ' + mobile + '। अब अपनी ईमेल आईडी बताएं।';
                     nextStep = 'ask_email';
                 }
                 break;
@@ -9232,10 +9229,10 @@ app.post('/api/voice/chat', async (req, res) => {
             case 'ask_email': {
                 const email = message.trim().toLowerCase();
                 if (!email.includes('@') || !email.includes('.')) {
-                    reply = 'Yeh valid email nahi lag raha. Kripya sahi email address batayein (jaise name@gmail.com).';
+                    reply = 'यह सही ईमेल नहीं लग रहा। कृपया सही ईमेल पता बताएं।';
                 } else {
                     nextData.email = email;
-                    reply = 'Email: ' + email + '. Ab apni samasya batayein - kya issue hai? Detail mein batayen.';
+                    reply = 'ईमेल ' + email + '। अब अपनी समस्या बताएं। क्या परेशानी है? विस्तार से बताएं।';
                     nextStep = 'ask_issue';
                 }
                 break;
@@ -9243,15 +9240,15 @@ app.post('/api/voice/chat', async (req, res) => {
 
             case 'ask_issue': {
                 if (message.trim().length < 5) {
-                    reply = 'Kripya apni samasya thodi detail mein batayen.';
+                    reply = 'कृपया अपनी समस्या थोड़ी विस्तार से बताएं।';
                 } else {
                     nextData.description = message.trim();
-                    reply = 'Confirm karein:\n'
-                        + '• Naam: ' + nextData.complainee_name + '\n'
-                        + '• Mobile: ' + nextData.mobile + '\n'
-                        + '• Email: ' + nextData.email + '\n'
-                        + '• Samasya: ' + nextData.description.substring(0, 100) + '\n\n'
-                        + 'Kya complaint submit karein? Haan ya Naa bolein.';
+                    reply = 'कृपया पुष्टि करें:\n'
+                        + '• नाम: ' + nextData.complainee_name + '\n'
+                        + '• मोबाइल: ' + nextData.mobile + '\n'
+                        + '• ईमेल: ' + nextData.email + '\n'
+                        + '• समस्या: ' + nextData.description.substring(0, 100) + '\n\n'
+                        + 'क्या कंप्लेंट सबमिट करें? हाँ या ना बोलें।';
                     nextStep = 'confirm_submit';
                 }
                 break;
@@ -9259,12 +9256,12 @@ app.post('/api/voice/chat', async (req, res) => {
 
             case 'confirm_submit': {
                 const lower = message.toLowerCase().trim();
-                if (lower.includes('haan') || lower.includes('han') || lower.includes('yes') || lower.includes('ha') || lower.includes('ji') || lower === 'y') {
-                    reply = 'Complaint submit ho rahi hai...';
+                if (lower.includes('haan') || lower.includes('han') || lower.includes('yes') || lower.includes('ha') || lower.includes('ji') || lower === 'y' || lower.includes('हाँ') || lower.includes('हां') || lower.includes('जी')) {
+                    reply = 'कंप्लेंट सबमिट हो रही है...';
                     nextStep = 'submitting';
                     action = 'submit';
                 } else {
-                    reply = 'Complaint cancel kar di gayi. Kya aap dubara try karna chahenge? STD Code batayein ya "nahi" bolein.';
+                    reply = 'कंप्लेंट रद्द कर दी गई। क्या आप दोबारा कोशिश करना चाहेंगे? एसटीडी कोड बताएं या नहीं बोलें।';
                     nextStep = 'ask_std';
                     nextData = {};
                 }
@@ -9272,21 +9269,21 @@ app.post('/api/voice/chat', async (req, res) => {
             }
 
             case 'submitted': {
-                reply = 'Aapki complaint register ho gayi hai!\n'
-                    + '• Ticket ID: ' + (data.ticket_id || '') + '\n'
-                    + '• Complaint No: ' + (data.complaint_no || '') + '\n\n'
-                    + 'Aapko Email aur WhatsApp par notification milega. Dhanyavaad!';
+                reply = 'आपकी कंप्लेंट रजिस्टर हो गई है!\n'
+                    + '• टिकट आईडी: ' + (data.ticket_id || '') + '\n'
+                    + '• कंप्लेंट नंबर: ' + (data.complaint_no || '') + '\n\n'
+                    + 'आपको ईमेल और व्हाट्सएप पर सूचना मिलेगी। धन्यवाद!';
                 nextStep = 'done';
                 break;
             }
 
             case 'done':
-                reply = 'Dhanyavaad! Kya kuch aur madad chahiye? Nayi complaint ke liye "haan" bolein.';
+                reply = 'धन्यवाद! क्या कुछ और मदद चाहिए? नई कंप्लेंट के लिए हाँ बोलें।';
                 const lower2 = message.toLowerCase().trim();
-                if (lower2.includes('haan') || lower2.includes('han') || lower2.includes('yes') || lower2.includes('ha')) {
+                if (lower2.includes('haan') || lower2.includes('han') || lower2.includes('yes') || lower2.includes('ha') || lower2.includes('हाँ') || lower2.includes('हां') || lower2.includes('जी')) {
                     nextStep = 'ask_std';
                     nextData = {};
-                    reply = 'Theek hai! Apna STD Code batayein.';
+                    reply = 'ठीक है! अपना एसटीडी कोड बताएं।';
                 }
                 break;
 
