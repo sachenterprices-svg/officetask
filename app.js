@@ -9115,10 +9115,40 @@ app.post('/api/voice/chat', async (req, res) => {
 
         // Step-by-step guided conversation
         switch (step) {
-            case 'greeting':
-                reply = 'Namaste! Coral Infratel Support mein aapka swagat hai. Kripya apna STD Code batayein (jaise 0129, 0131).';
-                nextStep = 'ask_std';
+            case 'greeting': {
+                // Smart greeting - check what form data is already available
+                if (data.customer_found && data.customer_name && data.std_code && data.telephone_number) {
+                    // Customer already verified from form
+                    if (data.complainee_name && data.mobile && data.email && data.description) {
+                        reply = 'Namaste! Aapki saari details form mein bhar chuki hain. Kya complaint submit karein? Haan ya Naa bolein.';
+                        nextStep = 'confirm_submit';
+                    } else if (data.complainee_name && data.mobile && data.email) {
+                        reply = 'Namaste ' + data.complainee_name + '! Customer: ' + data.customer_name + ' verified hai. Ab apni samasya batayein - kya issue hai?';
+                        nextStep = 'ask_issue';
+                    } else if (data.complainee_name && data.mobile) {
+                        reply = 'Namaste ' + data.complainee_name + '! Customer: ' + data.customer_name + ' verified hai. Ab apni Email ID batayein.';
+                        nextStep = 'ask_email';
+                    } else if (data.complainee_name) {
+                        reply = 'Namaste ' + data.complainee_name + '! Customer: ' + data.customer_name + ' verified hai. Ab apna 10-digit Mobile Number batayein.';
+                        nextStep = 'ask_mobile';
+                    } else {
+                        reply = 'Namaste! Customer: ' + data.customer_name + ' verified hai. Ab apna poora naam batayein jo complaint mein likhna hai.';
+                        nextStep = 'ask_name';
+                    }
+                } else if (data.std_code && data.telephone_number) {
+                    // STD + phone available, need verification
+                    reply = 'Namaste! STD Code: ' + data.std_code + ' aur Telephone: ' + data.telephone_number + ' mil gaya. Account verify kar rahe hain...';
+                    nextStep = 'verify_customer';
+                    action = 'lookup';
+                } else if (data.std_code) {
+                    reply = 'Namaste! STD Code: ' + data.std_code + ' mil gaya. Ab apna Telephone Number batayein.';
+                    nextStep = 'ask_phone';
+                } else {
+                    reply = 'Namaste! Coral Infratel Support mein aapka swagat hai. Kripya apna STD Code batayein (jaise 0129, 0131).';
+                    nextStep = 'ask_std';
+                }
                 break;
+            }
 
             case 'ask_std': {
                 const stdCode = message.replace(/[^0-9]/g, '').trim();
