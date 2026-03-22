@@ -9122,6 +9122,66 @@ app.post('/api/voice/chat', async (req, res) => {
             return l.includes('haan') || l.includes('han') || l.includes('yes') || l.includes('ha') || l.includes('ji') || l === 'y' || l.includes('हाँ') || l.includes('हां') || l.includes('जी');
         };
 
+        // Correction detection - user wants to fix something
+        const msgLower = message.toLowerCase().trim();
+        const WANTS_CORRECTION = msgLower.includes('galat') || msgLower.includes('wrong') || msgLower.includes('change') ||
+            msgLower.includes('correct') || msgLower.includes('sudhar') || msgLower.includes('गलत') ||
+            msgLower.includes('बदल') || msgLower.includes('सुधार') || msgLower.includes('ठीक कर') ||
+            msgLower.includes('fix') || msgLower.includes('edit') || msgLower.includes('modify') ||
+            msgLower.includes('nahi') || msgLower.includes('नहीं') || msgLower.includes('ruk') || msgLower.includes('रुक');
+
+        // Which field does user want to correct?
+        const WANTS_FIX_NAME = WANTS_CORRECTION && (msgLower.includes('naam') || msgLower.includes('name') || msgLower.includes('नाम'));
+        const WANTS_FIX_MOBILE = WANTS_CORRECTION && (msgLower.includes('mobile') || msgLower.includes('मोबाइल') || msgLower.includes('phone') || msgLower.includes('फोन') || msgLower.includes('number') || msgLower.includes('नंबर'));
+        const WANTS_FIX_EMAIL = WANTS_CORRECTION && (msgLower.includes('email') || msgLower.includes('ईमेल') || msgLower.includes('mail') || msgLower.includes('मेल'));
+        const WANTS_FIX_ISSUE = WANTS_CORRECTION && (msgLower.includes('issue') || msgLower.includes('samasya') || msgLower.includes('समस्या') || msgLower.includes('problem') || msgLower.includes('परेशानी'));
+        const WANTS_FIX_STD = WANTS_CORRECTION && (msgLower.includes('std') || msgLower.includes('एसटीडी') || msgLower.includes('code') || msgLower.includes('कोड'));
+        const WANTS_FIX_TEL = WANTS_CORRECTION && (msgLower.includes('telephone') || msgLower.includes('टेलीफोन') || msgLower.includes('landline') || msgLower.includes('लैंडलाइन'));
+
+        // Handle correction requests at any step (except greeting/choose_lang)
+        if (WANTS_CORRECTION && step !== 'greeting' && step !== 'choose_lang' && step !== 'done') {
+            if (WANTS_FIX_NAME) {
+                delete nextData.complainee_name;
+                reply = R('ठीक है, अपना सही नाम बताएं।', 'Okay, please tell your correct name.');
+                nextStep = 'ask_name';
+            } else if (WANTS_FIX_MOBILE) {
+                delete nextData.mobile;
+                reply = R('ठीक है, अपना सही मोबाइल नंबर बताएं।', 'Okay, please tell your correct mobile number.');
+                nextStep = 'ask_mobile';
+            } else if (WANTS_FIX_EMAIL) {
+                delete nextData.email;
+                reply = R('ठीक है, अपनी सही ईमेल आईडी बताएं।', 'Okay, please tell your correct email address.');
+                nextStep = 'ask_email';
+            } else if (WANTS_FIX_ISSUE) {
+                delete nextData.description;
+                reply = R('ठीक है, अपनी समस्या फिर से बताएं।', 'Okay, please describe your issue again.');
+                nextStep = 'ask_issue';
+            } else if (WANTS_FIX_STD) {
+                delete nextData.std_code;
+                delete nextData.telephone_number;
+                delete nextData.customer_found;
+                delete nextData.customer_name;
+                reply = R('ठीक है, अपना सही एसटीडी कोड बताएं।', 'Okay, please tell your correct STD Code.');
+                nextStep = 'ask_std';
+            } else if (WANTS_FIX_TEL) {
+                delete nextData.telephone_number;
+                delete nextData.customer_found;
+                delete nextData.customer_name;
+                reply = R('ठीक है, अपना सही टेलीफोन नंबर बताएं।', 'Okay, please tell your correct telephone number.');
+                nextStep = 'ask_phone';
+            } else {
+                // General correction - ask what to fix
+                reply = R(
+                    'क्या ठीक करना है? बताएं:\n• "नाम गलत" - नाम बदलें\n• "मोबाइल गलत" - मोबाइल बदलें\n• "ईमेल गलत" - ईमेल बदलें\n• "समस्या गलत" - समस्या बदलें\n• "एसटीडी कोड गलत" - कोड बदलें\n• "टेलीफोन गलत" - टेलीफोन बदलें',
+                    'What do you want to fix? Say:\n• "name wrong" - change name\n• "mobile wrong" - change mobile\n• "email wrong" - change email\n• "issue wrong" - change issue\n• "STD wrong" - change STD code\n• "telephone wrong" - change telephone'
+                );
+                // Keep same step
+            }
+
+            res.json({ reply, session: { step: nextStep, data: nextData }, action });
+            return;
+        }
+
         // Step-by-step guided conversation (bilingual)
         switch (step) {
             case 'greeting': {
