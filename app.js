@@ -9100,7 +9100,36 @@ app.post('/api/voice/speak', async (req, res) => {
     }
 });
 
-// Voice Chat - Guided Complaint Flow (No OpenAI needed - rule-based)
+// ══════ Gemini AI Helper for Voice Bot ══════
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyA8TIlYCt8zIlp64Z7UJbkSFQ6DwPkIrAY';
+const GEMINI_MODEL = 'gemini-2.0-flash';
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+
+async function callGemini(systemPrompt, userMessage) {
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        const res = await fetch(GEMINI_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
+            body: JSON.stringify({
+                contents: [{ role: 'user', parts: [{ text: systemPrompt + '\n\nUser message: ' + userMessage }] }],
+                generationConfig: { temperature: 0.3, maxOutputTokens: 500, responseMimeType: 'application/json' }
+            })
+        });
+        clearTimeout(timeout);
+        const data = await res.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) return null;
+        return JSON.parse(text);
+    } catch (e) {
+        console.error('Gemini API error:', e.message);
+        return null;
+    }
+}
+
+// Voice Chat - Gemini AI Powered Complaint Flow
 app.post('/api/voice/chat', async (req, res) => {
     try {
         const { message, session } = req.body;
@@ -9112,238 +9141,286 @@ app.post('/api/voice/chat', async (req, res) => {
         let nextStep = step;
         let nextData = { ...data };
         let action = null;
-
-        // Helper: generate reply in chosen language
         const lang = (data && data.lang) || 'hi';
         const R = (hi, en) => lang === 'en' ? en : hi;
-        const BRAND = lang === 'en' ? 'Coral Infratel' : 'कोरल इंफ्राटेल';
-        const YES_CHECK = (msg) => {
-            const l = msg.toLowerCase().trim();
-            return l.includes('haan') || l.includes('han') || l.includes('yes') || l.includes('ha') || l.includes('ji') || l === 'y' || l.includes('हाँ') || l.includes('हां') || l.includes('जी');
-        };
 
-        // Correction detection - user wants to fix something
-        const msgLower = message.toLowerCase().trim();
-        const WANTS_CORRECTION = msgLower.includes('galat') || msgLower.includes('wrong') || msgLower.includes('change') ||
-            msgLower.includes('correct') || msgLower.includes('sudhar') || msgLower.includes('गलत') ||
-            msgLower.includes('बदल') || msgLower.includes('सुधार') || msgLower.includes('ठीक कर') ||
-            msgLower.includes('fix') || msgLower.includes('edit') || msgLower.includes('modify') ||
-            msgLower.includes('nahi') || msgLower.includes('नहीं') || msgLower.includes('ruk') || msgLower.includes('रुक');
-
-        // Which field does user want to correct?
-        const WANTS_FIX_NAME = WANTS_CORRECTION && (msgLower.includes('naam') || msgLower.includes('name') || msgLower.includes('नाम'));
-        const WANTS_FIX_MOBILE = WANTS_CORRECTION && (msgLower.includes('mobile') || msgLower.includes('मोबाइल') || msgLower.includes('phone') || msgLower.includes('फोन') || msgLower.includes('number') || msgLower.includes('नंबर'));
-        const WANTS_FIX_EMAIL = WANTS_CORRECTION && (msgLower.includes('email') || msgLower.includes('ईमेल') || msgLower.includes('mail') || msgLower.includes('मेल'));
-        const WANTS_FIX_ISSUE = WANTS_CORRECTION && (msgLower.includes('issue') || msgLower.includes('samasya') || msgLower.includes('समस्या') || msgLower.includes('problem') || msgLower.includes('परेशानी'));
-        const WANTS_FIX_STD = WANTS_CORRECTION && (msgLower.includes('std') || msgLower.includes('एसटीडी') || msgLower.includes('code') || msgLower.includes('कोड'));
-        const WANTS_FIX_TEL = WANTS_CORRECTION && (msgLower.includes('telephone') || msgLower.includes('टेलीफोन') || msgLower.includes('landline') || msgLower.includes('लैंडलाइन'));
-
-        // Handle correction requests at any step (except greeting/choose_lang)
-        if (WANTS_CORRECTION && step !== 'greeting' && step !== 'choose_lang' && step !== 'done') {
-            if (WANTS_FIX_NAME) {
-                delete nextData.complainee_name;
-                reply = R('ठीक है, अपना सही नाम बताएं।', 'Okay, please tell your correct name.');
-                nextStep = 'ask_name';
-            } else if (WANTS_FIX_MOBILE) {
-                delete nextData.mobile;
-                reply = R('ठीक है, अपना सही मोबाइल नंबर बताएं।', 'Okay, please tell your correct mobile number.');
-                nextStep = 'ask_mobile';
-            } else if (WANTS_FIX_EMAIL) {
-                delete nextData.email;
-                reply = R('ठीक है, अपनी सही ईमेल आईडी बताएं।', 'Okay, please tell your correct email address.');
-                nextStep = 'ask_email';
-            } else if (WANTS_FIX_ISSUE) {
-                delete nextData.description;
-                reply = R('ठीक है, अपनी समस्या फिर से बताएं।', 'Okay, please describe your issue again.');
-                nextStep = 'ask_issue';
-            } else if (WANTS_FIX_STD) {
-                delete nextData.std_code;
-                delete nextData.telephone_number;
-                delete nextData.customer_found;
-                delete nextData.customer_name;
-                reply = R('ठीक है, अपना सही एसटीडी कोड बताएं।', 'Okay, please tell your correct STD Code.');
-                nextStep = 'ask_std';
-            } else if (WANTS_FIX_TEL) {
-                delete nextData.telephone_number;
-                delete nextData.customer_found;
-                delete nextData.customer_name;
-                reply = R('ठीक है, अपना सही टेलीफोन नंबर बताएं।', 'Okay, please tell your correct telephone number.');
-                nextStep = 'ask_phone';
-            } else {
-                // General correction - ask what to fix
-                reply = R(
-                    'क्या ठीक करना है? बताएं:\n• "नाम गलत" - नाम बदलें\n• "मोबाइल गलत" - मोबाइल बदलें\n• "ईमेल गलत" - ईमेल बदलें\n• "समस्या गलत" - समस्या बदलें\n• "एसटीडी कोड गलत" - कोड बदलें\n• "टेलीफोन गलत" - टेलीफोन बदलें',
-                    'What do you want to fix? Say:\n• "name wrong" - change name\n• "mobile wrong" - change mobile\n• "email wrong" - change email\n• "issue wrong" - change issue\n• "STD wrong" - change STD code\n• "telephone wrong" - change telephone'
-                );
-                // Keep same step
-            }
-
+        // ── Greeting step (no AI needed) ──
+        if (step === 'greeting') {
+            reply = 'नमस्ते! कोरल इंफ्राटेल सपोर्ट में आपका स्वागत है।\nWelcome to Coral Infratel Support!\n\nकृपया भाषा चुनें / Please choose language:\n1️⃣ हिंदी\n2️⃣ English';
+            nextStep = 'choose_lang';
             res.json({ reply, session: { step: nextStep, data: nextData }, action });
             return;
         }
 
-        // Step-by-step guided conversation (bilingual)
-        switch (step) {
-            case 'greeting': {
-                // First ask language preference
-                reply = 'नमस्ते! ' + BRAND + ' सपोर्ट में आपका स्वागत है।\nWelcome to ' + BRAND + ' Support!\n\nकृपया भाषा चुनें / Please choose language:\n1️⃣ हिंदी\n2️⃣ English';
-                nextStep = 'choose_lang';
-                break;
-            }
+        // ── Submitted / Done steps (no AI needed) ──
+        if (step === 'submitted') {
+            reply = R(
+                'आपकी कंप्लेंट रजिस्टर हो गई है!\n• टिकट आईडी: ' + (data.ticket_id || '') + '\n• कंप्लेंट नंबर: ' + (data.complaint_no || '') + '\n\nआपको ईमेल और व्हाट्सएप पर सूचना मिलेगी। धन्यवाद!',
+                'Your complaint has been registered!\n• Ticket ID: ' + (data.ticket_id || '') + '\n• Complaint No: ' + (data.complaint_no || '') + '\n\nYou will receive notification via Email and WhatsApp. Thank you!'
+            );
+            nextStep = 'done';
+            res.json({ reply, session: { step: nextStep, data: nextData }, action });
+            return;
+        }
 
-            case 'choose_lang': {
-                const m = message.toLowerCase().trim();
-                if (m.includes('eng') || m.includes('2') || m.includes('english')) {
-                    nextData.lang = 'en';
-                    reply = 'Great! You selected English.';
-                } else {
-                    nextData.lang = 'hi';
-                    reply = 'बहुत अच्छा! आपने हिंदी चुनी है।';
-                }
-                // Now check form data and skip to right step
-                const L = nextData.lang;
-                const B = L === 'en' ? 'Coral Infratel' : 'कोरल इंफ्राटेल';
+        if (step === 'verify_customer') {
+            if (data.customer_found) {
+                reply = R('कस्टमर का नाम ' + data.customer_name + ' है। क्या यह सही है? हाँ या ना बोलें।', 'Customer name is ' + data.customer_name + '. Is this correct? Say Yes or No.');
+                nextStep = 'confirm_customer';
+            } else {
+                reply = R('इस एसटीडी कोड और टेलीफोन नंबर से कोई कस्टमर नहीं मिला। कृपया दोबारा चेक करें। अपना एसटीडी कोड बताएं।', 'No customer found with this STD Code and Telephone. Please check again. Tell your STD Code.');
+                nextStep = 'ask_std';
+                nextData = { lang: data.lang };
+            }
+            res.json({ reply, session: { step: nextStep, data: nextData }, action });
+            return;
+        }
+
+        // ── Build Gemini system prompt based on current step ──
+        const collectedFields = [];
+        if (data.lang) collectedFields.push('language: ' + data.lang);
+        if (data.std_code) collectedFields.push('std_code: ' + data.std_code);
+        if (data.telephone_number) collectedFields.push('telephone: ' + data.telephone_number);
+        if (data.customer_name) collectedFields.push('customer_name: ' + data.customer_name);
+        if (data.complainee_name) collectedFields.push('complainee_name: ' + data.complainee_name);
+        if (data.mobile) collectedFields.push('mobile: ' + data.mobile);
+        if (data.email) collectedFields.push('email: ' + data.email);
+        if (data.description) collectedFields.push('description: ' + data.description);
+
+        const geminiSystemPrompt = `You are the AI brain of Coral Infratel's customer support chatbot. Your job is to understand what the user means and return structured JSON.
+
+CURRENT STEP: ${step}
+LANGUAGE: ${lang} (hi=Hindi, en=English)
+COLLECTED DATA: ${collectedFields.length > 0 ? collectedFields.join(', ') : 'none yet'}
+${data.has_duplicate ? 'DUPLICATE COMPLAINT EXISTS: ticket ' + data.duplicate_ticket : ''}
+${data.customer_found ? 'CUSTOMER VERIFIED: ' + data.customer_name : ''}
+
+CONVERSATION FLOW (steps in order):
+1. choose_lang → user picks Hindi(1) or English(2)
+2. ask_std → collect STD code (like 0129, 0131, 011). Must be 2+ digits starting with 0
+3. ask_phone → collect telephone/landline number (6+ digits)
+4. verify_customer → system checks DB (handled separately)
+5. confirm_customer → user confirms customer name (yes/no)
+6. ask_name → collect complainant's full name
+7. ask_mobile → collect 10-digit mobile number
+8. ask_email → collect email address (must have @ and .)
+9. ask_issue → collect issue/complaint description (5+ chars)
+10. confirm_submit → user confirms all details to submit (yes/no)
+
+RULES:
+- If user seems to want to change language at any step, set intent to "change_language"
+- If user wants to correct/fix a previously entered field, set intent to "correction" and specify which field
+- If user says yes/haan/ji/हाँ/हां → intent is "confirm_yes"
+- If user says no/nahi/नहीं → intent is "confirm_no"
+- For ask_std: STD codes are Indian telephone area codes (0129, 0131, 011, 01onal etc). Single digit "1" or "2" alone is NOT a valid STD code - it's likely a language selection attempt
+- For ask_mobile: extract exactly 10 digits
+- For ask_email: look for email pattern with @ and .
+- Always generate reply_hi in Devanagari Hindi and reply_en in English
+- Keep replies short, friendly, and professional (1-2 sentences max)
+- If user input is unclear for the current step, ask them to clarify politely
+
+RESPOND WITH THIS EXACT JSON STRUCTURE:
+{
+  "intent": "provide_data | change_language | correction | confirm_yes | confirm_no | unclear | restart",
+  "extracted_value": "the extracted value if any, or empty string",
+  "field": "which field: lang | std_code | telephone_number | complainee_name | mobile | email | description | none",
+  "correction_field": "if intent is correction, which field to fix: std_code | telephone_number | complainee_name | mobile | email | description | none",
+  "new_lang": "if changing language: hi or en, otherwise empty",
+  "reply_hi": "Hindi reply in Devanagari script",
+  "reply_en": "English reply"
+}`;
+
+        // ── Call Gemini AI ──
+        const ai = await callGemini(geminiSystemPrompt, message);
+
+        // ── If Gemini fails, use basic fallback ──
+        if (!ai) {
+            console.log('Gemini failed, using fallback for step:', step);
+            const fallback = voiceBotFallback(step, message, data, nextData);
+            res.json({ reply: fallback.reply, session: { step: fallback.nextStep, data: fallback.nextData }, action: fallback.action });
+            return;
+        }
+
+        console.log('Gemini response:', JSON.stringify(ai));
+
+        // ── Process Gemini response ──
+        const intent = ai.intent || 'unclear';
+        const extracted = (ai.extracted_value || '').trim();
+        const replyText = lang === 'en' ? (ai.reply_en || ai.reply_hi || '') : (ai.reply_hi || ai.reply_en || '');
+
+        // Handle language change from any step
+        if (intent === 'change_language') {
+            const newLang = ai.new_lang || (extracted === '2' || extracted.toLowerCase().includes('eng') ? 'en' : 'hi');
+            nextData.lang = newLang;
+            reply = newLang === 'en' ? (ai.reply_en || 'Language changed to English.') : (ai.reply_hi || 'भाषा हिंदी में बदल दी गई।');
+            // Stay on same step or move to ask_std if on choose_lang
+            if (step === 'choose_lang') {
+                // Check form data and skip to right step
                 if (data.customer_found && data.customer_name && data.std_code && data.telephone_number) {
-                    if (data.complainee_name && data.mobile && data.email && data.description) {
-                        reply += L === 'en' ? ' All details are filled. Submit complaint? Say Yes or No.' : ' सारी जानकारी भर चुकी है। कंप्लेंट सबमिट करें? हाँ या ना बोलें।';
-                        nextStep = 'confirm_submit';
-                    } else if (data.complainee_name && data.mobile && data.email) {
-                        reply += L === 'en' ? ' Customer ' + data.customer_name + ' verified. Please describe your issue.' : ' कस्टमर ' + data.customer_name + ' वेरीफाई हो गया। अब अपनी समस्या बताएं।';
-                        nextStep = 'ask_issue';
-                    } else if (data.complainee_name && data.mobile) {
-                        reply += L === 'en' ? ' Customer ' + data.customer_name + ' verified. Please tell your Email ID.' : ' कस्टमर ' + data.customer_name + ' वेरीफाई हो गया। अब अपनी ईमेल आईडी बताएं।';
-                        nextStep = 'ask_email';
-                    } else if (data.complainee_name) {
-                        reply += L === 'en' ? ' Customer ' + data.customer_name + ' verified. Please tell your 10-digit mobile number.' : ' कस्टमर ' + data.customer_name + ' वेरीफाई हो गया। अब अपना दस अंकों का मोबाइल नंबर बताएं।';
-                        nextStep = 'ask_mobile';
-                    } else {
-                        reply += L === 'en' ? ' Customer ' + data.customer_name + ' verified. Please tell your full name for the complaint.' : ' कस्टमर ' + data.customer_name + ' वेरीफाई हो गया। अब अपना पूरा नाम बताएं जो कंप्लेंट में लिखना है।';
-                        nextStep = 'ask_name';
-                    }
-                } else if (data.std_code && data.telephone_number) {
-                    reply += L === 'en' ? ' STD Code ' + data.std_code + ' and Telephone ' + data.telephone_number + ' found. Verifying your account...' : ' एसटीडी कोड ' + data.std_code + ' और टेलीफोन ' + data.telephone_number + ' मिल गया। अकाउंट वेरीफाई कर रहे हैं।';
-                    nextStep = 'verify_customer';
-                    action = 'lookup';
-                } else if (data.std_code) {
-                    reply += L === 'en' ? ' STD Code ' + data.std_code + ' found. Now tell your Telephone Number.' : ' एसटीडी कोड ' + data.std_code + ' मिल गया। अब अपना टेलीफोन नंबर बताएं।';
-                    nextStep = 'ask_phone';
+                    if (data.complainee_name && data.mobile && data.email && data.description) { nextStep = 'confirm_submit'; }
+                    else if (data.complainee_name && data.mobile && data.email) { nextStep = 'ask_issue'; }
+                    else if (data.complainee_name && data.mobile) { nextStep = 'ask_email'; }
+                    else if (data.complainee_name) { nextStep = 'ask_mobile'; }
+                    else { nextStep = 'ask_name'; }
+                } else if (data.std_code) { nextStep = 'ask_phone'; }
+                else { nextStep = 'ask_std'; }
+                // Append next step instruction to reply
+                const nR = (hi, en) => newLang === 'en' ? en : hi;
+                if (nextStep === 'ask_std') reply += nR(' कृपया अपना एसटीडी कोड बताएं, जैसे 0129 या 0131।', ' Please tell your STD Code (like 0129, 0131).');
+            }
+            // If not choose_lang, stay on current step
+            res.json({ reply, session: { step: nextStep, data: nextData }, action });
+            return;
+        }
+
+        // Handle corrections
+        if (intent === 'correction') {
+            const fixField = ai.correction_field || ai.field || 'none';
+            reply = replyText;
+            if (fixField === 'complainee_name' || fixField === 'name') {
+                delete nextData.complainee_name; nextStep = 'ask_name';
+                reply = reply || R('ठीक है, अपना सही नाम बताएं।', 'Okay, please tell your correct name.');
+            } else if (fixField === 'mobile') {
+                delete nextData.mobile; nextStep = 'ask_mobile';
+                reply = reply || R('ठीक है, अपना सही मोबाइल नंबर बताएं।', 'Okay, please tell your correct mobile number.');
+            } else if (fixField === 'email') {
+                delete nextData.email; nextStep = 'ask_email';
+                reply = reply || R('ठीक है, अपनी सही ईमेल आईडी बताएं।', 'Okay, please tell your correct email address.');
+            } else if (fixField === 'description') {
+                delete nextData.description; nextStep = 'ask_issue';
+                reply = reply || R('ठीक है, अपनी समस्या फिर से बताएं।', 'Okay, please describe your issue again.');
+            } else if (fixField === 'std_code') {
+                delete nextData.std_code; delete nextData.telephone_number; delete nextData.customer_found; delete nextData.customer_name;
+                nextStep = 'ask_std';
+                reply = reply || R('ठीक है, अपना सही एसटीडी कोड बताएं।', 'Okay, please tell your correct STD Code.');
+            } else if (fixField === 'telephone_number') {
+                delete nextData.telephone_number; delete nextData.customer_found; delete nextData.customer_name;
+                nextStep = 'ask_phone';
+                reply = reply || R('ठीक है, अपना सही टेलीफोन नंबर बताएं।', 'Okay, please tell your correct telephone number.');
+            } else {
+                reply = reply || R(
+                    'क्या ठीक करना है? बताएं: नाम, मोबाइल, ईमेल, समस्या, एसटीडी कोड, या टेलीफोन।',
+                    'What do you want to fix? Say: name, mobile, email, issue, STD code, or telephone.'
+                );
+            }
+            res.json({ reply, session: { step: nextStep, data: nextData }, action });
+            return;
+        }
+
+        // ── Step-specific processing with AI understanding ──
+        switch (step) {
+            case 'choose_lang': {
+                // AI already detected intent, process it
+                if (intent === 'confirm_yes' || extracted === '1' || extracted === 'hi' || extracted.includes('हिंदी') || extracted.includes('hindi')) {
+                    nextData.lang = 'hi';
                 } else {
-                    reply += L === 'en' ? ' Please tell your STD Code (like 0129, 0131).' : ' कृपया अपना एसटीडी कोड बताएं, जैसे 0129 या 0131।';
+                    nextData.lang = extracted === '2' || extracted.toLowerCase().includes('eng') ? 'en' : 'hi';
+                }
+                const L = nextData.lang;
+                reply = L === 'en' ? (ai.reply_en || 'Great! You selected English.') : (ai.reply_hi || 'बहुत अच्छा! आपने हिंदी चुनी है।');
+                // Check form data and skip to right step
+                if (data.customer_found && data.customer_name && data.std_code && data.telephone_number) {
+                    if (data.complainee_name && data.mobile && data.email && data.description) { nextStep = 'confirm_submit'; }
+                    else if (data.complainee_name && data.mobile && data.email) { nextStep = 'ask_issue'; }
+                    else if (data.complainee_name && data.mobile) { nextStep = 'ask_email'; }
+                    else if (data.complainee_name) { nextStep = 'ask_mobile'; }
+                    else { nextStep = 'ask_name'; }
+                } else if (data.std_code) { nextStep = 'ask_phone'; }
+                else {
                     nextStep = 'ask_std';
+                    const nR = (hi, en) => L === 'en' ? en : hi;
+                    reply += nR(' कृपया अपना एसटीडी कोड बताएं, जैसे 0129 या 0131।', ' Please tell your STD Code (like 0129, 0131).');
                 }
                 break;
             }
 
             case 'ask_std': {
-                // Check if user is trying to select language instead of entering STD code
-                const stdMsgLower = message.toLowerCase().trim();
-                if (stdMsgLower === '1' || stdMsgLower === '2' || stdMsgLower === 'hindi' || stdMsgLower === 'english' || stdMsgLower === 'eng' || stdMsgLower === 'हिंदी') {
-                    // User wants to change language
-                    if (stdMsgLower === '2' || stdMsgLower === 'english' || stdMsgLower === 'eng') {
-                        nextData.lang = 'en';
-                        reply = 'Language changed to English. Please tell your STD Code (like 0129, 0131).';
-                    } else {
-                        nextData.lang = 'hi';
-                        reply = 'भाषा हिंदी में बदल दी गई। कृपया अपना एसटीडी कोड बताएं, जैसे 0129 या 0131।';
-                    }
-                    break;
-                }
-                const stdCode = message.replace(/[^0-9]/g, '').trim();
+                const stdCode = extracted.replace(/[^0-9]/g, '');
                 if (!stdCode || stdCode.length < 2) {
-                    reply = R('यह सही एसटीडी कोड नहीं है। कृपया सिर्फ नंबर में बताएं, जैसे 0129 या 0131।', 'Invalid STD Code. Please enter only numbers like 0129, 0131.');
+                    reply = replyText || R('यह सही एसटीडी कोड नहीं है। कृपया सिर्फ नंबर में बताएं, जैसे 0129 या 0131।', 'Invalid STD Code. Please enter only numbers like 0129, 0131.');
                 } else {
                     nextData.std_code = stdCode;
-                    reply = R('एसटीडी कोड ' + stdCode + '। अब अपना टेलीफोन नंबर बताएं।', 'STD Code ' + stdCode + '. Now tell your Telephone Number.');
+                    reply = replyText || R('एसटीडी कोड ' + stdCode + '। अब अपना टेलीफोन नंबर बताएं।', 'STD Code ' + stdCode + '. Now tell your Telephone Number.');
                     nextStep = 'ask_phone';
                 }
                 break;
             }
 
             case 'ask_phone': {
-                const phone = message.replace(/[^0-9]/g, '').trim();
+                const phone = extracted.replace(/[^0-9]/g, '');
                 if (!phone || phone.length < 6) {
-                    reply = R('यह सही टेलीफोन नंबर नहीं है। कृपया सिर्फ नंबर में बताएं।', 'Invalid telephone number. Please enter only numbers.');
+                    reply = replyText || R('यह सही टेलीफोन नंबर नहीं है। कृपया सिर्फ नंबर में बताएं।', 'Invalid telephone number. Please enter only numbers.');
                 } else {
                     nextData.telephone_number = phone;
-                    reply = R('टेलीफोन नंबर ' + phone + '। आपका अकाउंट वेरीफाई कर रहे हैं।', 'Telephone ' + phone + '. Verifying your account...');
+                    reply = replyText || R('टेलीफोन नंबर ' + phone + '। आपका अकाउंट वेरीफाई कर रहे हैं।', 'Telephone ' + phone + '. Verifying your account...');
                     nextStep = 'verify_customer';
                     action = 'lookup';
                 }
                 break;
             }
 
-            case 'verify_customer': {
-                if (data.customer_found) {
-                    reply = R('कस्टमर का नाम ' + data.customer_name + ' है। क्या यह सही है? हाँ या ना बोलें।', 'Customer name is ' + data.customer_name + '. Is this correct? Say Yes or No.');
-                    nextStep = 'confirm_customer';
-                } else {
-                    reply = R('इस एसटीडी कोड और टेलीफोन नंबर से कोई कस्टमर नहीं मिला। कृपया दोबारा चेक करें। अपना एसटीडी कोड बताएं।', 'No customer found with this STD Code and Telephone. Please check again. Tell your STD Code.');
-                    nextStep = 'ask_std';
-                    nextData = {};
-                }
-                break;
-            }
-
             case 'confirm_customer': {
-                if (YES_CHECK(message)) {
+                if (intent === 'confirm_yes') {
                     if (data.has_duplicate) {
                         reply = R('आपकी एक कंप्लेंट पहले से रजिस्टर्ड है। टिकट नंबर ' + data.duplicate_ticket + '। नई कंप्लेंट तब तक नहीं हो सकती जब तक पुरानी हल न हो।', 'You already have a registered complaint. Ticket: ' + data.duplicate_ticket + '. New complaint cannot be registered until the previous one is resolved.');
                         nextStep = 'done';
                     } else {
-                        reply = R('बहुत अच्छा! अब अपना पूरा नाम बताएं जो कंप्लेंट में लिखना है।', 'Great! Now tell your full name for the complaint.');
+                        reply = replyText || R('बहुत अच्छा! अब अपना पूरा नाम बताएं जो कंप्लेंट में लिखना है।', 'Great! Now tell your full name for the complaint.');
                         nextStep = 'ask_name';
                     }
                 } else {
-                    reply = R('ठीक है, फिर से कोशिश करते हैं। अपना एसटीडी कोड बताएं।', 'Okay, let\'s try again. Tell your STD Code.');
+                    reply = replyText || R('ठीक है, फिर से कोशिश करते हैं। अपना एसटीडी कोड बताएं।', 'Okay, let\'s try again. Tell your STD Code.');
                     nextStep = 'ask_std';
-                    nextData = {};
+                    nextData = { lang: data.lang };
                 }
                 break;
             }
 
             case 'ask_name': {
-                if (message.trim().length < 2) {
-                    reply = R('कृपया अपना पूरा नाम बताएं।', 'Please tell your full name.');
+                const name = extracted || message.trim();
+                if (name.length < 2) {
+                    reply = replyText || R('कृपया अपना पूरा नाम बताएं।', 'Please tell your full name.');
                 } else {
-                    nextData.complainee_name = message.trim();
-                    reply = R('नाम ' + message.trim() + '। अब अपना दस अंकों का मोबाइल नंबर बताएं।', 'Name: ' + message.trim() + '. Now tell your 10-digit mobile number.');
+                    nextData.complainee_name = name;
+                    reply = replyText || R('नाम ' + name + '। अब अपना दस अंकों का मोबाइल नंबर बताएं।', 'Name: ' + name + '. Now tell your 10-digit mobile number.');
                     nextStep = 'ask_mobile';
                 }
                 break;
             }
 
             case 'ask_mobile': {
-                const mobile = message.replace(/[^0-9]/g, '').trim();
+                const mobile = (extracted || message).replace(/[^0-9]/g, '');
                 if (!mobile || mobile.length !== 10) {
-                    reply = R('कृपया दस अंकों का मोबाइल नंबर बताएं या नीचे टाइप करें।', 'Please enter a 10-digit mobile number or type below.');
+                    reply = replyText || R('कृपया दस अंकों का मोबाइल नंबर बताएं।', 'Please enter a valid 10-digit mobile number.');
                 } else {
                     nextData.mobile = mobile;
-                    reply = R('मोबाइल ' + mobile + '। अब अपनी ईमेल आईडी बताएं।', 'Mobile: ' + mobile + '. Now tell your Email ID.');
+                    reply = replyText || R('मोबाइल ' + mobile + '। अब अपनी ईमेल आईडी बताएं।', 'Mobile: ' + mobile + '. Now tell your Email ID.');
                     nextStep = 'ask_email';
                 }
                 break;
             }
 
             case 'ask_email': {
-                const email = message.trim().toLowerCase();
+                const email = (extracted || message).trim().toLowerCase();
                 if (!email.includes('@') || !email.includes('.')) {
-                    reply = R('यह सही ईमेल नहीं लग रहा। कृपया नीचे टेक्स्ट बॉक्स में टाइप करके सही ईमेल भेजें।', 'This doesn\'t look like a valid email. Please type your correct email in the text box below.');
+                    reply = replyText || R('यह सही ईमेल नहीं लग रहा। कृपया सही ईमेल टाइप करें।', 'This doesn\'t look like a valid email. Please type your correct email.');
                 } else {
                     nextData.email = email;
-                    reply = R('ईमेल ' + email + '। अब अपनी समस्या बताएं। क्या परेशानी है?', 'Email: ' + email + '. Now describe your issue. What is the problem?');
+                    reply = replyText || R('ईमेल ' + email + '। अब अपनी समस्या बताएं। क्या परेशानी है?', 'Email: ' + email + '. Now describe your issue. What is the problem?');
                     nextStep = 'ask_issue';
                 }
                 break;
             }
 
             case 'ask_issue': {
-                if (message.trim().length < 5) {
-                    reply = R('कृपया अपनी समस्या थोड़ी विस्तार से बताएं।', 'Please describe your issue in more detail.');
+                const issue = extracted || message.trim();
+                if (issue.length < 5) {
+                    reply = replyText || R('कृपया अपनी समस्या थोड़ी विस्तार से बताएं।', 'Please describe your issue in more detail.');
                 } else {
-                    nextData.description = message.trim();
+                    nextData.description = issue;
                     reply = R(
-                        'कृपया पुष्टि करें:\n• नाम: ' + nextData.complainee_name + '\n• मोबाइल: ' + nextData.mobile + '\n• ईमेल: ' + nextData.email + '\n• समस्या: ' + nextData.description.substring(0, 100) + '\n\nक्या कंप्लेंट सबमिट करें? हाँ या ना बोलें।',
-                        'Please confirm:\n• Name: ' + nextData.complainee_name + '\n• Mobile: ' + nextData.mobile + '\n• Email: ' + nextData.email + '\n• Issue: ' + nextData.description.substring(0, 100) + '\n\nSubmit complaint? Say Yes or No.'
+                        'कृपया पुष्टि करें:\n• नाम: ' + nextData.complainee_name + '\n• मोबाइल: ' + nextData.mobile + '\n• ईमेल: ' + nextData.email + '\n• समस्या: ' + issue.substring(0, 100) + '\n\nक्या कंप्लेंट सबमिट करें? हाँ या ना बोलें।',
+                        'Please confirm:\n• Name: ' + nextData.complainee_name + '\n• Mobile: ' + nextData.mobile + '\n• Email: ' + nextData.email + '\n• Issue: ' + issue.substring(0, 100) + '\n\nSubmit complaint? Say Yes or No.'
                     );
                     nextStep = 'confirm_submit';
                 }
@@ -9351,40 +9428,33 @@ app.post('/api/voice/chat', async (req, res) => {
             }
 
             case 'confirm_submit': {
-                if (YES_CHECK(message)) {
+                if (intent === 'confirm_yes') {
                     reply = R('कंप्लेंट सबमिट हो रही है...', 'Submitting your complaint...');
                     nextStep = 'submitting';
                     action = 'submit';
                 } else {
-                    reply = R('कंप्लेंट रद्द कर दी गई। क्या दोबारा कोशिश करना चाहेंगे?', 'Complaint cancelled. Would you like to try again?');
+                    reply = replyText || R('कंप्लेंट रद्द कर दी गई। क्या दोबारा कोशिश करना चाहेंगे?', 'Complaint cancelled. Would you like to try again?');
                     nextStep = 'ask_std';
                     nextData = { lang: data.lang };
                 }
                 break;
             }
 
-            case 'submitted': {
-                reply = R(
-                    'आपकी कंप्लेंट रजिस्टर हो गई है!\n• टिकट आईडी: ' + (data.ticket_id || '') + '\n• कंप्लेंट नंबर: ' + (data.complaint_no || '') + '\n\nआपको ईमेल और व्हाट्सएप पर सूचना मिलेगी। धन्यवाद!',
-                    'Your complaint has been registered!\n• Ticket ID: ' + (data.ticket_id || '') + '\n• Complaint No: ' + (data.complaint_no || '') + '\n\nYou will receive notification via Email and WhatsApp. Thank you!'
-                );
-                nextStep = 'done';
-                break;
-            }
-
-            case 'done':
-                reply = R('धन्यवाद! क्या कुछ और मदद चाहिए? नई कंप्लेंट के लिए हाँ बोलें।', 'Thank you! Need more help? Say Yes for a new complaint.');
-                if (YES_CHECK(message)) {
+            case 'done': {
+                if (intent === 'confirm_yes') {
                     nextStep = 'ask_std';
                     nextData = { lang: data.lang };
                     reply = R('ठीक है! अपना एसटीडी कोड बताएं।', 'Okay! Tell your STD Code.');
+                } else {
+                    reply = replyText || R('धन्यवाद! कोरल इंफ्राटेल सपोर्ट से बात करने के लिए शुक्रिया।', 'Thank you for contacting Coral Infratel Support!');
                 }
                 break;
+            }
 
             default:
-                reply = 'Kuch gadbad ho gayi. Phir se shuru karte hain. Apna STD Code batayein.';
+                reply = R('कुछ गड़बड़ हो गई। फिर से शुरू करते हैं। अपना एसटीडी कोड बताएं।', 'Something went wrong. Let\'s start again. Tell your STD Code.');
                 nextStep = 'ask_std';
-                nextData = {};
+                nextData = { lang: data.lang };
         }
 
         res.json({ reply, session: { step: nextStep, data: nextData }, action });
@@ -9393,6 +9463,87 @@ app.post('/api/voice/chat', async (req, res) => {
         res.status(500).json({ error: e.message });
     }
 });
+
+// ── Fallback rule-based logic (when Gemini is unavailable) ──
+function voiceBotFallback(step, message, data, nextData) {
+    const lang = (data && data.lang) || 'hi';
+    const R = (hi, en) => lang === 'en' ? en : hi;
+    const YES_CHECK = (msg) => {
+        const l = msg.toLowerCase().trim();
+        return l.includes('haan') || l.includes('han') || l.includes('yes') || l.includes('ha') || l.includes('ji') || l === 'y' || l.includes('हाँ') || l.includes('हां') || l.includes('जी');
+    };
+    let reply = '', nextStep = step, action = null;
+    nextData = { ...data };
+
+    switch (step) {
+        case 'choose_lang': {
+            const m = message.toLowerCase().trim();
+            if (m.includes('eng') || m === '2' || m.includes('english')) { nextData.lang = 'en'; reply = 'Great! You selected English.'; }
+            else { nextData.lang = 'hi'; reply = 'बहुत अच्छा! आपने हिंदी चुनी है।'; }
+            const L = nextData.lang;
+            reply += L === 'en' ? ' Please tell your STD Code (like 0129, 0131).' : ' कृपया अपना एसटीडी कोड बताएं, जैसे 0129 या 0131।';
+            nextStep = 'ask_std';
+            break;
+        }
+        case 'ask_std': {
+            const stdCode = message.replace(/[^0-9]/g, '').trim();
+            if (!stdCode || stdCode.length < 2) { reply = R('यह सही एसटीडी कोड नहीं है। कृपया जैसे 0129, 0131।', 'Invalid STD Code. Please enter like 0129, 0131.'); }
+            else { nextData.std_code = stdCode; reply = R('एसटीडी कोड ' + stdCode + '। अब टेलीफोन नंबर बताएं।', 'STD Code ' + stdCode + '. Now tell Telephone Number.'); nextStep = 'ask_phone'; }
+            break;
+        }
+        case 'ask_phone': {
+            const phone = message.replace(/[^0-9]/g, '').trim();
+            if (!phone || phone.length < 6) { reply = R('सही टेलीफोन नंबर बताएं।', 'Enter valid telephone number.'); }
+            else { nextData.telephone_number = phone; reply = R('वेरीफाई कर रहे हैं...', 'Verifying...'); nextStep = 'verify_customer'; action = 'lookup'; }
+            break;
+        }
+        case 'confirm_customer': {
+            if (YES_CHECK(message)) {
+                if (data.has_duplicate) { reply = R('कंप्लेंट पहले से है। टिकट: ' + data.duplicate_ticket, 'Complaint exists. Ticket: ' + data.duplicate_ticket); nextStep = 'done'; }
+                else { reply = R('अपना पूरा नाम बताएं।', 'Tell your full name.'); nextStep = 'ask_name'; }
+            } else { reply = R('फिर से कोशिश करें। एसटीडी कोड बताएं।', 'Try again. Tell STD Code.'); nextStep = 'ask_std'; nextData = { lang: data.lang }; }
+            break;
+        }
+        case 'ask_name': {
+            if (message.trim().length < 2) { reply = R('पूरा नाम बताएं।', 'Tell full name.'); }
+            else { nextData.complainee_name = message.trim(); reply = R('मोबाइल नंबर बताएं।', 'Tell mobile number.'); nextStep = 'ask_mobile'; }
+            break;
+        }
+        case 'ask_mobile': {
+            const mobile = message.replace(/[^0-9]/g, '').trim();
+            if (mobile.length !== 10) { reply = R('10 अंकों का मोबाइल नंबर बताएं।', 'Enter 10-digit mobile.'); }
+            else { nextData.mobile = mobile; reply = R('ईमेल बताएं।', 'Tell email.'); nextStep = 'ask_email'; }
+            break;
+        }
+        case 'ask_email': {
+            const email = message.trim().toLowerCase();
+            if (!email.includes('@') || !email.includes('.')) { reply = R('सही ईमेल टाइप करें।', 'Type valid email.'); }
+            else { nextData.email = email; reply = R('समस्या बताएं।', 'Describe issue.'); nextStep = 'ask_issue'; }
+            break;
+        }
+        case 'ask_issue': {
+            if (message.trim().length < 5) { reply = R('विस्तार से बताएं।', 'Describe in detail.'); }
+            else {
+                nextData.description = message.trim();
+                reply = R('सबमिट करें? हाँ या ना बोलें।', 'Submit? Say Yes or No.');
+                nextStep = 'confirm_submit';
+            }
+            break;
+        }
+        case 'confirm_submit': {
+            if (YES_CHECK(message)) { reply = R('सबमिट हो रही है...', 'Submitting...'); nextStep = 'submitting'; action = 'submit'; }
+            else { reply = R('रद्द कर दी। दोबारा कोशिश?', 'Cancelled. Try again?'); nextStep = 'ask_std'; nextData = { lang: data.lang }; }
+            break;
+        }
+        case 'done': {
+            if (YES_CHECK(message)) { nextStep = 'ask_std'; nextData = { lang: data.lang }; reply = R('एसटीडी कोड बताएं।', 'Tell STD Code.'); }
+            else { reply = R('धन्यवाद!', 'Thank you!'); }
+            break;
+        }
+        default: reply = R('एसटीडी कोड बताएं।', 'Tell STD Code.'); nextStep = 'ask_std'; nextData = { lang: data.lang };
+    }
+    return { reply, nextStep, nextData, action };
+}
 
 // Catch-all route to serve the frontend — MUST be LAST
 app.get('*', (req, res) => {
