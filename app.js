@@ -9660,6 +9660,43 @@ app.get('/api/user/photos', async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ===== APP VERSION API (for Android auto-update) =====
+app.get('/api/app-version', (req, res) => {
+    res.json({
+        versionCode: 1,
+        versionName: "1.0",
+        apkUrl: "",
+        changelog: "Initial release - Coral Infratel CRM Mobile App",
+        minSupportedVersion: 1,
+        forceUpdate: false
+    });
+});
+
+// ===== CHANGE PASSWORD API (for mobile app) =====
+app.post('/api/change-password', authenticateToken, async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        const userId = req.user.id;
+
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ error: 'Both current and new password required' });
+        }
+
+        const [users] = await db.query('SELECT password FROM users WHERE id = ?', [userId]);
+        if (!users.length) return res.status(404).json({ error: 'User not found' });
+
+        const isMatch = await bcrypt.compare(currentPassword, users[0].password);
+        if (!isMatch) return res.status(401).json({ error: 'Current password is incorrect' });
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await db.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, userId]);
+
+        res.json({ success: true, message: 'Password updated successfully' });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // Catch-all route to serve the frontend — MUST be LAST
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
