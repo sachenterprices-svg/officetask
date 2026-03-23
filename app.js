@@ -9793,12 +9793,12 @@ app.get('/api/user/photos', async (req, res) => {
 // ===== APP VERSION API (for Android auto-update) =====
 app.get('/api/app-version', (req, res) => {
     res.json({
-        versionCode: 1,
-        versionName: "1.0",
-        apkUrl: "",
-        changelog: "Initial release - Coral Infratel CRM Mobile App",
-        minSupportedVersion: 1,
-        forceUpdate: false
+        versionCode: 3,
+        versionName: "3.0",
+        apkUrl: "https://crm.coralinfratel.com/officetask/CoralInfratel-CRM.apk",
+        changelog: "v3.0 Updates:\n• Location tracking fix\n• Task assignment to other users\n• Daily/Weekly/Monthly recurring tasks\n• Overdue task forwarding\n• Performance improvements",
+        minSupportedVersion: 2,
+        forceUpdate: true
     });
 });
 
