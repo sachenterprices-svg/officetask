@@ -9599,6 +9599,31 @@ app.get('/api/user/locations', async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// DELETE /api/user/tracking/:id — admin only delete tracking entry
+app.delete('/api/user/tracking/:id', async (req, res) => {
+    try {
+        const user = req.user || {};
+        if (user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        await pool.query('DELETE FROM user_tracking WHERE id=?', [req.params.id]);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/user/tracking — admin clear all test data
+app.delete('/api/user/tracking', async (req, res) => {
+    try {
+        const user = req.user || {};
+        if (user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        const { before } = req.query;
+        if (before) {
+            await pool.query('DELETE FROM user_tracking WHERE created_at < ?', [before]);
+        } else {
+            await pool.query('DELETE FROM user_tracking WHERE latitude="28.61390000" AND longitude="77.20900000"');
+        }
+        res.json({ success: true, message: 'Test data cleared' });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // POST /api/user/voice — upload voice recording (base64)
 app.post('/api/user/voice', async (req, res) => {
     try {
