@@ -6711,7 +6711,12 @@ async function initDiaryTasksTables() {
             { name: 'source_type', type: "ENUM('manual','assigned','excel','complaint','auto') DEFAULT 'manual'" },
             { name: 'source_task_id', type: 'INT' },
             { name: 'assigned_by', type: 'VARCHAR(255)' },
-            { name: 'completed_at', type: 'DATETIME' }
+            { name: 'completed_at', type: 'DATETIME' },
+            { name: 'frequency', type: "VARCHAR(20) DEFAULT NULL" },
+            { name: 'week_days', type: "VARCHAR(50) DEFAULT NULL" },
+            { name: 'month_day', type: "INT DEFAULT NULL" },
+            { name: 'is_recurring', type: "TINYINT(1) DEFAULT 0" },
+            { name: 'overdue_days', type: "INT DEFAULT 0" }
         ];
         for (const col of newCols) {
             try { await pool.query(`ALTER TABLE diary_tasks ADD COLUMN ${col.name} ${col.type}`); } catch(e) {}
@@ -6724,6 +6729,34 @@ async function initDiaryTasksTables() {
     }
 }
 
+// --- Auto-forward overdue tasks to today (with overdue_days count) ---
+app.get('/api/diary/auto-forward', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        // Forward all incomplete tasks (Pending/In Progress) that are past due_date to today
+        const [overdue] = await pool.query(
+            `SELECT id, due_date, overdue_days, is_recurring, frequency FROM diary_tasks
+             WHERE user_id = ? AND due_date < ? AND status IN ('Pending','In Progress')`,
+            [userId, todayStr]
+        );
+        for (const task of overdue) {
+            const originalDue = new Date(task.due_date);
+            const now = new Date(todayStr);
+            const diffDays = Math.floor((now - originalDue) / (1000 * 60 * 60 * 24));
+            const totalOverdue = (task.overdue_days || 0) + diffDays;
+            await pool.query(
+                `UPDATE diary_tasks SET due_date = ?, overdue_days = ? WHERE id = ?`,
+                [todayStr, totalOverdue, task.id]
+            );
+        }
+        res.json({ forwarded: overdue.length });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // --- Check pending previous-day diary tasks (for login enforcement) ---
 app.get('/api/diary/pending-check', authenticateToken, async (req, res) => {
     try {
@@ -6731,14 +6764,22 @@ app.get('/api/diary/pending-check', authenticateToken, async (req, res) => {
         const today = new Date(); today.setHours(0,0,0,0);
         const todayStr = today.toISOString().split('T')[0];
 
-        // Auto-cancel tasks overdue by more than 2 days to prevent user lockout
-        const twoDaysAgo = new Date(today); twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-        const twoDaysAgoStr = twoDaysAgo.toISOString().split('T')[0];
-        await pool.query(
-            `UPDATE diary_tasks SET status='Cancelled', delay_reason='Auto-cancelled: overdue by 2+ days'
+        // Auto-forward overdue tasks instead of cancelling
+        const [overdue] = await pool.query(
+            `SELECT id, due_date, overdue_days FROM diary_tasks
              WHERE user_id = ? AND due_date < ? AND status IN ('Pending','In Progress')`,
-            [userId, twoDaysAgoStr]
+            [userId, todayStr]
         );
+        for (const task of overdue) {
+            const originalDue = new Date(task.due_date);
+            const now = new Date(todayStr);
+            const diffDays = Math.floor((now - originalDue) / (1000 * 60 * 60 * 24));
+            const totalOverdue = (task.overdue_days || 0) + diffDays;
+            await pool.query(
+                `UPDATE diary_tasks SET due_date = ?, overdue_days = ? WHERE id = ?`,
+                [todayStr, totalOverdue, task.id]
+            );
+        }
 
         const [rows] = await pool.query(
             `SELECT id, title, due_date, priority, status FROM diary_tasks
@@ -6791,28 +6832,88 @@ app.post('/api/diary/bulk-resolve', authenticateToken, async (req, res) => {
     }
 });
 
-// --- Create diary task ---
+// --- Create diary task (supports assigning to other users) ---
 app.post('/api/diary/tasks', authenticateToken, async (req, res) => {
     try {
-        const userId = req.user.id;
-        const { title, description, category, priority, task_type, start_date, due_date, estimated_time, notes } = req.body;
-        if (!title || !due_date) return res.status(400).json({ error: 'Title and due date required' });
+        const { title, description, category, priority, task_type, start_date, due_date, estimated_time, notes, target_user_id, frequency, week_days, month_day } = req.body;
 
-        // Date validation: start_date >= today, due_date >= start_date
+        // Target user: if target_user_id provided and user has permission, assign to that user
+        const targetUserId = target_user_id ? parseInt(target_user_id) : req.user.id;
+        const sourceType = (targetUserId !== req.user.id) ? 'assigned' : 'manual';
+        const assignedBy = (targetUserId !== req.user.id) ? req.user.name || req.user.username : null;
+
+        // For daily recurring tasks, no due_date needed — auto-set to today
         const today = new Date().toISOString().split('T')[0];
+
+        if (frequency === 'daily') {
+            // Daily task — no due date, always today, auto-forwards
+            if (!title) return res.status(400).json({ error: 'Title required' });
+            const [result] = await pool.query(
+                `INSERT INTO diary_tasks (user_id, title, description, category, priority, task_type, start_date, due_date, estimated_time, notes, source_type, assigned_by, frequency, is_recurring)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                [targetUserId, title, description || null, category || 'General', priority || 'Medium', task_type || 'Work',
+                 today, today, estimated_time || null, notes || null, sourceType, assignedBy, 'daily', 1]
+            );
+            await pool.query('INSERT INTO diary_task_history (task_id, previous_status, new_status, comment, changed_by) VALUES (?,?,?,?,?)',
+                [result.insertId, null, 'Pending', 'Daily recurring task created' + (assignedBy ? ' by ' + assignedBy : ''), req.user.id]);
+            return res.status(201).json({ success: true, id: result.insertId });
+        }
+
+        if (frequency === 'weekly') {
+            // Weekly task — week_days = "M,T,W,T,F,S" comma separated
+            if (!title) return res.status(400).json({ error: 'Title required' });
+            if (!week_days) return res.status(400).json({ error: 'Week days required for weekly task' });
+            const [result] = await pool.query(
+                `INSERT INTO diary_tasks (user_id, title, description, category, priority, task_type, start_date, due_date, estimated_time, notes, source_type, assigned_by, frequency, week_days, is_recurring)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                [targetUserId, title, description || null, category || 'General', priority || 'Medium', task_type || 'Work',
+                 today, today, estimated_time || null, notes || null, sourceType, assignedBy, 'weekly', week_days, 1]
+            );
+            await pool.query('INSERT INTO diary_task_history (task_id, previous_status, new_status, comment, changed_by) VALUES (?,?,?,?,?)',
+                [result.insertId, null, 'Pending', 'Weekly recurring task created for days: ' + week_days, req.user.id]);
+            return res.status(201).json({ success: true, id: result.insertId });
+        }
+
+        if (frequency === 'monthly') {
+            // Monthly task — month_day = day of month (1-31)
+            if (!title) return res.status(400).json({ error: 'Title required' });
+            if (!month_day) return res.status(400).json({ error: 'Month day required for monthly task' });
+            const [result] = await pool.query(
+                `INSERT INTO diary_tasks (user_id, title, description, category, priority, task_type, start_date, due_date, estimated_time, notes, source_type, assigned_by, frequency, month_day, is_recurring)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                [targetUserId, title, description || null, category || 'General', priority || 'Medium', task_type || 'Work',
+                 today, today, estimated_time || null, notes || null, sourceType, assignedBy, 'monthly', parseInt(month_day), 1]
+            );
+            await pool.query('INSERT INTO diary_task_history (task_id, previous_status, new_status, comment, changed_by) VALUES (?,?,?,?,?)',
+                [result.insertId, null, 'Pending', 'Monthly recurring task created for day: ' + month_day, req.user.id]);
+            return res.status(201).json({ success: true, id: result.insertId });
+        }
+
+        // One-time task (default)
+        if (!title || !due_date) return res.status(400).json({ error: 'Title and due date required' });
         const effectiveStart = start_date || today;
         const finalStart = effectiveStart < today ? today : effectiveStart;
         const finalDue = due_date < finalStart ? finalStart : due_date;
 
         const [result] = await pool.query(
-            `INSERT INTO diary_tasks (user_id, title, description, category, priority, task_type, start_date, due_date, estimated_time, notes, source_type)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-            [userId, title, description || null, category || 'General', priority || 'Medium', task_type || 'Work',
-             finalStart, finalDue, estimated_time || null, notes || null, 'manual']
+            `INSERT INTO diary_tasks (user_id, title, description, category, priority, task_type, start_date, due_date, estimated_time, notes, source_type, assigned_by)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [targetUserId, title, description || null, category || 'General', priority || 'Medium', task_type || 'Work',
+             finalStart, finalDue, estimated_time || null, notes || null, sourceType, assignedBy]
         );
         await pool.query('INSERT INTO diary_task_history (task_id, previous_status, new_status, comment, changed_by) VALUES (?,?,?,?,?)',
-            [result.insertId, null, 'Pending', 'Task created', userId]);
+            [result.insertId, null, 'Pending', 'Task created' + (assignedBy ? ' by ' + assignedBy : ''), req.user.id]);
         res.status(201).json({ success: true, id: result.insertId });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- API: Get all users list (for task assignment dropdown) ---
+app.get('/api/users/list', authenticateToken, async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT id, name, username, role FROM users ORDER BY name');
+        res.json(rows);
     } catch(e) {
         res.status(500).json({ error: e.message });
     }
@@ -6867,7 +6968,7 @@ app.get('/api/diary/tasks', authenticateToken, async (req, res) => {
         }
 
         const [rows] = await pool.query(
-            `SELECT id, title, description, category, priority, task_type, start_date, due_date, estimated_time, status, delay_reason, next_due_date, reschedule_notes, notes, source_type, source_task_id, assigned_by, completed_at, created_at, updated_at,
+            `SELECT id, title, description, category, priority, task_type, start_date, due_date, estimated_time, status, delay_reason, next_due_date, reschedule_notes, notes, source_type, source_task_id, assigned_by, completed_at, created_at, updated_at, frequency, week_days, month_day, is_recurring, overdue_days,
              IF(attachment_data IS NOT NULL, attachment_name, NULL) as attachment_name
              FROM diary_tasks ${where} ORDER BY FIELD(status,'In Progress','Pending','Rescheduled','Completed','Closed','Cancelled'), due_date ASC`, params
         );
