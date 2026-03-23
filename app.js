@@ -9581,11 +9581,15 @@ app.get('/api/user/locations', async (req, res) => {
     try {
         const { user_id, from, to } = req.query;
         let sql, params = [];
-        if (user_id) {
-            sql = 'SELECT * FROM user_tracking WHERE type="location" AND user_id=? ORDER BY created_at DESC LIMIT 100';
-            params = [user_id];
+        let conditions = ["type='location'"];
+        if (user_id) { conditions.push('user_id=?'); params.push(user_id); }
+        if (from) { conditions.push('DATE(created_at) >= ?'); params.push(from); }
+        if (to) { conditions.push('DATE(created_at) <= ?'); params.push(to); }
+
+        if (user_id || from || to) {
+            sql = 'SELECT * FROM user_tracking WHERE ' + conditions.join(' AND ') + ' ORDER BY created_at DESC LIMIT 500';
         } else {
-            // Latest location per user
+            // Latest location per user (default view)
             sql = `SELECT t1.* FROM user_tracking t1
                    INNER JOIN (SELECT user_id, MAX(created_at) as max_dt FROM user_tracking WHERE type='location' GROUP BY user_id) t2
                    ON t1.user_id = t2.user_id AND t1.created_at = t2.max_dt WHERE t1.type='location'`;
