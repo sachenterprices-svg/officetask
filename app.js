@@ -557,12 +557,15 @@ async function initializeCustomerOrdersTable() {
                 revenue_level VARCHAR(100),
                 epabx_model VARCHAR(100),
                 product_start_date DATE,
+                end_date DATE DEFAULT NULL,
                 order_date DATE,
                 status VARCHAR(50) DEFAULT 'ACTIVE',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
             ) ENGINE=InnoDB
         `);
+        // Add end_date column if not exists (for existing tables)
+        await pool.query(`ALTER TABLE customer_orders ADD COLUMN IF NOT EXISTS end_date DATE DEFAULT NULL AFTER product_start_date`).catch(() => {});
         console.log('✅ Customer Orders table initialized.');
     } catch (err) {
         console.error('⚠️ Could not initialize customer_orders table:', err.message);
@@ -3026,38 +3029,50 @@ app.put('/api/customers/:id', authenticateToken, async (req, res) => {
 
         // If 'is_extension' is true, create a NEW row in customer_orders
         if (data.is_extension) {
+            // Set previous order's end_date = new start_date - 1 day
+            const newStartDate = data.product_start_date || null;
+            if (newStartDate) {
+                const prevEndDate = new Date(newStartDate);
+                prevEndDate.setDate(prevEndDate.getDate() - 1);
+                const prevEndStr = prevEndDate.toISOString().split('T')[0];
+                await connection.query(
+                    `UPDATE customer_orders SET end_date = ? WHERE customer_id = ? AND end_date IS NULL ORDER BY created_at DESC LIMIT 1`,
+                    [prevEndStr, id]
+                );
+            }
             await connection.query(
                 `INSERT INTO customer_orders (
-                    customer_id, product_plan, monthly_rent, channels, 
+                    customer_id, product_plan, monthly_rent, channels,
                     analog_line, digital_line, vas_line, ip_line,
                     analog_rent, digital_rent, vas_rent, ip_rent,
                     rg_port, rg_rent, plan_charge, revenue_level, epabx_model,
-                    product_start_date, order_date
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                    product_start_date, end_date, order_date
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
                 [
                     id, data.product_plan, data.monthly_rent || 0, data.channels || 0,
                     data.analog_line || 0, data.digital_line || 0, data.vas_line || 0, data.ip_line || 0,
                     data.analog_rent || 0, data.digital_rent || 0, data.vas_rent || 0, data.ip_rent || 0,
                     data.rg_port || 0, data.rg_rent || 0, data.plan_charge || 0,
-                    data.revenue_level, data.epabx_model, data.product_start_date || null, data.order_date || null
+                    data.revenue_level, data.epabx_model, data.product_start_date || null, null, data.order_date || null
                 ]
             );
         } else if (data.order_id) {
             // Otherwise, if we are specifically editing an existing order, update it
             await connection.query(
-                `UPDATE customer_orders SET 
-                    product_plan=?, monthly_rent=?, channels=?, 
+                `UPDATE customer_orders SET
+                    product_plan=?, monthly_rent=?, channels=?,
                     analog_line=?, digital_line=?, vas_line=?, ip_line=?,
                     analog_rent=?, digital_rent=?, vas_rent=?, ip_rent=?,
                     rg_port=?, rg_rent=?, plan_charge=?, revenue_level=?, epabx_model=?,
-                    product_start_date=?, order_date=?
+                    product_start_date=?, end_date=?, order_date=?
                 WHERE id = ? AND customer_id = ?`,
                 [
                     data.product_plan, data.monthly_rent || 0, data.channels || 0,
                     data.analog_line || 0, data.digital_line || 0, data.vas_line || 0, data.ip_line || 0,
                     data.analog_rent || 0, data.digital_rent || 0, data.vas_rent || 0, data.ip_rent || 0,
                     data.rg_port || 0, data.rg_rent || 0, data.plan_charge || 0,
-                    data.revenue_level, data.epabx_model, data.product_start_date || null, data.order_date || null,
+                    data.revenue_level, data.epabx_model, data.product_start_date || null,
+                    data.end_date || null, data.order_date || null,
                     data.order_id, id
                 ]
             );
@@ -3110,6 +3125,50 @@ app.put('/api/customers/:id', authenticateToken, async (req, res) => {
         res.status(500).json({ error: 'Update failed' });
     } finally {
         if (connection) connection.release();
+    }
+});
+
+// --- DELETE a customer order (extension history entry) ---
+app.delete('/api/customer-orders/:orderId', authenticateToken, async (req, res) => {
+    const { orderId } = req.params;
+    try {
+        const [rows] = await pool.query('SELECT * FROM customer_orders WHERE id = ?', [orderId]);
+        if (rows.length === 0) return res.status(404).json({ error: 'Order not found' });
+
+        const order = rows[0];
+        // Don't allow deleting the only order for a customer
+        const [countRows] = await pool.query('SELECT COUNT(*) as cnt FROM customer_orders WHERE customer_id = ?', [order.customer_id]);
+        if (countRows[0].cnt <= 1) {
+            return res.status(400).json({ error: 'Cannot delete the only order. At least one order must exist.' });
+        }
+
+        await pool.query('DELETE FROM customer_orders WHERE id = ?', [orderId]);
+
+        // If the deleted order was the latest (no end_date), clear end_date on the new latest order
+        if (!order.end_date) {
+            await pool.query(
+                `UPDATE customer_orders SET end_date = NULL WHERE customer_id = ? ORDER BY created_at DESC LIMIT 1`,
+                [order.customer_id]
+            );
+            // Also update customers table with the new latest order's data
+            const [latest] = await pool.query('SELECT * FROM customer_orders WHERE customer_id = ? ORDER BY created_at DESC LIMIT 1', [order.customer_id]);
+            if (latest.length > 0) {
+                const l = latest[0];
+                await pool.query(
+                    `UPDATE customers SET product_plan=?, monthly_rent=?, channels=?, analog_line=?, digital_line=?, vas_line=?, ip_line=?,
+                     analog_rent=?, digital_rent=?, vas_rent=?, ip_rent=?, rg_port=?, rg_rent=?, plan_charge=?,
+                     revenue_level=?, epabx_model=?, product_start_date=? WHERE id=?`,
+                    [l.product_plan, l.monthly_rent, l.channels, l.analog_line, l.digital_line, l.vas_line, l.ip_line,
+                     l.analog_rent, l.digital_rent, l.vas_rent, l.ip_rent, l.rg_port, l.rg_rent, l.plan_charge,
+                     l.revenue_level, l.epabx_model, l.product_start_date, order.customer_id]
+                );
+            }
+        }
+
+        res.json({ message: 'Order deleted successfully' });
+    } catch (err) {
+        console.error('Delete order error:', err);
+        res.status(500).json({ error: 'Failed to delete order' });
     }
 });
 
