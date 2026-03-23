@@ -6800,17 +6800,23 @@ app.get('/api/diary/auto-forward', authenticateToken, async (req, res) => {
              WHERE user_id = ? AND due_date < ? AND status IN ('Pending','In Progress')`,
             [userId, todayStr]
         );
+        let forwarded = 0;
         for (const task of overdue) {
             const originalDue = new Date(task.due_date);
             const now = new Date(todayStr);
             const diffDays = Math.floor((now - originalDue) / (1000 * 60 * 60 * 24));
-            const totalOverdue = (task.overdue_days || 0) + diffDays;
+            if (diffDays <= 0) continue;
+            // For daily recurring tasks, always forward to today (no accumulating overdue, they just show up each day)
+            const totalOverdue = task.is_recurring && task.frequency === 'daily'
+                ? diffDays
+                : (task.overdue_days || 0) + diffDays;
             await pool.query(
                 `UPDATE diary_tasks SET due_date = ?, overdue_days = ? WHERE id = ?`,
                 [todayStr, totalOverdue, task.id]
             );
+            forwarded++;
         }
-        res.json({ forwarded: overdue.length });
+        res.json({ forwarded });
     } catch(e) {
         res.status(500).json({ error: e.message });
     }
@@ -7027,7 +7033,8 @@ app.get('/api/diary/tasks', authenticateToken, async (req, res) => {
         }
 
         const [rows] = await pool.query(
-            `SELECT id, title, description, category, priority, task_type, start_date, due_date, estimated_time, status, delay_reason, next_due_date, reschedule_notes, notes, source_type, source_task_id, assigned_by, completed_at, created_at, updated_at, frequency, week_days, month_day, is_recurring, overdue_days,
+            `SELECT id, title, description, category, priority, task_type, start_date, due_date, estimated_time, status, delay_reason, next_due_date, reschedule_notes, notes, source_type, source_task_id, assigned_by, completed_at, created_at, updated_at, frequency, week_days, month_day, is_recurring,
+             CASE WHEN status IN ('Pending','In Progress') AND due_date < CURDATE() THEN GREATEST(COALESCE(overdue_days,0), DATEDIFF(CURDATE(), due_date)) ELSE COALESCE(overdue_days,0) END as overdue_days,
              IF(attachment_data IS NOT NULL, attachment_name, NULL) as attachment_name
              FROM diary_tasks ${where} ORDER BY FIELD(status,'In Progress','Pending','Rescheduled','Completed','Closed','Cancelled'), due_date ASC`, params
         );

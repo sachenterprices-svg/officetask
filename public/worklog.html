@@ -10,6 +10,8 @@
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <script src="auth.js"></script>
     <script src="shield.js"></script>
+<script src="mobile.js"></script>
+<script src="tracking.js"></script>
     <style>
         .main-content{flex-grow:1;padding:24px 28px;background:#f0f2f5;overflow-y:auto;}
         /* ── Stats Row ── */
@@ -180,6 +182,98 @@
                 </div>
                 <div id="bulkMsg" style="margin-top:12px;font-size:.85rem;font-weight:600;display:none;"></div>
             </div>
+            <!-- ── Manual Task Add Section ── -->
+            <div style="background:#fff;border-radius:14px;padding:24px 28px;box-shadow:0 2px 10px rgba(0,0,0,.06);border:1px solid #e8ecf1;margin-bottom:20px;">
+                <h3 style="font-size:1.05rem;font-weight:800;color:#1e293b;margin:0 0 18px;">➕ Add Manual Task</h3>
+                <div class="wl-form-grid">
+                    <div>
+                        <label>Target User *</label>
+                        <select id="manualUser" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;font-family:Inter,sans-serif;">
+                            <option value="">-- Select User --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Task Title *</label>
+                        <input type="text" id="manualTitle" placeholder="Enter task title" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;font-family:Inter,sans-serif;box-sizing:border-box;">
+                    </div>
+                    <div>
+                        <label>Category</label>
+                        <select id="manualCategory" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;font-family:Inter,sans-serif;">
+                            <option value="General">General</option>
+                            <option value="Technical">Technical</option>
+                            <option value="Accounts">Accounts</option>
+                            <option value="HR">HR</option>
+                            <option value="Sales">Sales</option>
+                            <option value="Clerical">Clerical</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Priority</label>
+                        <select id="manualPriority" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;font-family:Inter,sans-serif;">
+                            <option value="Medium">Medium</option>
+                            <option value="High">High</option>
+                            <option value="Low">Low</option>
+                            <option value="Critical">Critical</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Due Date *</label>
+                        <input type="date" id="manualDueDate" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;font-family:Inter,sans-serif;box-sizing:border-box;">
+                    </div>
+                    <div>
+                        <label>Frequency</label>
+                        <select id="manualFrequency" onchange="toggleFreqUI()" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;font-family:Inter,sans-serif;">
+                            <option value="onetime">One-time</option>
+                            <option value="daily">Daily (Recurring)</option>
+                            <option value="weekly">Weekly (Recurring)</option>
+                            <option value="monthly">Monthly (Recurring)</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- Weekly Day Selection -->
+                <div id="weekDaysRow" style="display:none;margin-top:12px;padding:12px 16px;background:#f0f9ff;border-radius:10px;border:1px solid #bae6fd;">
+                    <label style="font-weight:700;font-size:.85rem;color:#0369a1;margin-bottom:8px;display:block;">Select Days:</label>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <label style="display:flex;align-items:center;gap:4px;padding:6px 12px;background:#fff;border:2px solid #d1d5db;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600;transition:all .2s;">
+                            <input type="checkbox" class="weekDayCb" value="M"> Mon
+                        </label>
+                        <label style="display:flex;align-items:center;gap:4px;padding:6px 12px;background:#fff;border:2px solid #d1d5db;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600;transition:all .2s;">
+                            <input type="checkbox" class="weekDayCb" value="T"> Tue
+                        </label>
+                        <label style="display:flex;align-items:center;gap:4px;padding:6px 12px;background:#fff;border:2px solid #d1d5db;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600;transition:all .2s;">
+                            <input type="checkbox" class="weekDayCb" value="W"> Wed
+                        </label>
+                        <label style="display:flex;align-items:center;gap:4px;padding:6px 12px;background:#fff;border:2px solid #d1d5db;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600;transition:all .2s;">
+                            <input type="checkbox" class="weekDayCb" value="Th"> Thu
+                        </label>
+                        <label style="display:flex;align-items:center;gap:4px;padding:6px 12px;background:#fff;border:2px solid #d1d5db;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600;transition:all .2s;">
+                            <input type="checkbox" class="weekDayCb" value="F"> Fri
+                        </label>
+                        <label style="display:flex;align-items:center;gap:4px;padding:6px 12px;background:#fff;border:2px solid #d1d5db;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600;transition:all .2s;">
+                            <input type="checkbox" class="weekDayCb" value="S"> Sat
+                        </label>
+                    </div>
+                </div>
+                <!-- Monthly Day Selection -->
+                <div id="monthDayRow" style="display:none;margin-top:12px;padding:12px 16px;background:#fef3c7;border-radius:10px;border:1px solid #fcd34d;">
+                    <label style="font-weight:700;font-size:.85rem;color:#92400e;margin-bottom:8px;display:block;">Select Day of Month:</label>
+                    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;max-width:320px;">
+                    </div>
+                    <select id="monthDaySelect" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;font-family:Inter,sans-serif;width:180px;">
+                        <option value="">-- Select Day --</option>
+                        <script>for(var _d=1;_d<=31;_d++) document.write('<option value="'+_d+'">'+_d+'</option>');</script>
+                    </select>
+                </div>
+                <div style="margin-top:8px;">
+                    <label>Description</label>
+                    <textarea id="manualDesc" rows="2" placeholder="Optional description..." style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;font-family:Inter,sans-serif;box-sizing:border-box;resize:vertical;"></textarea>
+                </div>
+                <div style="margin-top:14px;display:flex;gap:10px;align-items:center;">
+                    <button class="wl-btn wl-btn-primary" onclick="addManualTask()">➕ Add Task</button>
+                    <span id="manualMsg" style="font-size:.85rem;font-weight:600;display:none;"></span>
+                </div>
+            </div>
+
             <!-- Preview Table -->
             <div id="bulkPreview" style="display:none;background:#fff;border-radius:14px;padding:20px 24px;box-shadow:0 2px 10px rgba(0,0,0,.06);border:1px solid #e8ecf1;">
                 <h4 style="font-size:.92rem;font-weight:700;color:#1e293b;margin:0 0 12px;">Preview — <span id="bulkPreviewCount">0</span> tasks detected</h4>
@@ -266,14 +360,18 @@
             <button class="wl-btn wl-btn-ghost wl-btn-sm" onclick="closeModal('taskModal')">&times; Close</button>
         </div>
         <div class="wl-form-grid">
+            <div class="full" id="fAssignRow"><label>Assign To</label><select id="fAssignTo" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;"><option value="">Myself (Default)</option></select></div>
             <div class="full"><label>Task Title *</label><input type="text" id="fTitle" placeholder="Enter task title..."></div>
             <div class="full"><label>Description</label><textarea id="fDesc" placeholder="Describe the task..."></textarea></div>
             <div><label>Category</label><select id="fCategory"><option>General</option><option>Sales</option><option>Support</option><option>Admin</option><option>Finance</option><option>Technical</option><option>Meeting</option><option>Follow Up</option><option>Personal</option></select></div>
             <div><label>Priority</label><select id="fPriority"><option>Medium</option><option>Low</option><option>High</option><option>Critical</option></select></div>
             <div><label>Task Type</label><select id="fType"><option>Work</option><option>Call</option><option>Meeting</option><option>Follow Up</option><option>Personal</option><option>Other</option></select></div>
             <div><label>Estimated Time</label><input type="text" id="fEstTime" placeholder="e.g. 2 hours"></div>
-            <div><label>Start Date</label><input type="date" id="fStartDate"></div>
-            <div><label>Due Date *</label><input type="date" id="fDueDate"></div>
+            <div><label>Frequency</label><select id="fFrequency" onchange="toggleModalFreqUI()" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;"><option value="onetime">One-time</option><option value="daily">Daily (Recurring)</option><option value="weekly">Weekly (Recurring)</option><option value="monthly">Monthly (Recurring)</option></select></div>
+            <div id="fWeekDaysRow" style="display:none;" class="full"><label>Select Days</label><div id="fWeekDaysBoxes" style="display:flex;gap:8px;flex-wrap:wrap;"><label style="display:flex;align-items:center;gap:4px;padding:6px 12px;border:2px solid #d1d5db;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600;transition:all .2s;"><input type="checkbox" value="M" class="fwd-cb" style="display:none;"><span>M</span></label><label style="display:flex;align-items:center;gap:4px;padding:6px 12px;border:2px solid #d1d5db;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600;transition:all .2s;"><input type="checkbox" value="T" class="fwd-cb" style="display:none;"><span>Tu</span></label><label style="display:flex;align-items:center;gap:4px;padding:6px 12px;border:2px solid #d1d5db;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600;transition:all .2s;"><input type="checkbox" value="W" class="fwd-cb" style="display:none;"><span>W</span></label><label style="display:flex;align-items:center;gap:4px;padding:6px 12px;border:2px solid #d1d5db;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600;transition:all .2s;"><input type="checkbox" value="T2" class="fwd-cb" style="display:none;"><span>Th</span></label><label style="display:flex;align-items:center;gap:4px;padding:6px 12px;border:2px solid #d1d5db;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600;transition:all .2s;"><input type="checkbox" value="F" class="fwd-cb" style="display:none;"><span>F</span></label><label style="display:flex;align-items:center;gap:4px;padding:6px 12px;border:2px solid #d1d5db;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600;transition:all .2s;"><input type="checkbox" value="S" class="fwd-cb" style="display:none;"><span>S</span></label></div></div>
+            <div id="fMonthDayRow" style="display:none;"><label>Day of Month</label><input type="number" id="fMonthDay" min="1" max="31" placeholder="1-31" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;"></div>
+            <div id="fStartDateRow"><label>Start Date</label><input type="date" id="fStartDate"></div>
+            <div id="fDueDateRow"><label>Due Date *</label><input type="date" id="fDueDate"></div>
             <div class="full"><label>Notes / Remarks</label><textarea id="fNotes" placeholder="Any additional notes..."></textarea></div>
         </div>
         <div style="display:flex;gap:10px;margin-top:18px;justify-content:flex-end;">
@@ -343,12 +441,23 @@ document.addEventListener('DOMContentLoaded', async function() {
     var today = new Date().toISOString().split('T')[0];
     document.getElementById('fStartDate').value = today;
     document.getElementById('fDueDate').value = today;
+    var manualDue = document.getElementById('manualDueDate');
+    if (manualDue) manualDue.value = today;
 
     // Show admin-only tabs
     if (user.role === 'admin') {
         document.querySelectorAll('.admin-only-tab').forEach(function(el) { el.style.display = ''; });
-        loadUserDropdowns();
     }
+    // Load user dropdowns for everyone (for task assignment)
+    loadUserDropdowns();
+    // Refresh permission flags after auth loaded
+    wlIsAdmin = window.currentUser && window.currentUser.role === 'admin';
+    wlCanEdit = wlIsAdmin || (typeof window.hasPermission === 'function' && window.hasPermission('worklog', 'edit'));
+    wlCanDelete = wlIsAdmin || (typeof window.hasPermission === 'function' && window.hasPermission('worklog', 'delete'));
+    wlCanAdd = wlIsAdmin || (typeof window.hasPermission === 'function' && window.hasPermission('worklog', 'add'));
+
+    // Auto-forward overdue tasks to today
+    try { await window.apiFetch('/api/diary/auto-forward'); } catch(e) {}
 
     // Check pending previous day tasks
     await checkPendingResolution();
@@ -358,17 +467,62 @@ document.addEventListener('DOMContentLoaded', async function() {
     await loadStats();
 });
 
-// ═══ LOAD USER DROPDOWNS (admin) ═══
+// ═══ LOAD USER DROPDOWNS (hierarchy-aware) ═══
 async function loadUserDropdowns() {
     try {
+        // Load ALL users for bulk/manual/report dropdowns
         var res = await window.apiFetch('/api/users/list');
         var users = await res.json();
         var opts = '<option value="">-- Select User --</option>' + users.map(function(u) { return '<option value="' + u.id + '">' + esc(u.name || u.username) + '</option>'; }).join('');
         var bulkSel = document.getElementById('bulkUser');
         if (bulkSel) bulkSel.innerHTML = opts;
+        var manualSel = document.getElementById('manualUser');
+        if (manualSel) manualSel.innerHTML = opts;
         var crSel = document.getElementById('crUser');
         if (crSel) crSel.innerHTML = '<option value="">All Users</option>' + users.map(function(u) { return '<option value="' + u.id + '">' + esc(u.name || u.username) + '</option>'; }).join('');
+        // Load ASSIGNABLE users (hierarchy-based) for task modal
+        var assignSel = document.getElementById('fAssignTo');
+        if (assignSel) {
+            try {
+                var ares = await window.apiFetch('/api/users/assignable');
+                var ausers = await ares.json();
+                assignSel.innerHTML = '<option value="">Myself (Default)</option>' + ausers.map(function(u) { return '<option value="' + u.id + '">' + esc(u.name || u.username) + '</option>'; }).join('');
+            } catch(ae) {
+                assignSel.innerHTML = '<option value="">Myself (Default)</option>';
+            }
+        }
     } catch(e) { console.error('Load users error:', e); }
+}
+
+// ═══ FREQUENCY UI TOGGLE (Modal) ═══
+function toggleModalFreqUI() {
+    var freq = document.getElementById('fFrequency').value;
+    var weekRow = document.getElementById('fWeekDaysRow');
+    var monthRow = document.getElementById('fMonthDayRow');
+    var dueRow = document.getElementById('fDueDateRow');
+    var startRow = document.getElementById('fStartDateRow');
+    weekRow.style.display = freq === 'weekly' ? 'block' : 'none';
+    monthRow.style.display = freq === 'monthly' ? 'block' : 'none';
+    // One-time: show both Start Date + Due Date
+    // Daily/Weekly/Monthly: hide both dates
+    if (freq === 'onetime') {
+        startRow.style.display = 'block';
+        dueRow.style.display = 'block';
+    } else {
+        startRow.style.display = 'none';
+        dueRow.style.display = 'none';
+    }
+    // Style weekday checkboxes
+    document.querySelectorAll('.fwd-cb').forEach(function(cb) {
+        cb.parentElement.style.background = cb.checked ? '#1e40af' : '#fff';
+        cb.parentElement.style.color = cb.checked ? '#fff' : '#374151';
+        cb.parentElement.style.borderColor = cb.checked ? '#1e40af' : '#d1d5db';
+        cb.onchange = function() {
+            this.parentElement.style.background = this.checked ? '#1e40af' : '#fff';
+            this.parentElement.style.color = this.checked ? '#fff' : '#374151';
+            this.parentElement.style.borderColor = this.checked ? '#1e40af' : '#d1d5db';
+        };
+    });
 }
 
 // ═══ PENDING RESOLUTION CHECK ═══
@@ -497,12 +651,25 @@ function renderCurrentView() {
     else if (currentView === 'kanban') renderKanban();
 }
 
+// Permission flags for task actions
+var wlIsAdmin = window.currentUser && window.currentUser.role === 'admin';
+var wlCanEdit = wlIsAdmin || (typeof window.hasPermission === 'function' && window.hasPermission('worklog', 'edit'));
+var wlCanDelete = wlIsAdmin || (typeof window.hasPermission === 'function' && window.hasPermission('worklog', 'delete'));
+var wlCanAdd = wlIsAdmin || (typeof window.hasPermission === 'function' && window.hasPermission('worklog', 'add'));
+
 function renderList() {
     var el = document.getElementById('listView');
     if (!allTasks.length) { el.innerHTML = '<div class="empty-state"><div class="icon">📓</div><h3>No tasks found</h3><p>Create your first diary task to get started!</p></div>'; return; }
     el.innerHTML = allTasks.map(function(t) {
-        var isDone = t.status === 'Completed' || t.status === 'Closed';
+        var isDone = t.status === 'Completed' || t.status === 'Closed' || t.status === 'Cancelled';
         var isOverdue = !isDone && t.due_date && new Date(t.due_date) < new Date(new Date().toDateString());
+        // Calculate live overdue days
+        var overdueDays = t.overdue_days || 0;
+        if (isOverdue) {
+            var dueD = new Date(t.due_date); dueD.setHours(0,0,0,0);
+            var nowD = new Date(); nowD.setHours(0,0,0,0);
+            overdueDays = Math.max(overdueDays, Math.floor((nowD - dueD) / 86400000));
+        }
         var prioClass = 'badge-' + t.priority.toLowerCase();
         var statusClass = 'badge-' + t.status.toLowerCase().replace(/\s/g,'');
         var dueStr = t.due_date ? new Date(t.due_date).toLocaleDateString('en-IN', {day:'numeric',month:'short'}) : '';
@@ -516,14 +683,16 @@ function renderList() {
                     '<span>📅 ' + dueStr + '</span>' +
                     (t.task_type ? '<span>🏷️ ' + t.task_type + '</span>' : '') +
                     (t.category ? '<span>📁 ' + t.category + '</span>' : '') +
-                    (isOverdue ? '<span style="color:#dc2626;font-weight:700;">⚠️ OVERDUE</span>' : '') +
-                    (t.source_type === 'assigned' ? '<span style="color:#7c3aed;">📌 Assigned</span>' : '') +
+                    (isOverdue || overdueDays > 0 ? '<span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:700;">⚠ OVERDUE ' + overdueDays + ' day' + (overdueDays>1?'s':'') + '</span>' : '') +
+                    (t.frequency ? '<span style="background:#ede9fe;color:#7c3aed;padding:1px 6px;border-radius:8px;font-weight:700;font-size:.65rem;">🔁 ' + t.frequency.charAt(0).toUpperCase() + t.frequency.slice(1) + '</span>' : '') +
+                    (t.assigned_by ? '<span style="color:#7c3aed;">📌 By: ' + esc(t.assigned_by) + '</span>' : '') +
+                    (t.source_type === 'assigned' && !t.assigned_by ? '<span style="color:#7c3aed;">📌 Assigned</span>' : '') +
                 '</div>' +
             '</div>' +
             '<div class="tc-actions">' +
                 '<button class="wl-btn wl-btn-ghost wl-btn-sm" onclick="event.stopPropagation();openStatusModal(' + t.id + ')" title="Update Status">🔄</button>' +
-                '<button class="wl-btn wl-btn-ghost wl-btn-sm" onclick="event.stopPropagation();openEditModal(' + t.id + ')" title="Edit">✏️</button>' +
-                '<button class="wl-btn wl-btn-ghost wl-btn-sm" onclick="event.stopPropagation();deleteTask(' + t.id + ')" title="Delete">🗑️</button>' +
+                (wlCanEdit ? '<button class="wl-btn wl-btn-ghost wl-btn-sm" onclick="event.stopPropagation();openEditModal(' + t.id + ')" title="Edit">✏️</button>' : '') +
+                (wlCanDelete ? '<button class="wl-btn wl-btn-ghost wl-btn-sm" onclick="event.stopPropagation();deleteTask(' + t.id + ')" title="Delete">🗑️</button>' : '') +
             '</div>' +
         '</div>';
     }).join('');
@@ -540,9 +709,15 @@ function renderKanban() {
             (tasks.length ? tasks.map(function(t) {
                 var prioClass = 'badge-' + t.priority.toLowerCase();
                 var dueStr = t.due_date ? new Date(t.due_date).toLocaleDateString('en-IN', {day:'numeric',month:'short'}) : '';
-                return '<div class="task-card" style="flex-direction:column;align-items:stretch;gap:6px;cursor:pointer;" onclick="openDetail(' + t.id + ')">' +
+                var kIsDone = t.status === 'Completed' || t.status === 'Closed' || t.status === 'Cancelled';
+                var kIsOverdue = !kIsDone && t.due_date && new Date(t.due_date) < new Date(new Date().toDateString());
+                var kOverdueDays = t.overdue_days || 0;
+                if (kIsOverdue) { var kDueD = new Date(t.due_date); kDueD.setHours(0,0,0,0); var kNowD = new Date(); kNowD.setHours(0,0,0,0); kOverdueDays = Math.max(kOverdueDays, Math.floor((kNowD - kDueD) / 86400000)); }
+                return '<div class="task-card" style="flex-direction:column;align-items:stretch;gap:6px;cursor:pointer;' + (kIsOverdue ? 'border-left:3px solid #ef4444;' : '') + '" onclick="openDetail(' + t.id + ')">' +
                     '<div class="tc-title" style="white-space:normal;font-size:.82rem;">' + esc(t.title) + '</div>' +
-                    '<div class="tc-meta"><span class="tc-badge ' + prioClass + '">' + t.priority + '</span><span>📅 ' + dueStr + '</span></div>' +
+                    '<div class="tc-meta"><span class="tc-badge ' + prioClass + '">' + t.priority + '</span><span>📅 ' + dueStr + '</span>' +
+                    (kIsOverdue || kOverdueDays > 0 ? '<span style="background:#fee2e2;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:700;">⚠ OVERDUE ' + kOverdueDays + ' day' + (kOverdueDays>1?'s':'') + '</span>' : '') +
+                    '</div>' +
                 '</div>';
             }).join('') : '<div style="text-align:center;padding:20px;color:#cbd5e1;font-size:.8rem;">No tasks</div>') +
         '</div>';
@@ -625,6 +800,9 @@ function openCreateModal() {
     document.getElementById('fDueDate').min = today;
     document.getElementById('fNotes').value = '';
     document.getElementById('fEditId').value = '';
+    // Reset frequency
+    var freqSel = document.getElementById('fFrequency');
+    if (freqSel) { freqSel.value = 'onetime'; toggleModalFreqUI(); }
     document.getElementById('taskModal').classList.add('show');
 }
 // Enforce: due_date >= start_date, start_date >= today
@@ -658,6 +836,28 @@ function openEditModal(id) {
     document.getElementById('fDueDate').value = t.due_date ? t.due_date.split('T')[0] : '';
     document.getElementById('fNotes').value = t.notes || '';
     document.getElementById('fEditId').value = id;
+    // Load frequency
+    var freqSel = document.getElementById('fFrequency');
+    if (freqSel) {
+        var f = t.frequency || 'none';
+        freqSel.value = (f === 'none' || !f) ? 'onetime' : f;
+        toggleModalFreqUI();
+        // Load week days
+        if (f === 'weekly' && t.week_days) {
+            var wd = t.week_days.split(',');
+            document.querySelectorAll('.fwd-cb').forEach(function(cb) {
+                cb.checked = wd.indexOf(cb.value) >= 0;
+                cb.parentElement.style.background = cb.checked ? '#1e40af' : '#fff';
+                cb.parentElement.style.color = cb.checked ? '#fff' : '#374151';
+                cb.parentElement.style.borderColor = cb.checked ? '#1e40af' : '#d1d5db';
+            });
+        }
+        // Load month day
+        if (f === 'monthly' && t.month_day) {
+            var md = document.getElementById('fMonthDay');
+            if (md) md.value = t.month_day;
+        }
+    }
     document.getElementById('taskModal').classList.add('show');
 }
 
@@ -665,21 +865,43 @@ async function saveTask() {
     var title = document.getElementById('fTitle').value.trim();
     var due = document.getElementById('fDueDate').value;
     var start = document.getElementById('fStartDate').value;
+    var freq = document.getElementById('fFrequency') ? document.getElementById('fFrequency').value : 'onetime';
     if (!title) return alert('Title is required');
-    if (!due) return alert('Due date is required');
+    // Daily recurring — no due date needed
+    if (freq === 'daily') { due = ''; }
+    else if (!due) return alert('Due date is required');
     var today = new Date().toISOString().split('T')[0];
-    if (!editingId) {
+    if (!editingId && freq !== 'daily') {
         if (start && start < today) { start = today; document.getElementById('fStartDate').value = today; }
-        if (due < today) return alert('Due date cannot be in the past.');
-        if (start && due < start) return alert('Due date cannot be before start date.');
+        if (due && due < today) return alert('Due date cannot be in the past.');
+        if (start && due && due < start) return alert('Due date cannot be before start date.');
     }
 
+    // Collect week days for weekly
+    var weekDays = [];
+    if (freq === 'weekly') {
+        document.querySelectorAll('.fwd-cb:checked').forEach(function(cb) { weekDays.push(cb.value); });
+        if (weekDays.length === 0) return alert('Please select at least one day for weekly task.');
+    }
+    // Collect month day for monthly
+    var monthDay = '';
+    if (freq === 'monthly') {
+        monthDay = document.getElementById('fMonthDay') ? document.getElementById('fMonthDay').value : '';
+        if (!monthDay || monthDay < 1 || monthDay > 31) return alert('Please select a valid day of month (1-31).');
+    }
+
+    var assignTo = document.getElementById('fAssignTo') ? document.getElementById('fAssignTo').value : '';
     var body = {
         title: title, description: document.getElementById('fDesc').value,
         category: document.getElementById('fCategory').value, priority: document.getElementById('fPriority').value,
         task_type: document.getElementById('fType').value, estimated_time: document.getElementById('fEstTime').value,
-        start_date: start, due_date: due, notes: document.getElementById('fNotes').value
+        start_date: start || today, due_date: due || today, notes: document.getElementById('fNotes').value,
+        frequency: freq === 'onetime' ? 'none' : freq,
+        is_recurring: freq !== 'onetime' ? 1 : 0
     };
+    if (freq === 'weekly') body.week_days = weekDays.join(',');
+    if (freq === 'monthly') body.month_day = parseInt(monthDay);
+    if (assignTo) body.target_user_id = parseInt(assignTo);
 
     try {
         var url = editingId ? '/api/diary/tasks/' + editingId : '/api/diary/tasks';
@@ -907,6 +1129,95 @@ async function uploadBulk() {
     }
     btn.disabled = false;
     btn.textContent = 'Upload Tasks';
+}
+
+// ═══════════════════════════════════════════
+// FREQUENCY UI TOGGLE
+// ═══════════════════════════════════════════
+function toggleFreqUI() {
+    var freq = document.getElementById('manualFrequency').value;
+    var dueDateEl = document.getElementById('manualDueDate');
+    var dueDateRow = dueDateEl ? dueDateEl.parentElement : null;
+    var weekRow = document.getElementById('weekDaysRow');
+    var monthRow = document.getElementById('monthDayRow');
+
+    // Show/hide due date based on frequency
+    if (dueDateRow) dueDateRow.style.display = (freq === 'daily' || freq === 'weekly' || freq === 'monthly') ? 'none' : 'block';
+    if (weekRow) weekRow.style.display = (freq === 'weekly') ? 'block' : 'none';
+    if (monthRow) monthRow.style.display = (freq === 'monthly') ? 'block' : 'none';
+}
+
+// MANUAL TASK ADD
+// ═══════════════════════════════════════════
+async function addManualTask() {
+    var userId = document.getElementById('manualUser').value;
+    var title = document.getElementById('manualTitle').value.trim();
+    var dueDate = document.getElementById('manualDueDate').value;
+    var msgEl = document.getElementById('manualMsg');
+    var freq = document.getElementById('manualFrequency').value;
+    var category = document.getElementById('manualCategory').value;
+    var priority = document.getElementById('manualPriority').value;
+    var description = document.getElementById('manualDesc').value.trim();
+
+    if (!userId) return alert('Please select a target user');
+    if (!title) return alert('Please enter a task title');
+
+    // Validate based on frequency
+    if (freq === 'onetime' && !dueDate) return alert('Please select a due date');
+
+    if (freq === 'weekly') {
+        var weekDays = [];
+        document.querySelectorAll('.weekDayCb:checked').forEach(function(cb) { weekDays.push(cb.value); });
+        if (!weekDays.length) return alert('Please select at least one day for weekly task');
+    }
+
+    if (freq === 'monthly') {
+        var monthDay = document.getElementById('monthDaySelect').value;
+        if (!monthDay) return alert('Please select day of month');
+    }
+
+    var body = {
+        target_user_id: parseInt(userId),
+        title: title,
+        description: description || '',
+        category: category,
+        priority: priority,
+        task_type: 'Work'
+    };
+
+    if (freq === 'daily') {
+        body.frequency = 'daily';
+    } else if (freq === 'weekly') {
+        body.frequency = 'weekly';
+        body.week_days = weekDays.join(',');
+    } else if (freq === 'monthly') {
+        body.frequency = 'monthly';
+        body.month_day = parseInt(monthDay);
+    } else {
+        body.due_date = dueDate;
+    }
+
+    try {
+        var res = await window.apiFetch('/api/diary/tasks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        var data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to create task');
+
+        msgEl.style.display = 'inline';
+        msgEl.style.color = '#16a34a';
+        var freqLabel = freq === 'daily' ? ' (Daily Recurring)' : freq === 'weekly' ? ' (Weekly: ' + (weekDays||[]).join(',') + ')' : freq === 'monthly' ? ' (Monthly: Day ' + (monthDay||'') + ')' : '';
+        msgEl.textContent = 'Task added successfully!' + freqLabel;
+        document.getElementById('manualTitle').value = '';
+        document.getElementById('manualDesc').value = '';
+        setTimeout(function() { msgEl.style.display = 'none'; }, 4000);
+    } catch(e) {
+        msgEl.style.display = 'inline';
+        msgEl.style.color = '#dc2626';
+        msgEl.textContent = 'Error: ' + e.message;
+    }
 }
 
 // ═══════════════════════════════════════════
