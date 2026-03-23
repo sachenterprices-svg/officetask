@@ -1869,6 +1869,8 @@ app.put('/api/complaints/:id', authenticateToken, async (req, res) => {
                         );
                         await pool.query('INSERT INTO diary_task_history (task_id, previous_status, new_status, comment, changed_by) VALUES (?,?,?,?,?)',
                             [dtResult.insertId, null, 'Pending', 'Auto-created from complaint assignment', currentUser.id]);
+                        // Push notification for complaint assignment
+                        sendPushNotification(engineerUserId, 'New Complaint Assigned', 'Complaint #' + (complaintData.complaint_no || complaintId) + ' - ' + subject);
                     }
                 }
             } catch(autoTaskErr) {
@@ -6921,6 +6923,10 @@ app.post('/api/diary/tasks', authenticateToken, async (req, res) => {
             );
             await pool.query('INSERT INTO diary_task_history (task_id, previous_status, new_status, comment, changed_by) VALUES (?,?,?,?,?)',
                 [result.insertId, null, 'Pending', 'Daily recurring task created' + (assignedBy ? ' by ' + assignedBy : ''), req.user.id]);
+            // Send push notification if assigned to someone else
+            if (targetUserId !== req.user.id) {
+                sendPushNotification(targetUserId, 'New Daily Task Assigned', title + ' - assigned by ' + (assignedBy || 'Admin'));
+            }
             return res.status(201).json({ success: true, id: result.insertId });
         }
 
@@ -6936,6 +6942,9 @@ app.post('/api/diary/tasks', authenticateToken, async (req, res) => {
             );
             await pool.query('INSERT INTO diary_task_history (task_id, previous_status, new_status, comment, changed_by) VALUES (?,?,?,?,?)',
                 [result.insertId, null, 'Pending', 'Weekly recurring task created for days: ' + week_days, req.user.id]);
+            if (targetUserId !== req.user.id) {
+                sendPushNotification(targetUserId, 'New Weekly Task Assigned', title + ' (' + week_days + ') - assigned by ' + (assignedBy || 'Admin'));
+            }
             return res.status(201).json({ success: true, id: result.insertId });
         }
 
@@ -6951,6 +6960,9 @@ app.post('/api/diary/tasks', authenticateToken, async (req, res) => {
             );
             await pool.query('INSERT INTO diary_task_history (task_id, previous_status, new_status, comment, changed_by) VALUES (?,?,?,?,?)',
                 [result.insertId, null, 'Pending', 'Monthly recurring task created for day: ' + month_day, req.user.id]);
+            if (targetUserId !== req.user.id) {
+                sendPushNotification(targetUserId, 'New Monthly Task Assigned', title + ' (Day ' + month_day + ') - assigned by ' + (assignedBy || 'Admin'));
+            }
             return res.status(201).json({ success: true, id: result.insertId });
         }
 
@@ -6968,6 +6980,10 @@ app.post('/api/diary/tasks', authenticateToken, async (req, res) => {
         );
         await pool.query('INSERT INTO diary_task_history (task_id, previous_status, new_status, comment, changed_by) VALUES (?,?,?,?,?)',
             [result.insertId, null, 'Pending', 'Task created' + (assignedBy ? ' by ' + assignedBy : ''), req.user.id]);
+        // Send push notification if assigned to someone else
+        if (targetUserId !== req.user.id) {
+            sendPushNotification(targetUserId, 'New Task Assigned', title + ' - assigned by ' + (assignedBy || 'Admin'));
+        }
         res.status(201).json({ success: true, id: result.insertId });
     } catch(e) {
         res.status(500).json({ error: e.message });
@@ -9710,6 +9726,73 @@ function voiceBotFallback(step, message, data, nextData) {
         default: reply = R('एसटीडी कोड बताएं।', 'Tell STD Code.'); nextStep = 'ask_std'; nextData = { lang: data.lang };
     }
     return { reply, nextStep, nextData, action };
+}
+
+// ══════ FIREBASE PUSH NOTIFICATIONS ══════
+pool.query(`CREATE TABLE IF NOT EXISTS fcm_tokens (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    token TEXT NOT NULL,
+    device VARCHAR(50) DEFAULT 'android',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_user_device (user_id, device)
+)`);
+
+// Register FCM token
+app.post('/api/fcm/register', authenticateToken, async (req, res) => {
+    try {
+        const { token, device } = req.body;
+        if (!token) return res.status(400).json({ error: 'Token required' });
+        await pool.query(
+            `INSERT INTO fcm_tokens (user_id, token, device) VALUES (?, ?, ?)
+             ON DUPLICATE KEY UPDATE token = VALUES(token), updated_at = NOW()`,
+            [req.user.id, token, device || 'android']
+        );
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Send push notification helper using FCM HTTP API
+const FCM_SERVER_KEY = process.env.FCM_SERVER_KEY || '';
+
+async function sendPushNotification(userId, title, body) {
+    try {
+        const [tokens] = await pool.query('SELECT token FROM fcm_tokens WHERE user_id = ?', [userId]);
+        if (tokens.length === 0) return;
+        const https = require('https');
+        for (const t of tokens) {
+            const payload = JSON.stringify({
+                to: t.token,
+                notification: { title, body, sound: 'default', click_action: 'OPEN_APP', channel_id: 'coral_notifications' },
+                data: { title, body, type: 'task' },
+                priority: 'high'
+            });
+            const options = {
+                hostname: 'fcm.googleapis.com', path: '/fcm/send', method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'key=' + FCM_SERVER_KEY }
+            };
+            const req = https.request(options, (res) => {
+                let data = '';
+                res.on('data', c => data += c);
+                res.on('end', () => {
+                    try {
+                        const r = JSON.parse(data);
+                        if (r.failure > 0 && r.results) {
+                            r.results.forEach((result, i) => {
+                                if (result.error === 'NotRegistered' || result.error === 'InvalidRegistration') {
+                                    pool.query('DELETE FROM fcm_tokens WHERE token = ?', [t.token]);
+                                }
+                            });
+                        }
+                    } catch(e) {}
+                });
+            });
+            req.on('error', () => {});
+            req.write(payload);
+            req.end();
+        }
+    } catch (e) { console.error('Push notification error:', e.message); }
 }
 
 // ══════ USER TRACKING APIs (Location, Voice, Photo) ══════
