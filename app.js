@@ -9600,7 +9600,7 @@ app.get('/api/user/locations', async (req, res) => {
 });
 
 // DELETE /api/user/tracking/:id — admin only delete tracking entry
-app.delete('/api/user/tracking/:id', async (req, res) => {
+app.delete('/api/user/tracking/:id', authenticateToken, async (req, res) => {
     try {
         const user = req.user || {};
         if (user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
@@ -9610,7 +9610,7 @@ app.delete('/api/user/tracking/:id', async (req, res) => {
 });
 
 // DELETE /api/user/tracking — admin clear all test data
-app.delete('/api/user/tracking', async (req, res) => {
+app.delete('/api/user/tracking', authenticateToken, async (req, res) => {
     try {
         const user = req.user || {};
         if (user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
